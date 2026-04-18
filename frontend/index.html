@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<<<<<<< HEAD
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SwingRush — Financial Recommendation Network</title>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <style>
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(140deg, #080f24 0%, #0a2560 55%, #080f24 100%);
+      padding: 90px 40px 70px;
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content:'';position:absolute;inset:0;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 0%, rgba(0,230,118,0.08) 0%, transparent 70%),
+        repeating-linear-gradient(0deg,transparent,transparent 48px,rgba(255,255,255,0.02) 48px,rgba(255,255,255,0.02) 49px),
+        repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,0.02) 48px,rgba(255,255,255,0.02) 49px);
+    }
+    .hero-live-tag {
+      display:inline-flex;align-items:center;gap:6px;
+      background:rgba(0,230,118,0.12);border:1px solid rgba(0,230,118,0.4);
+      color:var(--green2);padding:5px 16px;border-radius:20px;
+      font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+      margin-bottom:24px;position:relative;
+    }
+    .live-dot {
+      width:7px;height:7px;border-radius:50%;background:var(--green2);
+      animation:pulse-dot 1.5s infinite;
+    }
+    .hero h1 {
+      font-family:var(--font-disp);
+      font-size:clamp(52px,9vw,110px);
+      color:#fff;line-height:.95;letter-spacing:3px;
+      margin-bottom:20px;position:relative;
+    }
+    .hero h1 .gr { color:var(--green2); }
+    .hero h1 .rd { color:var(--red2); }
+    .hero-sub {
+      font-size:18px;color:rgba(255,255,255,0.65);
+      max-width:540px;margin:0 auto 40px;position:relative;line-height:1.6;
+    }
+    .hero-btns { display:flex;gap:14px;justify-content:center;flex-wrap:wrap;position:relative; }
+
+    /* ── 2-col grid ── */
+    .main-grid {
+      display:grid;grid-template-columns:1fr 1fr;gap:40px;
+      max-width:1120px;margin:64px auto;padding:0 24px;
+    }
+    @media(max-width:860px){.main-grid{grid-template-columns:1fr;}}
+
+    /* ── Register card ── */
+    .reg-card {
+      background:#fff;border:2px solid var(--border);
+      border-radius:18px;padding:38px;
+      box-shadow:var(--shadow-lg);
+    }
+    .reg-card h2 {
+      font-family:var(--font-disp);font-size:28px;letter-spacing:1px;
+      color:var(--accent);margin-bottom:4px;
+    }
+    .reg-card .sub { color:var(--muted);font-size:14px;margin-bottom:28px; }
+
+    /* Stepper */
+    .stepper { display:flex;margin-bottom:32px;gap:0; }
+    .stp { flex:1;text-align:center;position:relative;padding-bottom:18px; }
+    .stp::after {
+      content:'';position:absolute;top:13px;left:50%;right:-50%;
+      height:2px;background:var(--border);
+    }
+    .stp:last-child::after { display:none; }
+    .stp-num {
+      width:26px;height:26px;border-radius:50%;
+      background:var(--bg3);color:var(--muted);
+      font-size:12px;font-weight:700;
+      display:inline-flex;align-items:center;justify-content:center;
+      position:relative;z-index:1;transition:all .3s;
+    }
+    .stp.active .stp-num { background:var(--accent);color:#fff; }
+    .stp.done .stp-num   { background:var(--green);color:#fff; }
+    .stp-lbl { font-size:10px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.8px; }
+
+    /* ── Engine card ── */
+    .eng-card {
+      background:linear-gradient(150deg,#080f24,#0a2560 60%,#080f24);
+      border-radius:18px;padding:38px;
+      border:2px solid rgba(0,230,118,0.2);
+      box-shadow:0 8px 48px rgba(0,100,200,0.18);
+      color:#fff;
+    }
+    .eng-card h2 {
+      font-family:var(--font-disp);font-size:26px;letter-spacing:2px;
+      color:var(--green2);margin-bottom:4px;
+    }
+    .eng-card .sub { color:rgba(255,255,255,0.5);font-size:14px;margin-bottom:24px; }
+
+    .eng-input-row { display:flex;gap:10px;margin-bottom:0; }
+    .eng-inp {
+      flex:1;padding:12px 16px;
+      background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.15);
+      border-radius:var(--radius-sm);color:#fff;font-size:15px;
+      font-family:var(--font-body);outline:none;text-transform:uppercase;
+      transition:all .2s;
+    }
+    .eng-inp::placeholder { color:rgba(255,255,255,0.3); }
+    .eng-inp:focus { border-color:var(--green2);background:rgba(255,255,255,0.1);box-shadow:0 0 0 3px rgba(0,230,118,0.15); }
+
+    #engine-result { margin-top:20px;min-height:10px; }
+
+    /* engine result styles */
+    .eng-result { animation:fadeUp .4s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(10px);} }
+    .eng-top { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px; }
+    .eng-sym { font-family:var(--font-disp);font-size:34px;color:#fff;letter-spacing:1px; }
+    .eng-name { color:rgba(255,255,255,0.45);font-size:13px;margin-top:2px; }
+    .eng-price-block { text-align:right; }
+    .eng-price { font-family:var(--font-mono);font-size:26px;color:#fff;font-weight:700; }
+
+    .eng-signal {
+      border-radius:12px;padding:16px 24px;text-align:center;
+      margin-bottom:16px;border:2px solid;
+    }
+    .eng-sig-label { font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:2px; }
+    .eng-sig-dir { font-family:var(--font-disp);font-size:44px;line-height:1;letter-spacing:2px; }
+    .eng-sig-conf { font-size:13px;color:rgba(255,255,255,0.55);margin-top:4px; }
+    .eng-sig-conf strong { color:rgba(255,255,255,0.85); }
+
+    .eng-levels { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px; }
+    .eng-level {
+      background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);
+      border-radius:8px;padding:12px 8px;text-align:center;
+    }
+    .el-lbl { font-size:9px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px; }
+    .el-val { font-family:var(--font-mono);font-size:14px;color:#fff;font-weight:700; }
+
+    .eng-meta { display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:rgba(255,255,255,0.45); }
+    .eng-meta strong { color:rgba(255,255,255,0.8); }
+
+    #engine-share {
+      width:100%;justify-content:center;margin-top:16px;
+      display:none;
+    }
+
+    /* ── Features ── */
+    .features {
+      background:var(--bg2);padding:70px 40px;
+      border-top:2px solid var(--border);
+    }
+    .features h2 {
+      font-family:var(--font-disp);font-size:36px;letter-spacing:2px;
+      text-align:center;color:var(--accent);margin-bottom:48px;
+    }
+    .feat-grid {
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:22px;max-width:1000px;margin:0 auto;
+    }
+    .feat-item {
+      background:#fff;border-radius:14px;padding:28px 22px;
+      border:1.5px solid var(--border);
+      transition:transform .2s,box-shadow .2s;
+    }
+    .feat-item:hover { transform:translateY(-4px);box-shadow:var(--shadow); }
+    .feat-icon { font-size:38px;margin-bottom:12px; }
+    .feat-item h3 { font-size:16px;font-weight:700;color:var(--accent);margin-bottom:6px; }
+    .feat-item p  { font-size:13px;color:var(--muted);line-height:1.6; }
+
+    /* ── Footer ── */
+    footer {
+      background:var(--accent);color:rgba(255,255,255,0.5);
+      text-align:center;padding:24px 16px;font-size:13px;
+    }
+    footer .brand { color:var(--green2);font-family:var(--font-disp);letter-spacing:2px; }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <a class="navbar-brand" href="/index.html">
+    <span class="brand-dot"></span>
+    SWING<span style="color:var(--red);">RUSH</span>
+  </a>
+  <div class="navbar-actions">
+    <div id="nav-loggedout">
+      <a href="/login.html" class="btn btn-outline btn-sm">Log In</a>
+    </div>
+    <div id="nav-loggedin" style="display:none;gap:10px;align-items:center;">
+      <span style="color:var(--muted);font-size:14px;">Hi, <strong id="nav-username-home"></strong></span>
+      <a href="/feed.html" class="btn btn-green btn-sm">📰 Feed</a>
+      <button onclick="Auth.logout()" class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1.5px solid var(--red);">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Ticker -->
+<div class="ticker-wrap">
+  <div class="ticker-inner" id="ticker-inner">
+    <span class="ticker-item"><span class="sym">Loading live data…</span></span>
+  </div>
+</div>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-live-tag"><span class="live-dot"></span> Live Market Data</div>
+  <h1>SWING<span class="gr">RUSH</span></h1>
+  <p class="hero-sub">The social trading network for stocks &amp; commodities. Share calls, follow top traders, track your edge.</p>
+  <div class="hero-btns">
+    <a href="#register" class="btn btn-green btn-lg">Join Free →</a>
+    <a href="#engine"   class="btn btn-lg" style="background:rgba(255,255,255,0.1);color:#fff;border:1.5px solid rgba(255,255,255,0.25);">Try Free Engine</a>
+  </div>
+</section>
+
+<!-- Main grid -->
+<div class="main-grid">
+
+  <!-- Register -->
+  <div class="reg-card" id="register">
+    <h2>CREATE ACCOUNT</h2>
+    <p class="sub">Join traders sharing alpha every day. Free forever.</p>
+
+    <div class="stepper" id="stepper">
+      <div class="stp active" id="stp-1"><div class="stp-num">1</div><div class="stp-lbl">Register</div></div>
+      <div class="stp"        id="stp-2"><div class="stp-num">2</div><div class="stp-lbl">Verify</div></div>
+      <div class="stp"        id="stp-3"><div class="stp-num">3</div><div class="stp-lbl">Done</div></div>
+    </div>
+
+    <!-- Step 1 -->
+    <form id="reg-form">
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input id="r-name" type="text" class="form-input" placeholder="John Smith" required autocomplete="name"/>
+        <div class="form-error" id="e-name"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Username <span style="font-weight:400;color:var(--muted);font-size:11px;">· letters, numbers, _ only</span></label>
+        <div style="position:relative;">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;pointer-events:none;">@</span>
+          <input id="r-username" type="text" class="form-input" placeholder="traderpro99"
+            style="padding-left:28px;" required maxlength="20" autocomplete="off" autocapitalize="off"/>
+        </div>
+        <div class="form-error" id="e-username"></div>
+        <div id="username-check" style="font-size:12px;margin-top:4px;min-height:16px;"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input id="r-email" type="email" class="form-input" placeholder="john@example.com" required autocomplete="email"/>
+        <div class="form-error" id="e-email"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone (digits only, max 10)</label>
+        <input id="r-phone" type="tel" class="form-input" placeholder="5551234567"
+               maxlength="10" inputmode="numeric" pattern="\d{1,10}" required/>
+        <div class="form-error" id="e-phone"></div>
+      </div>
+      <button type="submit" id="reg-btn" class="btn btn-primary" style="width:100%;justify-content:center;">
+        Send Verification Code
+      </button>
+    </form>
+
+    <!-- Step 2 -->
+    <form id="otp-form" style="display:none;">
+      <p style="color:var(--muted);font-size:14px;margin-bottom:20px;">
+        We sent a 6-digit code to <strong id="otp-email"></strong>
+      </p>
+      <div class="form-group">
+        <label class="form-label">Verification Code</label>
+        <input id="otp-code" type="text" class="form-input"
+               placeholder="1 2 3 4 5 6" maxlength="6" inputmode="numeric"
+               style="font-family:var(--font-mono);font-size:32px;letter-spacing:10px;text-align:center;" required/>
+        <div class="form-error" id="e-otp"></div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Verify Account</button>
+      <button type="button" id="resend-btn" class="btn btn-ghost" style="width:100%;justify-content:center;margin-top:8px;">Resend Code</button>
+    </form>
+
+    <!-- Step 3 -->
+    <div id="done-section" style="display:none;text-align:center;padding:24px 0;">
+      <div style="font-size:64px;margin-bottom:16px;">🎉</div>
+      <h3 style="font-family:var(--font-disp);font-size:28px;color:var(--green);letter-spacing:1px;margin-bottom:8px;">VERIFIED!</h3>
+      <p style="color:var(--muted);margin-bottom:28px;font-size:14px;">Your password has been sent to your email inbox. Use it to log in.</p>
+      <a href="/login.html" class="btn btn-green btn-lg" style="width:100%;justify-content:center;">Enter the Feed →</a>
+    </div>
+  </div>
+
+  <!-- Engine -->
+  <div class="eng-card" id="engine">
+    <h2>⚡ FREE SIGNAL ENGINE</h2>
+    <p class="sub">Enter any symbol — get an instant BUY/SELL signal with live data. Save to your profile (not posted to feed). Free, no login needed.</p>
+
+    <form id="engine-form">
+      <div class="eng-input-row">
+        <input id="engine-symbol" type="text" class="eng-inp" placeholder="AAPL · GC=F · BTC-USD · CL=F…" autocomplete="off"/>
+        <button type="submit" class="btn btn-green">Analyze</button>
+      </div>
+    </form>
+
+    <div id="engine-result"></div>
+    <button id="engine-share" class="btn btn-primary">💾 Save to My Profile</button>
+  </div>
+
+</div>
+
+<!-- Features -->
+<section class="features">
+  <h2>WHY SWINGRUSH?</h2>
+  <div class="feat-grid">
+    <div class="feat-item">
+      <div class="feat-icon">📡</div>
+      <h3>Live Data</h3>
+      <p>Real-time prices for stocks, commodities, ETFs and crypto via Yahoo Finance.</p>
+    </div>
+    <div class="feat-item">
+      <div class="feat-icon">🏆</div>
+      <h3>Win Animations</h3>
+      <p>When a recommendation hits take profit, the feed explodes with a live celebration. Trade made visible.</p>
+    </div>
+    <div class="feat-item">
+      <div class="feat-icon">📩</div>
+      <h3>Follow Alerts</h3>
+      <p>Follow top traders and get instant email notifications every time they post a new call.</p>
+    </div>
+    <div class="feat-item">
+      <div class="feat-icon">📊</div>
+      <h3>Performance Stats</h3>
+      <p>Win rate, total return % and full history tracked publicly for every trader.</p>
+    </div>
+    <div class="feat-item">
+      <div class="feat-icon">⚡</div>
+      <h3>Signal Engine</h3>
+      <p>Instant BUY/SELL signals with TP and SL for any symbol, powered by technical analysis.</p>
+    </div>
+    <div class="feat-item">
+      <div class="feat-icon">🥇</div>
+      <h3>All Assets</h3>
+      <p>Stocks, Gold, Silver, Oil, Natural Gas, Crypto — all markets in one feed.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  &copy; 2025 <span class="brand">SWINGRUSH</span> &nbsp;·&nbsp; Not financial advice. Trade responsibly.
+</footer>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/ticker.js"></script>
+<script src="/js/engine.js"></script>
+<script>
+  // ── Navbar auth state ─────────────────────────────────────────
+  if (Auth.token()) {
+    document.getElementById('nav-loggedout').style.display = 'none';
+    const li = document.getElementById('nav-loggedin');
+    li.style.display = 'flex';
+    const u = Auth.user();
+    if (u) document.getElementById('nav-username-home').textContent = u.username ? '@'+u.username : u.fullName;
+  }
+
+  let regEmail = '';
+
+  function setStep(n) {
+    [1,2,3].forEach(i => {
+      const el = document.getElementById('stp-'+i);
+      el.classList.remove('active','done');
+      if (i < n) el.classList.add('done');
+      if (i === n) el.classList.add('active');
+    });
+    document.getElementById('reg-form').style.display     = n===1?'block':'none';
+    document.getElementById('otp-form').style.display     = n===2?'block':'none';
+    document.getElementById('done-section').style.display = n===3?'block':'none';
+  }
+
+  // ── Username: live check ───────────────────────────────────────
+  let _unTimer;
+  document.getElementById('r-username').addEventListener('input', function() {
+    this.value = this.value.toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,20);
+    clearTimeout(_unTimer);
+    const val     = this.value;
+    const checkEl = document.getElementById('username-check');
+    const errEl   = document.getElementById('e-username');
+    errEl.textContent = '';
+    if (!val)        { checkEl.textContent = ''; return; }
+    if (val.length < 3) { checkEl.innerHTML = '<span style="color:var(--red);">Too short (min 3 chars)</span>'; return; }
+    checkEl.innerHTML = '<span style="color:var(--muted);">Checking…</span>';
+    _unTimer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/auth/check-username/'+encodeURIComponent(val));
+        const data = await res.json();
+        checkEl.innerHTML = data.available
+          ? '<span style="color:var(--green);">✓ @'+val+' is available</span>'
+          : '<span style="color:var(--red);">✗ @'+val+' is taken</span>';
+        if (!data.available) errEl.textContent = 'Username already taken';
+      } catch { checkEl.textContent = ''; }
+    }, 500);
+  });
+
+  // ── Phone: digits only ─────────────────────────────────────────
+  document.getElementById('r-phone').addEventListener('input', function() {
+    this.value = this.value.replace(/\D/g,'').slice(0,10);
+  });
+
+  // ── Register submit ────────────────────────────────────────────
+  document.getElementById('reg-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    ['name','username','email','phone'].forEach(f => {
+      document.getElementById('e-'+f).textContent = '';
+    });
+    const btn = document.getElementById('reg-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+
+    const fullName = document.getElementById('r-name').value.trim();
+    const username = document.getElementById('r-username').value.trim();
+    const email    = document.getElementById('r-email').value.trim();
+    const phone    = document.getElementById('r-phone').value.trim();
+
+    let ok = true;
+    if (fullName.length < 2)                     { document.getElementById('e-name').textContent     = 'Enter your full name'; ok=false; }
+    if (!/^[a-z0-9_]{3,20}$/.test(username))     { document.getElementById('e-username').textContent = 'Username: 3-20 chars, lowercase letters/numbers/_'; ok=false; }
+    if (!/^\S+@\S+\.\S+$/.test(email))       { document.getElementById('e-email').textContent    = 'Enter a valid email'; ok=false; }
+    if (!/^\d{1,10}$/.test(phone))              { document.getElementById('e-phone').textContent    = 'Digits only, max 10'; ok=false; }
+    if (!ok) { btn.disabled=false; btn.textContent='Send Verification Code'; return; }
+
+    try {
+      await API.register({ fullName, username, email, phone });
+      regEmail = email;
+      document.getElementById('otp-email').textContent = email;
+      setStep(2);
+      toast('Code sent! Check your inbox.','success');
+    } catch(err) {
+      toast(err.message,'error');
+    } finally {
+      btn.disabled=false; btn.textContent='Send Verification Code';
+    }
+  });
+
+  // ── OTP verify ────────────────────────────────────────────────
+  document.getElementById('otp-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const code = document.getElementById('otp-code').value.trim();
+    document.getElementById('e-otp').textContent = '';
+    if (code.length !== 6) { document.getElementById('e-otp').textContent = 'Enter the 6-digit code'; return; }
+    try {
+      await API.verify({ email: regEmail, code });
+      setStep(3);
+      toast('Account verified! Check email for your password.','success');
+    } catch(err) {
+      document.getElementById('e-otp').textContent = err.message;
+    }
+  });
+
+  // ── Resend OTP ────────────────────────────────────────────────
+  document.getElementById('resend-btn').addEventListener('click', async () => {
+    try {
+      const name     = document.getElementById('r-name').value.trim();
+      const username = document.getElementById('r-username').value.trim();
+      const phone    = document.getElementById('r-phone').value.trim();
+      await API.register({ fullName: name, username, email: regEmail, phone });
+      toast('New code sent!','success');
+    } catch(err) { toast(err.message,'error'); }
+  });
+</script>
+=======
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>SwingRush | AI Swing Trading Platform</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+<div id="local-time"></div>
+
+<script>
+function updateTime() {
+  const el = document.getElementById("local-time");
+  const now = new Date();
+  el.textContent = now.toLocaleTimeString();
+}
+setInterval(updateTime, 1000);
+updateTime();
+</script>
+
+<!-- ==========================
+ HERO / LANDING
+========================== -->
+<section class="hero">
+  <div class="hero-content">
+
+    <h1 class="page-title fire">SwingRush</h1>
+
+    <p class="subtitle">
+      AI‑Powered Swing Trading Engine for U.S. Markets
+    </p>
+
+    <div class="home-buttons">
+      <a href="/login-page" class="btn primary big-btn">
+        Access Dashboard
+      </a>
+    </div>
+
+  </div>
+</section>
+
+<!-- SECTION DIVIDER -->
+<div class="section-divider">
+  <span class="divider-line"></span>
+  <span class="divider-arrow">↓</span>
+</div>
+
+<!-- ==========================
+ MARKET SNAPSHOT (LIVE)
+========================== -->
+<section class="market-section">
+  <div class="market-card">
+
+    <h2 class="section-title">Live Market Snapshot</h2>
+
+    <div class="tradingview-widget-container">
+      <div id="tradingview_indexes"></div>
+
+      <script type="text/javascript"
+        src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js"
+        async>
+      {
+        "colorTheme": "dark",
+        "dateRange": "1D",
+        "showChart": true,
+        "locale": "en",
+        "isTransparent": true,
+        "showSymbolLogo": true,
+        "showFloatingTooltip": true,
+        "width": "100%",
+        "height": "420",
+        "tabs": [
+          {
+            "title": "Indexes",
+            "symbols": [
+              { "s": "FOREXCOM:SPXUSD", "d": "S&P 500" },
+              { "s": "FOREXCOM:NSXUSD", "d": "NASDAQ 100" },
+              { "s": "FOREXCOM:DJI", "d": "Dow Jones" }
+            ]
+          }
+        ]
+      }
+      </script>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==========================
+ INTRODUCTION
+========================== -->
+<section class="info-section">
+  <div class="info-card">
+    <p class="subscription-text">
+      <strong>Subscription:</strong> Full access is available for <strong>$150 per month</strong>.<br>
+      Includes unlimited use of all trading engines, real‑time scans, and continuous performance updates.
+    </p>
+  </div>
+</section>
+
+<!-- ==========================
+ ABOUT PLATFORM
+========================== -->
+<section class="info-section">
+  <div class="info-card">
+    <h2 class="section-title">About the Platform</h2>
+
+    <p>
+      SwingRush is a proprietary AI‑driven swing trading platform focused
+      exclusively on U.S. equities.
+    </p>
+
+    <p>
+      SwingRush Engine was built and developed by two academy students with a strong focus on practical,
+      real‑market trading conditions. The system is designed specifically for short‑term swing trading,
+      specializing in <strong>3‑day trades and extended 3–14 day</strong> opportunities.
+    </p>
+
+    <p>
+      Every trade passes through multiple confirmation layers before
+      being approved by the system.
+    </p>
+  </div>
+</section>
+
+<!-- ==========================
+ ABOUT US
+========================== -->
+<section class="info-section">
+  <div class="info-card">
+    <h2 class="section-title">About Us</h2>
+
+    <p>
+      We are two student developers with a deep passion for the trading world.
+    </p>
+
+    <p>
+      We work <strong>24/7</strong> to refine logic, strengthen risk controls,
+      improve accuracy, and push the engine toward consistent performance.
+    </p>
+
+    <p>
+      Built by traders. Engineered by developers.
+    </p>
+  </div>
+</section>
+
+<!-- ==========================
+ CONTACT US
+========================== -->
+<section class="info-section">
+  <div class="info-card">
+
+    <h2 class="section-title">Contact Us</h2>
+
+    <p style="margin-bottom: 22px;">
+      For more details, partnerships, or support inquiries, feel free to reach out to us directly.
+      We typically respond within 24 hours.
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 14px; font-size: 15px;">
+
+      <div>
+        <strong style="color:#ffd700;">📞 Phone</strong><br>
+        <span style="color:#d1d5db;">+972‑XX‑XXX‑XXXX</span>
+      </div>
+
+      <div>
+        <strong style="color:#ffd700;">📧 Email</strong><br>
+        <span style="color:#d1d5db;">wardhbisharat@gmail.com</span>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+>>>>>>> 0de3af7d50b5a2dd22a64d6a8cd1e4389db52610
+</body>
+</html>

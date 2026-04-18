@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta charset="UTF-8">
+<title>Analyzer</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/script.js" defer></script>
+</head>
+
+<body>
+
+<a href="/engines" class="back">← Back to Dashboard</a>
+
+<div class="container">
+<h1 class="page-title">Stock Analyzer</h1>
+
+<h1 class="deatails-line">4-14 day trade Recommendation</h1>
+
+<div class="card">
+  <input id="ticker" placeholder="Ticker (AAPL)">
+  <button class="btn primary" onclick="analyze()">Analyze</button>
+</div>
+
+<div id="loader" class="loader hidden">
+  <div class="loader-bar"></div>
+  <span id="loader-text">0%</span>
+</div>
+
+<div id="result"></div>
+</div>
+
+</body>
+</html>

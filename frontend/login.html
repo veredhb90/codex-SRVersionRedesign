@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<<<<<<< HEAD
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login — SwingRush</title>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <style>
+    body { background: var(--bg2); min-height:100vh; display:flex; flex-direction:column; }
+    .login-wrap {
+      flex:1; display:flex; align-items:center; justify-content:center; padding:40px 16px;
+      background:
+        radial-gradient(ellipse 50% 60% at 20% 50%, rgba(10,31,92,0.06) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 50% at 80% 50%, rgba(0,200,83,0.04) 0%, transparent 70%);
+    }
+    .login-card {
+      background:#fff; border:2px solid var(--border);
+      border-radius:20px; padding:50px 44px;
+      width:100%; max-width:440px;
+      box-shadow:var(--shadow-lg);
+      animation:fadeUp .4s ease;
+    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(18px);} }
+
+    .login-logo {
+      font-family:var(--font-disp); font-size:32px; letter-spacing:3px;
+      display:flex; align-items:center; justify-content:center; gap:10px;
+      margin-bottom:4px; line-height:1;
+    }
+    .login-logo .g { color:var(--accent); }
+    .login-logo .r { color:var(--red); }
+    .login-tagline { text-align:center; color:var(--muted); font-size:13px; margin-bottom:32px; }
+
+    /* Mini market strip */
+    .mkt-strip {
+      display:flex; gap:8px; justify-content:center; flex-wrap:wrap;
+      margin-bottom:28px;
+    }
+    .mkt-chip {
+      font-family:var(--font-mono); font-size:11px;
+      padding:3px 10px; border-radius:20px; border:1px solid;
+    }
+    .up-chip   { color:var(--green); border-color:var(--green); background:var(--green-bg); }
+    .down-chip { color:var(--red);   border-color:var(--red);   background:var(--red-bg); }
+
+    .login-title {
+      font-family:var(--font-disp); font-size:20px; letter-spacing:1px;
+      text-align:center; color:var(--accent); margin-bottom:22px;
+    }
+    .btn-login {
+      width:100%; justify-content:center; font-size:16px;
+      padding:14px; background:var(--accent); color:#fff; margin-top:4px;
+    }
+    .btn-login:hover { background:var(--accent2); transform:translateY(-1px); box-shadow:0 4px 20px rgba(10,31,92,0.25); }
+    .login-footer { text-align:center; margin-top:22px; font-size:14px; color:var(--muted); }
+    .login-footer a { color:var(--accent2); font-weight:700; text-decoration:none; }
+    .login-footer a:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="navbar-brand" href="/index.html">
+    <span class="brand-dot"></span>
+    <span style="color:var(--accent);">SWING</span><span style="color:var(--red);">RUSH</span>
+  </a>
+  <div class="navbar-actions">
+    <a href="/index.html#register" class="btn btn-green btn-sm">Join Free</a>
+  </div>
+</nav>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="brand-dot"></span>
+      <span class="g">SWING</span><span class="r">RUSH</span>
+    </div>
+    <div class="login-tagline">Financial Recommendation Network</div>
+
+    <div class="mkt-strip" id="mkt-strip">
+      <span class="mkt-chip up-chip">SPY ···</span>
+      <span class="mkt-chip up-chip">GC=F ···</span>
+      <span class="mkt-chip down-chip">CL=F ···</span>
+    </div>
+
+    <div class="login-title">TRADER LOGIN</div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input id="l-email" type="email" class="form-input" placeholder="your@email.com" required autocomplete="email"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input id="l-pass" type="password" class="form-input" placeholder="••••••••••" required autocomplete="current-password"/>
+        <div class="form-error" id="l-err"></div>
+      </div>
+      <button type="submit" class="btn btn-login" id="login-btn">Enter the Feed →</button>
+    </form>
+
+    <div class="login-footer">New trader? <a href="/index.html#register">Create free account</a></div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+  if (Auth.token()) location.href = '/feed.html';
+
+  // Live market chips
+  async function loadChips() {
+    const syms  = ['SPY','GC=F','CL=F','AAPL','BTC-USD'];
+    const strip = document.getElementById('mkt-strip');
+    const res   = await Promise.allSettled(syms.map(s => API.quote(s)));
+    strip.innerHTML = res.map((r,i) => {
+      if (r.status !== 'fulfilled') return '';
+      const q  = r.value;
+      const up = (q.changePct||0) >= 0;
+      return `<span class="mkt-chip ${up?'up-chip':'down-chip'}">
+        ${syms[i]} $${(q.price||0).toFixed(2)} ${up?'▲':'▼'}${Math.abs(q.changePct||0).toFixed(2)}%
+      </span>`;
+    }).join('');
+  }
+  loadChips();
+
+  document.getElementById('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true; btn.textContent = 'Logging in…';
+    document.getElementById('l-err').textContent = '';
+
+    try {
+      const res = await API.login({
+        email:    document.getElementById('l-email').value.trim(),
+        password: document.getElementById('l-pass').value,
+      });
+      Auth.save(res.token, res.user);
+      toast('Welcome back, ' + (res.user.username ? '@'+res.user.username : res.user.fullName) + '! 🚀','success');
+      setTimeout(() => location.href = '/feed.html', 500);
+    } catch(err) {
+      document.getElementById('l-err').textContent = err.message;
+      btn.disabled = false; btn.textContent = 'Enter the Feed →';
+    }
+  });
+</script>
+</body>
+</html>
+=======
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<title>Login | SwingRush</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body class="auth-page">
+
+<div class="auth-container">
+
+  <!-- LOGO / TITLE -->
+  <h1 class="page-title fire">SwingRush</h1>
+  <p class="subtitle">Access your trading dashboard</p>
+
+  <!-- LOGIN CARD -->
+  <div class="auth-card">
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
+
+    <button class="btn primary big-btn full-btn" onclick="login()">
+      Login
+    </button>
+    
+  </div>
+
+  <p id="error" class="error-text"></p>
+
+</div>
+
+<script>
+async function login() {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+
+  const res = await fetch("/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ username, password })
+  });
+
+  if (res.ok) {
+    window.location.href = "/engines";
+  } else {
+    document.getElementById("error").innerText = "Invalid credentials";
+  }
+}
+</script>
+
+  
+</body>
+
+
+</html>
+
+>>>>>>> 0de3af7d50b5a2dd22a64d6a8cd1e4389db52610
