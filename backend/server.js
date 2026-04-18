@@ -17,6 +17,7 @@ const io     = new Server(server, {
 app.set('io', io);
 connectDB();
 
+app.set('trust proxy', 1); // Required for Railway/Heroku
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());
 
