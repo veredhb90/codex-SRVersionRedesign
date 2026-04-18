@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<<<<<<< HEAD
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login — SwingRush</title>
@@ -145,59 +144,3 @@
 </script>
 </body>
 </html>
-=======
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta charset="UTF-8">
-<title>Login | SwingRush</title>
-<link rel="stylesheet" href="/static/style.css">
-</head>
-
-<body class="auth-page">
-
-<div class="auth-container">
-
-  <!-- LOGO / TITLE -->
-  <h1 class="page-title fire">SwingRush</h1>
-  <p class="subtitle">Access your trading dashboard</p>
-
-  <!-- LOGIN CARD -->
-  <div class="auth-card">
-    <input id="username" placeholder="Username">
-    <input id="password" type="password" placeholder="Password">
-
-    <button class="btn primary big-btn full-btn" onclick="login()">
-      Login
-    </button>
-    
-  </div>
-
-  <p id="error" class="error-text"></p>
-
-</div>
-
-<script>
-async function login() {
-  const username = document.getElementById("username").value;
-  const password = document.getElementById("password").value;
-
-  const res = await fetch("/login", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ username, password })
-  });
-
-  if (res.ok) {
-    window.location.href = "/engines";
-  } else {
-    document.getElementById("error").innerText = "Invalid credentials";
-  }
-}
-</script>
-
-  
-</body>
-
-
-</html>
-
->>>>>>> 0de3af7d50b5a2dd22a64d6a8cd1e4389db52610
