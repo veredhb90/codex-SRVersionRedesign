@@ -1,7 +1,7 @@
 const { Resend } = require('resend');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM   = 'SwingRush <onboarding@resend.dev>';
+const FROM   = 'SwingRush <noreply@swing-rush.com>';
 
 const baseStyle = `font-family:'Segoe UI',Arial,sans-serif;background:#0a0f1e;color:#fff;padding:40px;border-radius:16px;max-width:520px;margin:auto;`;
 const logo      = `<h1 style="color:#00e676;margin:0 0 4px;font-size:28px;letter-spacing:2px;">SWING<span style="color:#ff1744;">RUSH</span></h1><p style="color:#555;margin:0 0 32px;font-size:13px;">Financial Recommendation Network</p>`;
