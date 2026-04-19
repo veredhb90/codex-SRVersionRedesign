@@ -154,7 +154,7 @@
   <!-- Header -->
   <div class="scanner-header">
     <div class="scanner-title">⚡ TOP 5 <span>SCANNER</span></div>
-    <div class="scanner-sub">AI-powered scan of top US stocks — best opportunities ranked by composite score</div>
+    <div class="scanner-sub">AI-powered scan of 500 US stocks — best opportunities ranked by composite score · Results cached in database</div>
     <div class="scanner-meta" id="scanner-meta" style="display:none;">
       <div class="scanner-meta-item">📊 Scanned: <strong id="meta-count">—</strong> stocks</div>
       <div class="scanner-meta-item">⏱ Duration: <strong id="meta-duration">—</strong>s</div>
@@ -203,30 +203,38 @@
     if (scanData) renderResults();
   }
 
+  let pollTimer = null;
+
   async function runScan(forceRefresh = false) {
     const btn = document.getElementById('scan-btn');
     const resultsEl = document.getElementById('scan-results');
 
     btn.disabled = true;
-    btn.textContent = '⏳ Scanning…';
-    resultsEl.innerHTML = `
-      <div class="scan-empty">
-        <div class="spinner" style="margin:0 auto 16px;"></div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Scanning Markets…</div>
-        <div style="font-size:13px;color:var(--muted);">Analyzing stocks with RSI, MACD, Bollinger Bands, news sentiment and more…</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:8px;">This takes about 20-40 seconds</div>
-      </div>`;
+    btn.textContent = '⏳ Loading…';
 
     try {
       const url = forceRefresh ? '/api/scanner/top5?refresh=true' : '/api/scanner/top5';
       const res  = await fetch(url, { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      scanData = data;
-      renderResults();
-      updateMeta(data);
-      document.getElementById('refresh-btn').style.display = 'inline-flex';
-      document.getElementById('cache-notice').style.display = data.cached ? 'inline-flex' : 'none';
+
+      if (data.scanning && (!data.top5 || !data.top5.length)) {
+        // Background scan running, no results yet — show progress and poll
+        showScanningProgress(data.message || 'Scanning in background…');
+        startPolling();
+      } else {
+        // We have results
+        scanData = data;
+        renderResults();
+        updateMeta(data);
+        document.getElementById('refresh-btn').style.display = 'inline-flex';
+        document.getElementById('cache-notice').style.display = data.cached ? 'inline-flex' : 'none';
+        if (data.scanning) {
+          // Still scanning but showing old results
+          showScanningBanner('🔄 Refreshing scan in background… Results will auto-update');
+          startPolling();
+        }
+      }
     } catch (err) {
       resultsEl.innerHTML = `<div class="scan-empty"><div class="big-icon">⚠️</div><div>${err.message}</div></div>`;
     } finally {
@@ -235,13 +243,85 @@
     }
   }
 
+  function showScanningProgress(msg) {
+    document.getElementById('scan-results').innerHTML = `
+      <div class="scan-empty">
+        <div class="spinner" style="margin:0 auto 20px;"></div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Scanning ${UNIVERSE_SIZE} Stocks…</div>
+        <div style="font-size:13px;color:var(--muted);max-width:400px;margin:0 auto;">${msg}</div>
+        <div style="margin-top:20px;padding:12px 20px;background:var(--bg2);border-radius:8px;font-size:12px;color:var(--muted);">
+          Results save to database automatically.<br>Page will update when scan completes.
+        </div>
+      </div>`;
+  }
+
+  function showScanningBanner(msg) {
+    const existing = document.getElementById('scan-banner');
+    if (!existing) {
+      const banner = document.createElement('div');
+      banner.id = 'scan-banner';
+      banner.style.cssText = 'background:var(--accent);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;margin-bottom:14px;';
+      banner.textContent = msg;
+      document.getElementById('scan-results').insertAdjacentElement('beforebegin', banner);
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) return; // already polling
+    let attempts = 0;
+    pollTimer = setInterval(async () => {
+      attempts++;
+      if (attempts > 60) { clearInterval(pollTimer); pollTimer = null; return; } // stop after 10 min
+      try {
+        const res  = await fetch('/api/scanner/top5', { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
+        const data = await res.json();
+        if (!res.ok) return;
+        if (data.top5 && data.top5.length > 0) {
+          scanData = data;
+          renderResults();
+          updateMeta(data);
+          document.getElementById('refresh-btn').style.display = 'inline-flex';
+          const banner = document.getElementById('scan-banner');
+          if (banner) banner.remove();
+          if (!data.scanning) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+          }
+        }
+      } catch (_) {}
+    }, 10000); // poll every 10 seconds
+  }
+
+  const UNIVERSE_SIZE = 500;
+
   function updateMeta(data) {
     document.getElementById('scanner-meta').style.display = 'flex';
     document.getElementById('meta-count').textContent    = data.scannedCount;
-    document.getElementById('meta-duration').textContent = data.duration;
+    document.getElementById('meta-duration').textContent = data.duration || '—';
     document.getElementById('meta-time').textContent     = data.cached
-      ? 'cached ' + timeAgo(data.cachedAt)
+      ? 'cached · ' + timeAgo(data.cachedAt)
       : new Date(data.scannedAt).toLocaleTimeString();
+    const marketEl = document.getElementById('meta-market');
+    if (marketEl) {
+      if (data.weekend) {
+        marketEl.textContent = '📅 Weekend — cached 6h';
+        marketEl.style.color = 'rgba(255,200,0,0.8)';
+      } else if (data.marketOpen) {
+        marketEl.textContent = '🟢 Market Open';
+        marketEl.style.color = 'rgba(0,230,118,0.8)';
+      } else {
+        marketEl.textContent = '🔴 Market Closed';
+        marketEl.style.color = 'rgba(255,100,100,0.8)';
+      }
+    }
+    // Update cache notice
+    const cacheEl = document.getElementById('cache-notice');
+    if (cacheEl) {
+      cacheEl.style.display = data.cached ? 'inline-flex' : 'none';
+      cacheEl.textContent = data.weekend
+        ? '📦 Weekend cache (6h)'
+        : '📦 Cached result (1h)';
+    }
   }
 
   function renderResults() {
