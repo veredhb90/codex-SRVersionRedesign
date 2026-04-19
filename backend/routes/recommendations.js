@@ -3,7 +3,7 @@ const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const Recommendation = require('../models/Recommendation');
 const yf   = require('../services/yahooFinance');
-const { sendFollowAlert } = require('../services/emailService');
+const { sendFollowAlert, sendInstrumentAlert } = require('../services/emailService');
 const User = require('../models/User');
 
 // Instrument subscriptions are stored in User.watchlist (persistent)
@@ -17,18 +17,37 @@ const checkOutcome = async (rec, io) => {
     rec.currentPrice = price;
     const hitTP = rec.direction==='BUY' ? price>=rec.takeProfit : price<=rec.takeProfit;
     const hitSL = rec.stopLoss && (rec.direction==='BUY' ? price<=rec.stopLoss : price>=rec.stopLoss);
+
     if (hitTP) {
       rec.outcome='WIN'; rec.isOpen=false; rec.closedAt=new Date();
       rec.returnPct=+((Math.abs(rec.takeProfit-rec.entryPrice)/rec.entryPrice)*100).toFixed(2);
       await rec.save();
       io.emit('recommendation:win', { recId:rec._id, symbol:rec.symbol, returnPct:rec.returnPct });
-      const author = await User.findById(rec.user).select('fullName username');
-      const followers = await User.find({ following:rec.user }).select('_id');
-      followers.forEach(f => io.notifyUser && io.notifyUser(String(f._id), 'notification', {
-        type:'win', title:`🏆 @${author?.username||author?.fullName}'s ${rec.symbol} hit Take Profit!`,
-        body:`+${rec.returnPct}% return`, recId:rec._id, time:new Date(),
-      }));
-      // Notify instrument watchers of win
+
+      const author = await User.findById(rec.user).select('fullName username email');
+
+      // ── Notify & email the REC OWNER ─────────────────────────────
+      io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
+        type:'win', title:`🏆 Your $${rec.symbol} call hit Take Profit!`,
+        body:`+${rec.returnPct}% return · Great call!`, recId:rec._id, time:new Date(),
+      });
+      if (author?.email) {
+        sendWinAlert(author.email, author.username||author.fullName, rec.symbol, rec.returnPct)
+          .catch(()=>{});
+      }
+
+      // ── Notify followers ──────────────────────────────────────────
+      const followers = await User.find({ following:rec.user }).select('_id email');
+      followers.forEach(f => {
+        io.notifyUser && io.notifyUser(String(f._id), 'notification', {
+          type:'win', title:`🏆 @${author?.username||author?.fullName}'s $${rec.symbol} hit Take Profit!`,
+          body:`+${rec.returnPct}% return`, recId:rec._id, time:new Date(),
+        });
+        sendFollowAlert(f.email, author?.username||author?.fullName, rec.symbol, rec.direction, rec.takeProfit)
+          .catch(()=>{});
+      });
+
+      // ── Notify instrument watchers ────────────────────────────────
       const winWatchers = await User.find({ watchlist: rec.symbol }).select('_id');
       winWatchers.forEach(w => {
         const wid = String(w._id);
@@ -39,13 +58,36 @@ const checkOutcome = async (rec, io) => {
           });
         }
       });
+
     } else if (hitSL) {
       rec.outcome='LOSS'; rec.isOpen=false; rec.closedAt=new Date();
       rec.returnPct=-((Math.abs(rec.stopLoss-rec.entryPrice)/rec.entryPrice)*100).toFixed(2);
       await rec.save();
       io.emit('recommendation:loss', { recId:rec._id, symbol:rec.symbol });
+
+      const author = await User.findById(rec.user).select('fullName username email');
+
+      // ── Notify & email the REC OWNER on LOSS ─────────────────────
+      io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
+        type:'loss', title:`💸 Your $${rec.symbol} call hit Stop Loss`,
+        body:`${rec.returnPct}% · Review your analysis`, recId:rec._id, time:new Date(),
+      });
+      if (author?.email) {
+        sendLossAlert(author.email, author.username||author.fullName, rec.symbol, rec.returnPct)
+          .catch(()=>{});
+      }
+
+      // ── Notify followers on LOSS ──────────────────────────────────
+      const followers = await User.find({ following:rec.user }).select('_id');
+      followers.forEach(f => {
+        io.notifyUser && io.notifyUser(String(f._id), 'notification', {
+          type:'loss', title:`💸 @${author?.username||author?.fullName}'s $${rec.symbol} hit Stop Loss`,
+          body:`${rec.returnPct}%`, recId:rec._id, time:new Date(),
+        });
+      });
+
     } else { await rec.save(); }
-  } catch (_) {}
+  } catch (e) { console.log('checkOutcome error:', e.message); }
   return rec;
 };
 
@@ -185,7 +227,7 @@ router.post('/', protect, async (req, res) => {
           recId: rec._id, time: new Date(),
         });
         // Email notification
-        sendFollowAlert(sub.email, sym, direction, req.user.username||req.user.fullName, tp, rec._id).catch(()=>{});
+        sendInstrumentAlert(sub.email, sym, direction, req.user.username||req.user.fullName, tp, rec._id).catch(()=>{});
       }
     });
 

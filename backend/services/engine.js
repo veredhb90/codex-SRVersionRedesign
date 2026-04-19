@@ -21,11 +21,44 @@
     try {
       const r = await API.engine(sym);
       lastRec = r;
-      renderResult(r);
+      if (r.noSignal) {
+        renderNoSignal(r);
+      } else {
+        renderResult(r);
+      }
     } catch (err) {
       resultEl.innerHTML = `<p style="color:var(--red);text-align:center;padding:16px;">${err.message}</p>`;
     }
   });
+
+  function renderNoSignal(r) {
+    const gatesHtml = (r.gates||[]).map(g => `<div class="eng-signal-row">${g}</div>`).join('');
+    const signalHtml = (r.signals||[]).map(s => {
+      const col = s.includes('✅') ? 'var(--green)' : s.includes('⚠️')||s.includes('🔴') ? 'var(--red)' : 'var(--text2)';
+      return `<div class="eng-signal-row" style="color:${col};">${s}</div>`;
+    }).join('');
+    resultEl.innerHTML = `
+    <div class="eng-result" style="animation:fadeUp 0.4s ease;">
+      <div class="eng-top">
+        <div><div class="eng-sym">${r.symbol}</div><div class="eng-name">${r.name||''}</div></div>
+        <div class="eng-price-block">
+          <div class="eng-price">$${Number(r.price).toFixed(2)}</div>
+          <div style="color:${(r.change||0)>=0?'var(--green2)':'var(--red2)'};font-size:13px;">${(r.change||0)>=0?'▲':'▼'} ${Math.abs(r.change||0).toFixed(2)}%</div>
+        </div>
+      </div>
+      <div style="background:var(--bg2);border:2px solid var(--border);border-radius:12px;padding:20px;text-align:center;margin:12px 0;">
+        <div style="font-size:32px;margin-bottom:8px;">⏸</div>
+        <div style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">NO SIGNAL</div>
+        <div style="font-size:13px;color:var(--text2);max-width:360px;margin:0 auto;">${r.noSignalReason}</div>
+      </div>
+      ${gatesHtml ? `<div class="eng-signals"><div class="eng-signals-title">⚡ MARKET CONDITIONS</div>${gatesHtml}</div>` : ''}
+      <div class="eng-signals" style="margin-top:12px;">
+        <div class="eng-signals-title">📊 INDICATOR ANALYSIS</div>
+        ${signalHtml}
+      </div>
+    </div>`;
+    if (shareBtn) shareBtn.style.display = 'none';
+  }
 
   function renderResult(r) {
     const isBuy  = r.direction === 'BUY';
@@ -37,6 +70,12 @@
     const maxScore   = 18;
     const scoreColor = r.score > 0 ? 'var(--green)' : r.score < 0 ? 'var(--red)' : 'var(--muted)';
     const scoreLabel = r.score > 0 ? `+${r.score}` : `${r.score}`;
+
+    // Gates (market conditions)
+    const gatesHtml = (r.gates||[]).map(g => `<div class="eng-signal-row">${g}</div>`).join('');
+
+    // Analyst label
+    const analystHtml = r.analystLabel ? `<div class="eng-signal-row" style="color:var(--accent2);">📊 ${r.analystLabel}</div>` : '';
 
     // Signals list
     const signalHtml = (r.signals || []).map(s => {
@@ -117,6 +156,9 @@
           <span>R:R 1:${r.riskReward}</span>
         </div>
       </div>
+
+      <!-- Market conditions / gates -->
+      ${gatesHtml ? `<div class="eng-signals" style="margin-bottom:8px;"><div class="eng-signals-title">⚡ MARKET CONDITIONS</div>${gatesHtml}</div>` : ''}
 
       <!-- Indicator signals -->
       <div class="eng-signals">

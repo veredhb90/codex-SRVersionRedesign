@@ -72,4 +72,38 @@ const sendInstrumentAlert = async (to, symbol, direction, username, tp) => {
   }).catch(e => console.error('Instrument alert error:', e));
 };
 
-module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert };
+const sendWinAlert = async (to, username, symbol, returnPct) => {
+  await resend.emails.send({
+    from: FROM, to,
+    subject: `🏆 Your $${symbol} call hit Take Profit! +${returnPct}%`,
+    html: `<div style="${baseStyle}">${logo}
+      <div style="background:#111;border:2px solid #00e676;border-radius:12px;padding:24px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">🏆</div>
+        <div style="font-size:28px;font-weight:900;color:#00e676;margin-bottom:8px;">TAKE PROFIT HIT!</div>
+        <div style="font-size:20px;color:#fff;margin-bottom:4px;">$${symbol}</div>
+        <div style="font-size:32px;font-weight:900;color:#00e676;">+${returnPct}%</div>
+        <div style="color:#555;margin-top:16px;font-size:14px;">Great call, @${username}! Your recommendation closed as a WIN.</div>
+      </div>
+      <a href="${process.env.CLIENT_URL}/profile.html" style="display:block;margin-top:24px;padding:14px;background:#00e676;color:#000;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View My Profile →</a>
+    </div>`,
+  }).catch(e => console.error('Win alert error:', e));
+};
+
+const sendLossAlert = async (to, username, symbol, returnPct) => {
+  await resend.emails.send({
+    from: FROM, to,
+    subject: `💸 Your $${symbol} call hit Stop Loss (${returnPct}%)`,
+    html: `<div style="${baseStyle}">${logo}
+      <div style="background:#111;border:2px solid #ff1744;border-radius:12px;padding:24px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">💸</div>
+        <div style="font-size:28px;font-weight:900;color:#ff1744;margin-bottom:8px;">STOP LOSS HIT</div>
+        <div style="font-size:20px;color:#fff;margin-bottom:4px;">$${symbol}</div>
+        <div style="font-size:32px;font-weight:900;color:#ff1744;">${returnPct}%</div>
+        <div style="color:#555;margin-top:16px;font-size:14px;">Your $${symbol} call was closed at stop loss. Review your analysis to improve future calls.</div>
+      </div>
+      <a href="${process.env.CLIENT_URL}/profile.html" style="display:block;margin-top:24px;padding:14px;background:#ff1744;color:#fff;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View My Profile →</a>
+    </div>`,
+  }).catch(e => console.error('Loss alert error:', e));
+};
+
+module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert };
