@@ -21,13 +21,14 @@ app.set('trust proxy', 1); // Required for Railway/Heroku
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());
 
-const authLimiter = rateLimit({ windowMs: 15*60*1000, max: 30 });
+const authLimiter = rateLimit({ windowMs: 15*60*1000, max: 100, skip: () => process.env.NODE_ENV === 'production' });
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/api/auth',            authLimiter, require('./routes/auth'));
 app.use('/api/stocks',          require('./routes/stocks'));
 app.use('/api/recommendations', require('./routes/recommendations'));
 app.use('/api/users',           require('./routes/users'));
 app.use('/api/notifications',   require('./routes/notifications'));
+app.use('/api/scanner',         require('./routes/scanner'));
 app.get('/api/health', (_, res) => res.json({ status:'ok', time:new Date() }));
 
 // ── Socket.io ──────────────────────────────────────────────────────

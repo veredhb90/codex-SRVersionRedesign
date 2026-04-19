@@ -39,5 +39,6 @@ const API = {
   getNotifications: ()         => API._req('/notifications'),
   markNotifRead:    ()         => API._req('/notifications/read', { method:'POST' }),
   clearNotifs:      ()         => API._req('/notifications', { method:'DELETE' }),
+  scanTop5:         (refresh)  => API._req('/scanner/top5' + (refresh?'?refresh=true':'')),
 };
 window.API = API;

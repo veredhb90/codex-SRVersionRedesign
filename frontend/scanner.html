@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Top 5 Scanner — SwingRush</title>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <style>
+    body { background:var(--bg2); }
+    .scanner-wrap { max-width:960px; margin:28px auto; padding:0 16px; }
+
+    /* Header */
+    .scanner-header {
+      background:linear-gradient(135deg,#080f24,#0a2560);
+      border-radius:18px; padding:32px; margin-bottom:24px;
+      position:relative; overflow:hidden;
+    }
+    .scanner-header::before {
+      content:''; position:absolute; inset:0;
+      background:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(255,255,255,0.015) 24px,rgba(255,255,255,0.015) 25px);
+    }
+    .scanner-title {
+      font-family:var(--font-disp); font-size:32px; letter-spacing:2px;
+      color:#fff; margin-bottom:6px; position:relative; z-index:1;
+    }
+    .scanner-title span { color:var(--green); }
+    .scanner-sub { color:rgba(255,255,255,0.5); font-size:14px; position:relative; z-index:1; margin-bottom:20px; }
+    .scanner-meta { display:flex; gap:16px; flex-wrap:wrap; position:relative; z-index:1; }
+    .scanner-meta-item {
+      background:rgba(255,255,255,0.08); border-radius:8px; padding:8px 14px;
+      font-size:13px; color:rgba(255,255,255,0.7);
+    }
+    .scanner-meta-item strong { color:#fff; }
+
+    /* Tabs */
+    .scan-tabs { display:flex; gap:10px; margin-bottom:20px; }
+    .scan-tab {
+      padding:10px 20px; border-radius:9px; border:1.5px solid var(--border);
+      background:#fff; cursor:pointer; font-weight:700; font-size:14px;
+      color:var(--muted); transition:all .2s;
+    }
+    .scan-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+    /* Scan button */
+    .scan-btn {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:11px 22px; border-radius:9px; border:none; cursor:pointer;
+      font-weight:700; font-size:14px; transition:all .2s;
+      background:var(--green); color:#000;
+    }
+    .scan-btn:hover { background:var(--green2); transform:translateY(-1px); }
+    .scan-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+    .scan-btn.refresh { background:var(--bg3); color:var(--text); border:1.5px solid var(--border); margin-left:10px; }
+
+    /* Stock card */
+    .stock-card {
+      background:#fff; border:1.5px solid var(--border);
+      border-radius:14px; padding:20px; margin-bottom:14px;
+      box-shadow:var(--shadow-sm); transition:all .2s;
+      position:relative; overflow:hidden;
+    }
+    .stock-card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    }
+    .stock-card.buy::before  { background:linear-gradient(90deg,var(--green),var(--green2)); }
+    .stock-card.sell::before { background:linear-gradient(90deg,var(--red),var(--red2)); }
+    .stock-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,0.1); }
+
+    .stock-card-top { display:flex; align-items:center; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+    .stock-rank {
+      width:36px; height:36px; border-radius:50%; flex-shrink:0;
+      background:var(--accent); color:#fff; font-family:var(--font-disp);
+      font-size:16px; display:flex; align-items:center; justify-content:center;
+    }
+    .stock-sym { font-family:var(--font-disp); font-size:22px; letter-spacing:1px; color:var(--accent); }
+    .stock-name { font-size:12px; color:var(--muted); margin-top:2px; }
+    .stock-price { font-family:var(--font-mono); font-size:18px; font-weight:700; margin-left:auto; }
+    .stock-change { font-size:13px; text-align:right; }
+
+    .stock-levels {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:12px 0;
+    }
+    .sl-box {
+      background:var(--bg2); border-radius:9px; padding:10px;
+      text-align:center; border:1px solid var(--border);
+    }
+    .sl-box .lbl { font-size:10px; letter-spacing:1px; color:var(--muted); margin-bottom:4px; }
+    .sl-box .val { font-family:var(--font-mono); font-size:14px; font-weight:700; }
+
+    .stock-score-row {
+      display:flex; align-items:center; gap:12px; margin:10px 0;
+      flex-wrap:wrap;
+    }
+    .score-badge {
+      padding:4px 12px; border-radius:20px; font-weight:900;
+      font-family:var(--font-mono); font-size:14px;
+    }
+    .confidence-badge {
+      padding:3px 10px; border-radius:6px; font-size:11px; font-weight:700;
+      letter-spacing:.5px; background:var(--bg2); color:var(--muted);
+    }
+
+    .stock-signals-preview {
+      font-size:12px; color:var(--text2); margin-top:8px;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .news-label-badge {
+      font-size:11px; padding:2px 8px; border-radius:4px;
+      background:var(--bg2); color:var(--muted);
+    }
+
+    /* Score bar */
+    .score-bar-wrap { flex:1; min-width:80px; }
+    .score-bar {
+      height:5px; background:var(--bg3); border-radius:3px; overflow:hidden;
+    }
+    .score-bar-fill { height:100%; border-radius:3px; transition:width .8s ease; }
+
+    /* Empty/loading */
+    .scan-empty {
+      text-align:center; padding:60px 20px; color:var(--muted);
+    }
+    .scan-empty .big-icon { font-size:48px; margin-bottom:16px; }
+
+    /* Cache notice */
+    .cache-notice {
+      display:inline-flex; align-items:center; gap:6px;
+      font-size:12px; color:var(--muted); padding:4px 10px;
+      background:var(--bg2); border-radius:6px; margin-left:10px;
+    }
+
+    @media(max-width:560px) {
+      .stock-levels { grid-template-columns:repeat(3,1fr); }
+      .scanner-title { font-size:24px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/feed.html">
+    <span class="brand-dot"></span>
+    <span style="color:var(--accent);">SWING</span><span style="color:var(--red);">RUSH</span>
+  </a>
+  <div class="navbar-actions">
+    <span style="color:var(--muted);font-size:14px;" class="nav-username"></span>
+    <a href="/feed.html" class="btn btn-outline btn-sm">← Feed</a>
+    <button onclick="Auth.logout()" class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1.5px solid var(--red);">Logout</button>
+  </div>
+</nav>
+
+<div class="scanner-wrap">
+
+  <!-- Header -->
+  <div class="scanner-header">
+    <div class="scanner-title">⚡ TOP 5 <span>SCANNER</span></div>
+    <div class="scanner-sub">AI-powered scan of top US stocks — best opportunities ranked by composite score</div>
+    <div class="scanner-meta" id="scanner-meta" style="display:none;">
+      <div class="scanner-meta-item">📊 Scanned: <strong id="meta-count">—</strong> stocks</div>
+      <div class="scanner-meta-item">⏱ Duration: <strong id="meta-duration">—</strong>s</div>
+      <div class="scanner-meta-item">🕐 Updated: <strong id="meta-time">—</strong></div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div style="display:flex;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+    <div class="scan-tabs">
+      <button class="scan-tab active" onclick="switchTab('all')" id="tab-all">🏆 Top 5 Overall</button>
+      <button class="scan-tab" onclick="switchTab('buy')"  id="tab-buy">▲ Top BUY</button>
+      <button class="scan-tab" onclick="switchTab('sell')" id="tab-sell">▼ Top SELL</button>
+    </div>
+    <button class="scan-btn" id="scan-btn" onclick="runScan(false)">⚡ Run Scanner</button>
+    <button class="scan-btn refresh" id="refresh-btn" onclick="runScan(true)" style="display:none;">🔄 Refresh</button>
+    <span class="cache-notice" id="cache-notice" style="display:none;">📦 Cached result</span>
+  </div>
+
+  <!-- Results -->
+  <div id="scan-results">
+    <div class="scan-empty">
+      <div class="big-icon">⚡</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;">Ready to Scan</div>
+      <div style="font-size:14px;">Click "Run Scanner" to analyze top US stocks and find the best opportunities right now.</div>
+      <div style="font-size:12px;margin-top:8px;color:var(--muted);">Scans 50 stocks · Takes ~30 seconds · Cached for 30 minutes</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/auth.js"></script>
+<script>
+  if (!Auth.require()) {}
+  const me = Auth.user();
+  if (me) document.querySelectorAll('.nav-username').forEach(el => el.textContent = me.username ? '@'+me.username : me.fullName);
+
+  let scanData   = null;
+  let activeTab  = 'all';
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.scan-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (scanData) renderResults();
+  }
+
+  async function runScan(forceRefresh = false) {
+    const btn = document.getElementById('scan-btn');
+    const resultsEl = document.getElementById('scan-results');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Scanning…';
+    resultsEl.innerHTML = `
+      <div class="scan-empty">
+        <div class="spinner" style="margin:0 auto 16px;"></div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Scanning Markets…</div>
+        <div style="font-size:13px;color:var(--muted);">Analyzing stocks with RSI, MACD, Bollinger Bands, news sentiment and more…</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px;">This takes about 20-40 seconds</div>
+      </div>`;
+
+    try {
+      const url = forceRefresh ? '/api/scanner/top5?refresh=true' : '/api/scanner/top5';
+      const res  = await fetch(url, { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      scanData = data;
+      renderResults();
+      updateMeta(data);
+      document.getElementById('refresh-btn').style.display = 'inline-flex';
+      document.getElementById('cache-notice').style.display = data.cached ? 'inline-flex' : 'none';
+    } catch (err) {
+      resultsEl.innerHTML = `<div class="scan-empty"><div class="big-icon">⚠️</div><div>${err.message}</div></div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⚡ Run Scanner';
+    }
+  }
+
+  function updateMeta(data) {
+    document.getElementById('scanner-meta').style.display = 'flex';
+    document.getElementById('meta-count').textContent    = data.scannedCount;
+    document.getElementById('meta-duration').textContent = data.duration;
+    document.getElementById('meta-time').textContent     = data.cached
+      ? 'cached ' + timeAgo(data.cachedAt)
+      : new Date(data.scannedAt).toLocaleTimeString();
+  }
+
+  function renderResults() {
+    const list = activeTab === 'buy'  ? scanData.topBuys :
+                 activeTab === 'sell' ? scanData.topSells : scanData.top5;
+
+    if (!list || !list.length) {
+      document.getElementById('scan-results').innerHTML =
+        `<div class="scan-empty"><div class="big-icon">🔍</div><div>No results for this filter</div></div>`;
+      return;
+    }
+
+    document.getElementById('scan-results').innerHTML = list.map((r, i) => buildStockCard(r, i + 1)).join('');
+  }
+
+  function buildStockCard(r, rank) {
+    const isBuy    = r.direction === 'BUY';
+    const scoreCol = r.score > 0 ? 'var(--green)' : 'var(--red)';
+    const scoreLabel = r.score > 0 ? '+' + r.score : r.score;
+    const maxScore = 18;
+    const barWidth = Math.min(100, Math.abs(r.score) / maxScore * 100);
+    const chgCol   = (r.change || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+
+    const confColor = r.confidence === 'Very High' ? 'var(--green)' :
+                      r.confidence === 'High'      ? 'var(--green2)' :
+                      r.confidence === 'Medium'    ? 'var(--gold)' : 'var(--muted)';
+
+    const topSignals = (r.signals || []).slice(0, 3).join(' · ');
+
+    return `
+    <div class="stock-card ${isBuy ? 'buy' : 'sell'}">
+      <div class="stock-card-top">
+        <div class="stock-rank" style="background:${rank===1?'#FFD700':rank===2?'#C0C0C0':rank===3?'#CD7F32':'var(--accent)'}">
+          ${rank}
+        </div>
+        <div>
+          <div class="stock-sym">${r.symbol}</div>
+          <div class="stock-name">${r.name || r.symbol}</div>
+        </div>
+        <span class="${isBuy ? 'badge-buy' : 'badge-sell'}" style="margin-left:8px;">
+          ${isBuy ? '▲' : '▼'} ${r.direction}
+        </span>
+        <div style="margin-left:auto;text-align:right;">
+          <div class="stock-price">$${Number(r.price).toFixed(2)}</div>
+          <div class="stock-change" style="color:${chgCol};">
+            ${(r.change||0)>=0?'▲':'▼'} ${Math.abs(r.change||0).toFixed(2)}%
+          </div>
+        </div>
+      </div>
+
+      <div class="stock-levels">
+        <div class="sl-box">
+          <div class="lbl">ENTRY</div>
+          <div class="val">$${Number(r.price).toFixed(2)}</div>
+        </div>
+        <div class="sl-box" style="border-color:var(--green);">
+          <div class="lbl">TAKE PROFIT</div>
+          <div class="val" style="color:var(--green);">$${r.takeProfit}</div>
+        </div>
+        <div class="sl-box" style="border-color:var(--red);">
+          <div class="lbl">STOP LOSS</div>
+          <div class="val" style="color:var(--red);">$${r.stopLoss}</div>
+        </div>
+      </div>
+
+      <div class="stock-score-row">
+        <span class="score-badge" style="background:${scoreCol}22;color:${scoreCol};">
+          Score: ${scoreLabel}
+        </span>
+        <span class="confidence-badge" style="color:${confColor};">
+          ${r.confidence} Confidence
+        </span>
+        <span style="font-size:12px;color:var(--muted);">R:R 1:${r.riskReward}</span>
+        <span class="news-label-badge">${r.newsLabel || '—'}</span>
+        <div class="score-bar-wrap">
+          <div class="score-bar">
+            <div class="score-bar-fill" style="width:${barWidth}%;background:${scoreCol};"></div>
+          </div>
+        </div>
+      </div>
+
+      ${topSignals ? `<div class="stock-signals-preview">${topSignals}</div>` : ''}
+    </div>`;
+  }
+</script>
+</body>
+</html>
