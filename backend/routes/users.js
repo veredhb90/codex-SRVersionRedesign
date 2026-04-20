@@ -11,16 +11,30 @@ function computeStats(recs) {
   const winRate = closed.length > 0 ? +((wins / closed.length) * 100).toFixed(1) : 0;
   const totalRet = myRecs.reduce((s, r) => s + (r.returnPct || 0), 0);
   return {
-    total:       myRecs.length,
-    open:        myRecs.filter(r => r.isOpen).length,
-    closed:      closed.length,
-    wins,
-    losses:      closed.length - wins,
-    winRate,
-    totalReturn: +totalRet.toFixed(2),
-    avgReturn:   myRecs.length > 0 ? +(totalRet / myRecs.length).toFixed(2) : 0,
+    total: myRecs.length, open: myRecs.filter(r => r.isOpen).length,
+    closed: closed.length, wins, losses: closed.length - wins,
+    winRate, totalReturn: +totalRet.toFixed(2),
+    avgReturn: myRecs.length > 0 ? +(totalRet / myRecs.length).toFixed(2) : 0,
   };
 }
+
+// GET /api/users/search?q=... — MUST be before /:id
+router.get('/search', protect, async (req, res) => {
+  try {
+    const q = req.query.q?.trim();
+    if (!q || q.length < 2) return res.json([]);
+    const users = await User.find({
+      $or: [
+        { username: { $regex: q, $options: 'i' } },
+        { fullName: { $regex: q, $options: 'i' } },
+      ],
+      isVerified: true,
+    })
+    .select('fullName username followers following')
+    .limit(10);
+    res.json(users);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
 
 // GET /api/users/me
 router.get('/me', protect, async (req, res) => {
@@ -29,10 +43,11 @@ router.get('/me', protect, async (req, res) => {
       .select('-password -otpCode')
       .populate('following', 'fullName username email')
       .populate('followers', 'fullName username email');
-    // watchlist is already included (plain string array)
     const recs = await Recommendation.find({ user: req.user._id })
       .sort({ createdAt: -1 })
-      .populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username' } });
+      .populate('comments.user', 'fullName username')
+      .populate({ path: 'repostedFrom', populate: { path: 'user', select: 'fullName username' } })
+      .lean();
     res.json({ user, stats: computeStats(recs), recommendations: recs });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
@@ -45,14 +60,14 @@ router.get('/:id', protect, async (req, res) => {
       .populate('following', 'fullName username email')
       .populate('followers', 'fullName username email');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    // Show manual recs + reposts (not engine signals which stay private)
     const recs = await Recommendation.find({
       user: req.params.id,
-      source: { $in: ['manual', 'repost', null, undefined] },
-      $or: [{ profileOnly: false }, { profileOnly: { $exists: false } }]
+      $or: [{ source: 'manual' }, { source: 'repost' }, { source: { $exists: false } }]
     })
       .sort({ createdAt: -1 })
-      .populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username' } });
+      .populate('comments.user', 'fullName username')
+      .populate({ path: 'repostedFrom', populate: { path: 'user', select: 'fullName username' } })
+      .lean();
     const isFollowing = req.user.following.map(String).includes(req.params.id);
     res.json({ user, stats: computeStats(recs), recommendations: recs, isFollowing });
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -76,24 +91,6 @@ router.post('/:id/follow', protect, async (req, res) => {
     }
     await Promise.all([current.save(), target.save()]);
     res.json({ following: !already });
-  } catch (err) { res.status(500).json({ message: err.message }); }
-});
-
-// GET /api/users/search?q=username
-router.get('/search', protect, async (req, res) => {
-  try {
-    const q = req.query.q?.trim();
-    if (!q || q.length < 2) return res.json([]);
-    const users = await User.find({
-      $or: [
-        { username: { $regex: q, $options: 'i' } },
-        { fullName: { $regex: q, $options: 'i' } },
-      ],
-      isVerified: true,
-    })
-    .select('fullName username followers following')
-    .limit(10);
-    res.json(users);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
