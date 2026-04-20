@@ -29,6 +29,7 @@ router.get('/me', protect, async (req, res) => {
       .select('-password -otpCode')
       .populate('following', 'fullName username email')
       .populate('followers', 'fullName username email');
+    // watchlist is already included (plain string array)
     const recs = await Recommendation.find({ user: req.user._id })
       .sort({ createdAt: -1 })
       .populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username' } });
@@ -75,6 +76,24 @@ router.post('/:id/follow', protect, async (req, res) => {
     }
     await Promise.all([current.save(), target.save()]);
     res.json({ following: !already });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// GET /api/users/search?q=username
+router.get('/search', protect, async (req, res) => {
+  try {
+    const q = req.query.q?.trim();
+    if (!q || q.length < 2) return res.json([]);
+    const users = await User.find({
+      $or: [
+        { username: { $regex: q, $options: 'i' } },
+        { fullName: { $regex: q, $options: 'i' } },
+      ],
+      isVerified: true,
+    })
+    .select('fullName username followers following')
+    .limit(10);
+    res.json(users);
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

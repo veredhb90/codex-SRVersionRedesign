@@ -169,8 +169,14 @@
   <main>
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input id="feed-search" type="text" class="search-input" placeholder="SEARCH SYMBOL — AAPL, GLD, BTC, SLV…" autocomplete="off"/>
+      <input id="feed-search" type="text" class="search-input" placeholder="Search symbol or @username…" autocomplete="off"/>
       <button class="search-clear" id="search-clear-btn">✕</button>
+    </div>
+
+    <!-- User search results -->
+    <div id="user-search-panel" style="display:none;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:16px;margin-bottom:20px;box-shadow:var(--shadow-sm);">
+      <div style="font-family:var(--font-disp);font-size:16px;letter-spacing:1px;color:var(--accent);margin-bottom:12px;">👤 TRADERS</div>
+      <div id="user-search-results"></div>
     </div>
 
     <div id="search-panel">
@@ -339,7 +345,25 @@
   const searchPanel  = document.getElementById('search-panel');
 
   searchInput.addEventListener('input', () => {
-    const val = searchInput.value.trim().toUpperCase();
+    const raw = searchInput.value.trim();
+    const val = raw.toUpperCase();
+
+    // If starts with @ or contains a space → user search
+    if (raw.startsWith('@') || (raw.length >= 2 && /^[a-zA-Z ]+$/.test(raw) && raw.includes(' '))) {
+      const q = raw.startsWith('@') ? raw.slice(1) : raw;
+      clearTimeout(searchTimer);
+      document.getElementById('search-panel').style.display = 'none';
+      document.getElementById('search-clear-btn').style.display = raw ? 'block' : 'none';
+      if (q.length >= 2) {
+        searchTimer = setTimeout(() => loadUserSearch(q), 400);
+      } else {
+        document.getElementById('user-search-panel').style.display = 'none';
+      }
+      return;
+    }
+
+    // Otherwise → symbol search (existing logic)
+    document.getElementById('user-search-panel').style.display = 'none';
     searchClearB.style.display = val ? 'block' : 'none';
     clearTimeout(searchTimer);
     if (!val) { clearSearch(); return; }
@@ -416,6 +440,37 @@
     }
   }
   window.loadSymbolSearch = loadSymbolSearch;
+
+  // ── User search ───────────────────────────────────────────────
+  async function loadUserSearch(q) {
+    const panel   = document.getElementById('user-search-panel');
+    const results = document.getElementById('user-search-results');
+    panel.style.display = 'block';
+    results.innerHTML   = '<div style="color:var(--muted);font-size:13px;padding:8px;">Searching…</div>';
+    try {
+      const users = await API.searchUsers(q);
+      if (!users.length) {
+        results.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px;">No traders found for "' + q + '"</div>';
+        return;
+      }
+      results.innerHTML = users.map(u => `
+        <div onclick="location.href='/profile.html?id=${u._id}'"
+          style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background .15s;"
+          onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
+          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--green2),var(--green));
+            display:flex;align-items:center;justify-content:center;font-family:var(--font-disp);font-size:15px;color:#fff;flex-shrink:0;">
+            ${initials(u.fullName)}
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700;color:var(--accent2);">@${u.username}</div>
+            <div style="font-size:12px;color:var(--muted);">${u.fullName} · ${u.followers?.length||0} followers</div>
+          </div>
+          <div style="font-size:12px;color:var(--accent2);font-weight:600;">View →</div>
+        </div>`).join('');
+    } catch (err) {
+      results.innerHTML = '<div style="color:var(--red);font-size:13px;">' + err.message + '</div>';
+    }
+  }
 
   // ── Instrument Subscribe (DB persisted) ───────────────────────
   let _watchlist = [];
