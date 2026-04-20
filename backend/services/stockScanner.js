@@ -80,7 +80,7 @@ const ScanResult = mongoose.models.ScanResult || mongoose.model('ScanResult', sc
 // ── Concurrency-limited scan ───────────────────────────────────────
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-const scanBatch = async (symbols, concurrency = 5) => {
+const scanBatch = async (symbols, concurrency = 5, onProgress) => {
   const results = [];
   for (let i = 0; i < symbols.length; i += concurrency) {
     const batch = symbols.slice(i, i + concurrency);
@@ -91,8 +91,12 @@ const scanBatch = async (symbols, concurrency = 5) => {
       }
     });
     const done = Math.min(i + concurrency, symbols.length);
-    if (done % 50 === 0) console.log(`📊 Scanned ${done}/${symbols.length}...`);
-    if (i + concurrency < symbols.length) await delay(200); // rate limit
+    if (done % 25 === 0) {
+      console.log(`📊 Scanned ${done}/${symbols.length}...`);
+      // Save partial results every 25 stocks so progress is not lost
+      if (onProgress) await onProgress(results, done);
+    }
+    if (i + concurrency < symbols.length) await delay(400); // 400ms = ~12 batches/min = 60 calls/min safe
   }
   return results;
 };
@@ -117,7 +121,24 @@ const runFullScan = async () => {
       { upsert: true }
     );
 
-    const allResults = await scanBatch(UNIVERSE, 5);
+    const allResults = await scanBatch(UNIVERSE, 5, async (partial, done) => {
+      // Save partial results to DB so users see progress even if scan interrupted
+      const ranked = partial
+        .filter(r => Math.abs(r.score||0) >= 2)
+        .sort((a,b) => Math.abs(b.score)-Math.abs(a.score));
+      await ScanResult.findOneAndUpdate(
+        { key: 'latest' },
+        {
+          results:      ranked.slice(0,50),
+          top5:         ranked.slice(0,5),
+          topBuys:      ranked.filter(r=>r.direction==='BUY').slice(0,10),
+          topSells:     ranked.filter(r=>r.direction==='SELL').slice(0,10),
+          scannedCount: done,
+          running:      true,
+        },
+        { upsert: true }
+      );
+    });
 
     // Sort by absolute score
     const ranked = allResults
