@@ -3,7 +3,7 @@ const router  = express.Router();
 const jwt     = require('jsonwebtoken');
 const crypto  = require('crypto');
 const User    = require('../models/User');
-const { sendOTP, sendPassword } = require('../services/emailService');
+const { sendOTP, sendPassword, sendAdminNewUser } = require('../services/emailService');
 
 const genOTP      = () => Math.floor(100000 + Math.random() * 900000).toString();
 const genPassword = () => crypto.randomBytes(6).toString('base64url').slice(0, 10);
@@ -20,18 +20,14 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Phone must be digits only, max 10' });
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username))
       return res.status(400).json({ message: 'Username: 3-20 chars, letters/numbers/_ only' });
-
     const existingUsername = await User.findOne({ username: username.toLowerCase() });
     if (existingUsername)
       return res.status(400).json({ message: 'Username already taken. Choose another.' });
-
     let user = await User.findOne({ email });
     if (user && user.isVerified)
       return res.status(400).json({ message: 'Email already registered. Please log in.' });
-
     const otp = genOTP();
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-
     if (user) {
       Object.assign(user, { fullName, username: username.toLowerCase(), phone, otpCode: otp, otpExpires });
     } else {
@@ -60,6 +56,7 @@ router.post('/verify', async (req, res) => {
     user.otpExpires = undefined;
     await user.save();
     await sendPassword(email, password);
+    sendAdminNewUser({ fullName: user.fullName, username: user.username, email: user.email, phone: user.phone }).catch(()=>{});
     res.json({ message: 'Account verified! Check your email for your login password.' });
   } catch (err) {
     console.error(err);
