@@ -106,4 +106,25 @@ const sendLossAlert = async (to, username, symbol, returnPct) => {
   }).catch(e => console.error('Loss alert error:', e));
 };
 
-module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert };
+const sendAdminNewUser = async (user) => {
+  const adminEmail = 'swingrush.admin@gmail.com';
+  await resend.emails.send({
+    from: FROM,
+    to: adminEmail,
+    subject: `🎉 New user registered: @${user.username}`,
+    html: `<div style="${baseStyle}">${logo}
+      <div style="background:#111;border:2px solid #00e676;border-radius:12px;padding:20px;">
+        <div style="font-size:20px;font-weight:900;color:#00e676;margin-bottom:16px;">New User Registered!</div>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Full Name</td><td style="color:#fff;font-weight:700;font-size:14px;">${user.fullName}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Username</td><td style="color:#00e676;font-weight:700;font-size:14px;">@${user.username}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Email</td><td style="color:#fff;font-size:14px;">${user.email}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Phone</td><td style="color:#fff;font-size:14px;">${user.phone}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Joined</td><td style="color:#fff;font-size:14px;">${new Date().toLocaleString()}</td></tr>
+        </table>
+      </div>
+    </div>`,
+  }).catch(e => console.error('Admin notification error:', e));
+};
+
+module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendAdminNewUser };

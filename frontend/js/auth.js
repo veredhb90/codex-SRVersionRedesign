@@ -1,69 +1,105 @@
-const Auth = {
-  save(token, user) {
-    localStorage.setItem('sr_token', token);
-    const u = { ...user, id: String(user.id || user._id) };
-    localStorage.setItem('sr_user', JSON.stringify(u));
-  },
-  token:  () => localStorage.getItem('sr_token'),
-  user:   () => JSON.parse(localStorage.getItem('sr_user') || 'null'),
-  userId: () => {
-    const u = JSON.parse(localStorage.getItem('sr_user') || 'null');
-    return u ? String(u.id || u._id) : null;
-  },
-  logout() {
-    localStorage.removeItem('sr_token');
-    localStorage.removeItem('sr_user');
-    location.href = '/index.html';
-  },
-  require() {
-    if (!this.token()) { location.href = '/login.html'; return false; }
-    return true;
-  },
-};
+const express = require('express');
+const router  = express.Router();
+const jwt     = require('jsonwebtoken');
+const crypto  = require('crypto');
+const User    = require('../models/User');
+const { sendOTP, sendPassword, sendAdminNewUser } = require('../services/emailService');
 
-function toast(msg, type, ms) {
-  type = type || 'info'; ms = ms || 3500;
-  let wrap = document.getElementById('toast-container');
-  if (!wrap) {
-    wrap = document.createElement('div');
-    wrap.id = 'toast-container';
-    document.body.appendChild(wrap);
+const genOTP      = () => Math.floor(100000 + Math.random() * 900000).toString();
+const genPassword = () => crypto.randomBytes(6).toString('base64url').slice(0, 10);
+const signToken   = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+// POST /api/auth/register
+router.post('/register', async (req, res) => {
+  try {
+    const { fullName, username, email, phone } = req.body;
+
+    if (!fullName?.trim() || !email?.trim() || !phone?.trim() || !username?.trim())
+      return res.status(400).json({ message: 'All fields are required' });
+    if (!/^\S+@\S+\.\S+$/.test(email))
+      return res.status(400).json({ message: 'Invalid email format' });
+    if (!/^\d{1,10}$/.test(phone))
+      return res.status(400).json({ message: 'Phone must be digits only, max 10' });
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username))
+      return res.status(400).json({ message: 'Username: 3-20 chars, letters/numbers/underscore only' });
+
+    // Check username uniqueness
+    const existingUsername = await User.findOne({ username: username.toLowerCase() });
+    if (existingUsername)
+      return res.status(400).json({ message: 'Username already taken. Choose another.' });
+
+    let user = await User.findOne({ email });
+    if (user && user.isVerified)
+      return res.status(400).json({ message: 'Email already registered. Please log in.' });
+
+    const otp = genOTP();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    if (user) {
+      Object.assign(user, { fullName, username: username.toLowerCase(), phone, otpCode: otp, otpExpires });
+    } else {
+      user = new User({ fullName, username: username.toLowerCase(), email, phone, otpCode: otp, otpExpires });
+    }
+    await user.save();
+    await sendOTP(email, otp);
+    res.json({ message: 'Verification code sent to your email' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
   }
-  const el = document.createElement('div');
-  el.className = 'toast ' + type;
-  el.textContent = msg;
-  wrap.appendChild(el);
-  setTimeout(function() {
-    el.style.transition = 'opacity 0.3s';
-    el.style.opacity = '0';
-    setTimeout(function() { el.remove(); }, 300);
-  }, ms);
-}
+});
 
-function fmtPrice(n) {
-  if (n == null || isNaN(n)) return '—';
-  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
-}
-function fmtPct(n, forceSign) {
-  if (n == null || isNaN(n)) return '—';
-  forceSign = forceSign !== false;
-  return (forceSign && n > 0 ? '+' : '') + Number(n).toFixed(2) + '%';
-}
-function timeAgo(iso) {
-  if (!iso) return '';
-  var d = Math.floor((Date.now() - new Date(iso)) / 1000);
-  if (d < 60)    return d + 's ago';
-  if (d < 3600)  return Math.floor(d/60) + 'm ago';
-  if (d < 86400) return Math.floor(d/3600) + 'h ago';
-  return Math.floor(d/86400) + 'd ago';
-}
-function initials(name) {
-  return (name||'?').split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
-}
+// POST /api/auth/verify
+router.post('/verify', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.otpCode !== String(code)) return res.status(400).json({ message: 'Invalid verification code' });
+    if (user.otpExpires < new Date()) return res.status(400).json({ message: 'Code expired — please register again' });
+    const password  = genPassword();
+    user.password   = password;
+    user.isVerified = true;
+    user.otpCode    = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+    await sendPassword(email, password);
+    // Notify admin of new registration
+    sendAdminNewUser({ fullName: user.fullName, username: user.username, email: user.email, phone: user.phone }).catch(()=>{});
+    res.json({ message: 'Account verified! Check your email for your login password.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
-window.Auth     = Auth;
-window.toast    = toast;
-window.fmtPrice = fmtPrice;
-window.fmtPct   = fmtPct;
-window.timeAgo  = timeAgo;
-window.initials = initials;
+// POST /api/auth/login
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || !user.isVerified)
+      return res.status(401).json({ message: 'Invalid credentials' });
+    const match = await user.comparePassword(password);
+    if (!match) return res.status(401).json({ message: 'Invalid credentials' });
+    res.json({
+      token: signToken(user._id),
+      user:  { id: String(user._id), fullName: user.fullName, username: user.username, email: user.email },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/auth/check-username/:username
+router.get('/check-username/:username', async (req, res) => {
+  try {
+    const exists = await User.findOne({ username: req.params.username.toLowerCase() });
+    res.json({ available: !exists });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+module.exports = router;
