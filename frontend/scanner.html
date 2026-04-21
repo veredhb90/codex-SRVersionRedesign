@@ -174,6 +174,19 @@
     <span class="cache-notice" id="cache-notice" style="display:none;">📦 Cached result</span>
   </div>
 
+  <!-- Results -->
+  <div id="scan-results">
+    <div class="scan-empty">
+      <div class="big-icon">⚡</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;">Ready to Scan</div>
+      <div style="font-size:14px;">Click "Run Scanner" to analyze top US stocks and find the best opportunities right now.</div>
+      <div style="font-size:12px;margin-top:8px;color:var(--muted);">Scans 50 stocks · Takes ~30 seconds · Cached for 30 minutes</div>
+    </div>
+  </div>
+
+</div>
+
+
   <!-- Score Legend -->
   <div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow-sm);">
     <div style="font-family:var(--font-disp);font-size:12px;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;">📊 SCORE GUIDE — HOW TO READ THE SIGNALS</div>
@@ -220,18 +233,6 @@
     </div>
   </div>
 
-  <!-- Results -->
-  <div id="scan-results">
-    <div class="scan-empty">
-      <div class="big-icon">⚡</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px;">Ready to Scan</div>
-      <div style="font-size:14px;">Click "Run Scanner" to analyze top US stocks and find the best opportunities right now.</div>
-      <div style="font-size:12px;margin-top:8px;color:var(--muted);">Scans 50 stocks · Takes ~30 seconds · Cached for 30 minutes</div>
-    </div>
-  </div>
-
-</div>
-
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script>
@@ -264,22 +265,17 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      if (data.scanning && (!data.top5 || !data.top5.length)) {
-        // Background scan running, no results yet — show progress and poll
-        showScanningProgress(data.message || 'Scanning in background…');
+      if (data.scanning || !data.top5 || !data.top5.length) {
+        // Still scanning — show loading, poll until done
+        showScanningProgress(data.scannedCount || 0, data.message);
         startPolling();
       } else {
-        // We have results
+        // Scan complete — show results
         scanData = data;
         renderResults();
         updateMeta(data);
         document.getElementById('refresh-btn').style.display = 'inline-flex';
         document.getElementById('cache-notice').style.display = data.cached ? 'inline-flex' : 'none';
-        if (data.scanning) {
-          // Still scanning but showing old results
-          showScanningBanner('🔄 Refreshing scan in background… Results will auto-update');
-          startPolling();
-        }
       }
     } catch (err) {
       resultsEl.innerHTML = `<div class="scan-empty"><div class="big-icon">⚠️</div><div>${err.message}</div></div>`;
@@ -289,14 +285,23 @@
     }
   }
 
-  function showScanningProgress(msg) {
+  function showScanningProgress(scannedCount, msg) {
+    const pct = scannedCount ? Math.round(scannedCount / UNIVERSE_SIZE * 100) : 0;
     document.getElementById('scan-results').innerHTML = `
       <div class="scan-empty">
         <div class="spinner" style="margin:0 auto 20px;"></div>
-        <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Scanning ${UNIVERSE_SIZE} Stocks…</div>
-        <div style="font-size:13px;color:var(--muted);max-width:400px;margin:0 auto;">${msg}</div>
-        <div style="margin-top:20px;padding:12px 20px;background:var(--bg2);border-radius:8px;font-size:12px;color:var(--muted);">
-          Results save to database automatically.<br>Page will update when scan completes.
+        <div style="font-size:18px;font-weight:700;margin-bottom:8px;">Scanning ${UNIVERSE_SIZE} Stocks…</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+          ${scannedCount ? `${scannedCount} / ${UNIVERSE_SIZE} stocks analyzed` : 'Starting scan…'}
+        </div>
+        <!-- Progress bar -->
+        <div style="width:280px;height:8px;background:var(--bg3);border-radius:4px;margin:0 auto 12px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:var(--green);border-radius:4px;transition:width .5s ease;"></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">${pct}% complete</div>
+        <div style="margin-top:16px;padding:10px 20px;background:var(--bg2);border-radius:8px;font-size:12px;color:var(--muted);">
+          ⚡ Analyzing RSI · EMA · MACD · Bollinger · ADX · News for each stock<br>
+          Results will appear automatically when scan finishes
         </div>
       </div>`;
   }
@@ -322,17 +327,19 @@
         const res  = await fetch('/api/scanner/top5', { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
         const data = await res.json();
         if (!res.ok) return;
-        if (data.top5 && data.top5.length > 0) {
+        if (data.scanning || !data.top5 || !data.top5.length) {
+          // Still scanning — update progress bar
+          showScanningProgress(data.scannedCount || 0, '');
+        } else {
+          // Done! Show results
           scanData = data;
           renderResults();
           updateMeta(data);
           document.getElementById('refresh-btn').style.display = 'inline-flex';
           const banner = document.getElementById('scan-banner');
           if (banner) banner.remove();
-          if (!data.scanning) {
-            clearInterval(pollTimer);
-            pollTimer = null;
-          }
+          clearInterval(pollTimer);
+          pollTimer = null;
         }
       } catch (_) {}
     }, 10000); // poll every 10 seconds

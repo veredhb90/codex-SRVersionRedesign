@@ -246,21 +246,61 @@
   updateMarket();
   setInterval(updateMarket, 30000);
 
-  // ── Live price refresh ─────────────────────────────────────
-  setInterval(async () => {
-    const cards  = [...feedEl.querySelectorAll('[data-recid]:not(.closed)')];
+  // ── Live price refresh every 30 seconds ──────────────────────
+  async function refreshLivePrices() {
+    const cards  = [...feedEl.querySelectorAll('[data-recid]')];
     const symMap = {};
-    cards.forEach(c => { if (!symMap[c.dataset.symbol]) symMap[c.dataset.symbol] = []; symMap[c.dataset.symbol].push(c); });
+    cards.forEach(c => {
+      if (c.dataset.symbol && c.dataset.isopen !== 'false') {
+        if (!symMap[c.dataset.symbol]) symMap[c.dataset.symbol] = [];
+        symMap[c.dataset.symbol].push(c);
+      }
+    });
     for (const [sym, els] of Object.entries(symMap)) {
       try {
         const q = await API.quote(sym);
         els.forEach(card => {
+          // Update live price
           const liveEl = card.querySelector('.live-price');
-          if (liveEl) { liveEl.textContent = fmtPrice(q.price); liveEl.style.color = (q.changePct||0)>=0?'var(--green)':'var(--red)'; }
+          if (liveEl) {
+            const oldPrice = parseFloat(liveEl.textContent.replace(/[^0-9.]/g,''));
+            const newPrice = q.price;
+            liveEl.textContent = fmtPrice(newPrice);
+            liveEl.style.color = (q.changePct||0)>=0?'var(--green2)':'var(--red2)';
+            // Flash animation on price change
+            if (oldPrice && oldPrice !== newPrice) {
+              liveEl.style.transition = 'background 0.3s';
+              liveEl.style.background = newPrice > oldPrice ? 'rgba(0,230,118,0.2)' : 'rgba(255,23,68,0.2)';
+              setTimeout(() => { liveEl.style.background = 'transparent'; }, 600);
+            }
+          }
+          // Update change %
+          const chgEl = card.querySelector('.live-change');
+          if (chgEl && q.changePct !== undefined) {
+            const pct = q.changePct || 0;
+            chgEl.textContent = (pct>=0?'▲':'▼') + ' ' + Math.abs(pct).toFixed(2) + '%';
+            chgEl.style.color = pct>=0?'var(--green2)':'var(--red2)';
+          }
+          // Update return %
+          const retEl = card.querySelector('.live-return');
+          if (retEl) {
+            const entry = parseFloat(card.dataset.entry);
+            const dir   = card.dataset.direction;
+            if (entry && dir) {
+              const ret = dir==='BUY'
+                ? ((q.price - entry) / entry * 100)
+                : ((entry - q.price) / entry * 100);
+              retEl.textContent = (ret>=0?'+':'') + ret.toFixed(2) + '%';
+              retEl.style.color = ret>=0?'var(--green)':'var(--red)';
+              retEl.style.fontWeight = '700';
+            }
+          }
         });
       } catch (_) {}
     }
-  }, 30000);
+  }
+  refreshLivePrices(); // run immediately on load
+  setInterval(refreshLivePrices, 30000); // then every 30s
 
   loadFeed();
   window.updatePopular = updatePopular;
@@ -575,7 +615,8 @@ function buildCard(r) {
   <div class="rec-card ${isBuy?'buy':'sell'} ${isClosed?'closed':''} ${isWin?'win-flash':''}"
        data-recid="${r._id}" data-symbol="${r.symbol}"
        data-tp="${r.takeProfit}" data-sl="${r.stopLoss||0}"
-       data-entry="${r.entryPrice}" data-dir="${r.direction}">
+       data-entry="${r.entryPrice}" data-direction="${r.direction}"
+       data-isopen="${r.isOpen?'true':'false'}">
     <div class="rec-header">
       <div>
         <div class="rec-symbol rec-symbol-link" data-symbol="${r.symbol}" style="cursor:pointer;" title="View all ${r.symbol} calls">${r.symbol}</div>
@@ -606,8 +647,10 @@ function buildCard(r) {
       </div>
     </div>
     <div class="rec-footer">
-      <span class="live-price-tag">Live: <span class="live-price" style="font-weight:700;">${fmtPrice(r.currentPrice||r.entryPrice)}</span></span>
-      <span class="rec-return" style="color:${retColor};font-family:var(--font-mono);font-size:13px;font-weight:700;">${r.returnPct?fmtPct(r.returnPct):'—'}</span>
+      <span class="live-price-tag">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
+        <span class="live-change" style="font-size:11px;color:var(--muted);margin-left:4px;"></span>
+      </span>
+      <span class="live-return" style="color:${retColor};font-family:var(--font-mono);font-size:13px;font-weight:700;">${r.isOpen?(r.returnPct?fmtPct(r.returnPct):'—'):(r.returnPct?fmtPct(r.returnPct):'—')}</span>
       <button class="btn btn-sm btn-outline like-btn" data-id="${r._id}" style="margin-left:auto;">♥ <span class="like-count">${r.likes?.length||0}</span></button>
       <button class="btn btn-sm btn-ghost comment-toggle" data-id="${r._id}">💬 <span class="comment-count">${r.comments?.length||0}</span></button>
       <button class="share-rec-btn">↗ Share</button>

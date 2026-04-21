@@ -86,8 +86,10 @@ const scanBatch = async (symbols, concurrency = 5, onProgress) => {
     const batch = symbols.slice(i, i + concurrency);
     const batchResults = await Promise.allSettled(batch.map(sym => getEngineRecommendation(sym)));
     batchResults.forEach((r, idx) => {
-      if (r.status === 'fulfilled' && !r.value.noSignal) {
-        results.push({ symbol: batch[idx], ...r.value });
+      if (r.status === 'fulfilled') {
+        const val = r.value;
+        // Include ALL stocks with their scores, even noSignal
+        results.push({ symbol: batch[idx], ...val, score: val.score || 0 });
       }
     });
     const done = Math.min(i + concurrency, symbols.length);
@@ -96,7 +98,7 @@ const scanBatch = async (symbols, concurrency = 5, onProgress) => {
       // Save partial results every 25 stocks so progress is not lost
       if (onProgress) await onProgress(results, done);
     }
-    if (i + concurrency < symbols.length) await delay(400); // 400ms = ~12 batches/min = 60 calls/min safe
+    if (i + concurrency < symbols.length) await delay(600); // 400ms = ~12 batches/min = 60 calls/min safe
   }
   return results;
 };
@@ -112,6 +114,9 @@ const runFullScan = async () => {
   isScanning = true;
   const start = Date.now();
   console.log(`🔍 Starting full scan of ${UNIVERSE.length} stocks...`);
+  // Clear yahooFinance memory cache so all stocks get fresh data
+  const yf = require("./yahooFinance");
+  if (yf.clearCache) yf.clearCache();
 
   try {
     // Mark as running in DB
@@ -124,7 +129,7 @@ const runFullScan = async () => {
     const allResults = await scanBatch(UNIVERSE, 5, async (partial, done) => {
       // Save partial results to DB so users see progress even if scan interrupted
       const ranked = partial
-        .filter(r => Math.abs(r.score||0) >= 2)
+        .filter(r => Math.abs(r.score||0) >= 4)
         .sort((a,b) => Math.abs(b.score)-Math.abs(a.score));
       await ScanResult.findOneAndUpdate(
         { key: 'latest' },
@@ -142,7 +147,7 @@ const runFullScan = async () => {
 
     // Sort by absolute score
     const ranked = allResults
-      .filter(r => Math.abs(r.score||0) >= 2)
+      .filter(r => Math.abs(r.score||0) >= 4)
       .sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
 
     const top5     = ranked.slice(0, 5);
@@ -157,7 +162,7 @@ const runFullScan = async () => {
         results: ranked.slice(0, 50), // top 50 overall
         top5, topBuys, topSells,
         scannedAt:    new Date(),
-        scannedCount: allResults.length,
+        scannedCount: UNIVERSE.length,
         duration,
         running:      false,
       },

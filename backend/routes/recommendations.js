@@ -3,7 +3,8 @@ const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const Recommendation = require('../models/Recommendation');
 const yf   = require('../services/yahooFinance');
-const { sendFollowAlert, sendInstrumentAlert } = require('../services/emailService');
+const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert } = require('../services/emailService');
+const Notification = require('../models/Notification');
 const User = require('../models/User');
 
 // Instrument subscriptions are stored in User.watchlist (persistent)
@@ -27,6 +28,12 @@ const checkOutcome = async (rec, io) => {
       const author = await User.findById(rec.user).select('fullName username email');
 
       // ── Notify & email the REC OWNER ─────────────────────────────
+      await Notification.create({
+        user: rec.user, type:'win',
+        title:`🏆 Your $${rec.symbol} call hit Take Profit!`,
+        body:`+${rec.returnPct}% return · Great call!`,
+        recId: rec._id,
+      }).catch(()=>{});
       io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
         type:'win', title:`🏆 Your $${rec.symbol} call hit Take Profit!`,
         body:`+${rec.returnPct}% return · Great call!`, recId:rec._id, time:new Date(),
@@ -68,6 +75,12 @@ const checkOutcome = async (rec, io) => {
       const author = await User.findById(rec.user).select('fullName username email');
 
       // ── Notify & email the REC OWNER on LOSS ─────────────────────
+      await Notification.create({
+        user: rec.user, type:'loss',
+        title:`💸 Your $${rec.symbol} call hit Stop Loss`,
+        body:`${rec.returnPct}% · Review your analysis`,
+        recId: rec._id,
+      }).catch(()=>{});
       io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
         type:'loss', title:`💸 Your $${rec.symbol} call hit Stop Loss`,
         body:`${rec.returnPct}% · Review your analysis`, recId:rec._id, time:new Date(),

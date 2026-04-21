@@ -151,6 +151,7 @@
   </a>
   <div class="navbar-actions">
     <span style="color:var(--muted);font-size:14px;" class="nav-username"></span>
+    <a href="/scanner.html" class="btn btn-outline btn-sm">🏆 Scanner</a>
     <a href="/feed.html" class="btn btn-outline btn-sm">← Feed</a>
     <button onclick="Auth.logout()" class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1.5px solid var(--red);">Logout</button>
   </div>
@@ -230,6 +231,7 @@
     </div>
     <div class="prof-actions">
       <button id="share-call-btn" class="btn btn-green" style="display:none;" onclick="openShareForm()">📤 Share a Call</button>
+      <button id="change-pwd-btn" class="btn btn-outline btn-sm" style="display:none;" onclick="openChangePwd()">🔑 Password</button>
       <button id="follow-btn" class="btn btn-primary" style="display:none;">+ Follow</button>
     </div>
   </div>
@@ -342,6 +344,119 @@
   window._followData      = _followData;
   window.openFollowModal  = openFollowModal;
   window.closeFollowModal = closeFollowModal;
+</script>
+<!-- Live Price Refresh -->
+<script>
+async function refreshProfilePrices() {
+  const cards = [...document.querySelectorAll('[data-symbol][data-isopen="true"]')];
+  const symMap = {};
+  cards.forEach(c => {
+    const sym = c.dataset.symbol;
+    if (sym) { if (!symMap[sym]) symMap[sym] = []; symMap[sym].push(c); }
+  });
+  for (const [sym, els] of Object.entries(symMap)) {
+    try {
+      const q = await API.quote(sym);
+      els.forEach(card => {
+        const liveEl = card.querySelector('.live-price');
+        if (liveEl) {
+          const oldPrice = parseFloat(liveEl.textContent.replace(/[^0-9.]/g,''));
+          liveEl.textContent = '$' + Number(q.price).toFixed(2);
+          liveEl.style.color = (q.changePct||0)>=0?'var(--green2)':'var(--red2)';
+          if (oldPrice && oldPrice !== q.price) {
+            liveEl.style.background = q.price > oldPrice ? 'rgba(0,230,118,0.2)' : 'rgba(255,23,68,0.2)';
+            setTimeout(() => { liveEl.style.background = 'transparent'; }, 600);
+          }
+        }
+        const chgEl = card.querySelector('.live-change');
+        if (chgEl && q.changePct !== undefined) {
+          const pct = q.changePct || 0;
+          chgEl.textContent = (pct>=0?'▲':'▼') + ' ' + Math.abs(pct).toFixed(2) + '%';
+          chgEl.style.color = pct>=0?'var(--green2)':'var(--red2)';
+        }
+        // Update return %
+        const retEl = card.querySelector('.live-return');
+        if (retEl) {
+          const entry = parseFloat(card.dataset.entry);
+          const dir   = card.dataset.direction;
+          if (entry && dir) {
+            const ret = dir==='BUY' ? ((q.price-entry)/entry*100) : ((entry-q.price)/entry*100);
+            retEl.textContent = (ret>=0?'+':'') + ret.toFixed(2) + '%';
+            retEl.style.color = ret>=0?'var(--green)':'var(--red)';
+          }
+        }
+      });
+    } catch(_) {}
+  }
+}
+// Run immediately and every 30 seconds
+setTimeout(refreshProfilePrices, 1000);
+setInterval(refreshProfilePrices, 30000);
+</script>
+
+<!-- Change Password Modal -->
+<div id="pwd-overlay" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(8,15,36,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,0.3);animation:modalIn .25s ease;">
+    <h2 style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:var(--accent);margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+      🔑 CHANGE PASSWORD
+      <button onclick="closeChangePwd()" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--bg2);cursor:pointer;font-size:16px;color:var(--muted);">✕</button>
+    </h2>
+    <div class="form-group">
+      <label class="form-label">Current Password</label>
+      <input id="pwd-current" type="password" class="form-input" placeholder="Your current password"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">New Password</label>
+      <input id="pwd-new" type="password" class="form-input" placeholder="Min 6 characters"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirm New Password</label>
+      <input id="pwd-confirm" type="password" class="form-input" placeholder="Repeat new password"/>
+    </div>
+    <div class="form-error" id="pwd-err"></div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button onclick="closeChangePwd()" class="btn btn-outline" style="flex:1;justify-content:center;">Cancel</button>
+      <button onclick="submitChangePwd()" class="btn btn-primary" style="flex:2;justify-content:center;" id="pwd-submit-btn">Update Password</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openChangePwd() {
+    document.getElementById('pwd-overlay').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    document.getElementById('pwd-current').focus();
+  }
+  function closeChangePwd() {
+    document.getElementById('pwd-overlay').style.display = 'none';
+    document.body.style.overflow = '';
+    document.getElementById('pwd-err').textContent = '';
+    ['pwd-current','pwd-new','pwd-confirm'].forEach(id => document.getElementById(id).value = '');
+  }
+  async function submitChangePwd() {
+    const current = document.getElementById('pwd-current').value;
+    const newPwd  = document.getElementById('pwd-new').value;
+    const confirm = document.getElementById('pwd-confirm').value;
+    const errEl   = document.getElementById('pwd-err');
+    const btn     = document.getElementById('pwd-submit-btn');
+    errEl.textContent = '';
+    if (!current || !newPwd || !confirm) { errEl.textContent = 'All fields are required'; return; }
+    if (newPwd.length < 6) { errEl.textContent = 'New password must be at least 6 characters'; return; }
+    if (newPwd !== confirm) { errEl.textContent = 'Passwords do not match'; return; }
+    btn.disabled = true; btn.textContent = 'Updating…';
+    try {
+      const res = await API.changePassword({ currentPassword: current, newPassword: newPwd });
+      toast(res.message, 'success');
+      closeChangePwd();
+    } catch (err) {
+      errEl.textContent = err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Update Password';
+    }
+  }
+  document.getElementById('pwd-overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('pwd-overlay')) closeChangePwd();
+  });
 </script>
 </body>
 </html>

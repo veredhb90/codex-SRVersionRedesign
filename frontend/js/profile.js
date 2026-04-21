@@ -46,6 +46,8 @@
     if (isOwn) {
       shareBtn  && (shareBtn.style.display  = 'inline-flex');
       followBtn && (followBtn.style.display = 'none');
+      const pwdBtn = document.getElementById('change-pwd-btn');
+      if (pwdBtn) pwdBtn.style.display = 'inline-flex';
       repostsBox && (repostsBox.style.display = 'block');
       engineBox  && (engineBox.style.display  = 'block');
       // Show and load watchlist
@@ -113,6 +115,24 @@
 
   // ── Event delegation for comments ──────────────────────────────
   document.addEventListener('click', async (e) => {
+    // Undo repost
+    const undoBtn = e.target.closest('[data-action="undo-repost"]');
+    if (undoBtn) {
+      const recId = undoBtn.dataset.recid;
+      undoBtn.disabled = true;
+      undoBtn.textContent = 'Removing…';
+      try {
+        await API.undoRepost(recId);
+        undoBtn.closest('.rec-card').remove();
+        toast('Repost removed', 'success');
+      } catch (err) {
+        toast(err.message, 'error');
+        undoBtn.disabled = false;
+        undoBtn.textContent = '✕ Undo Repost';
+      }
+      return;
+    }
+
     // Toggle comments
     const toggleBtn = e.target.closest('[data-action="toggle-comments"]');
     if (toggleBtn) {
@@ -327,7 +347,7 @@ async function unfollowInstrument(sym) {
 }
 
 // ── Profile card builder ───────────────────────────────────────────
-function buildProfileCard(r) {
+function buildProfileCard(r, isOwn) {
   const isBuy    = r.direction === 'BUY';
   const isClosed = !r.isOpen;
   const isWin    = r.outcome === 'WIN';
@@ -354,7 +374,7 @@ function buildProfileCard(r) {
   const commentCount = r.comments?.length || 0;
 
   return `
-  <div class="rec-card ${isBuy?'buy':'sell'} ${isClosed?'closed':''}" style="margin-bottom:12px;">
+  <div class="rec-card" data-symbol="${r.symbol}" data-entry="${r.entryPrice}" data-direction="${r.direction}" data-isopen="${r.isOpen?'true':'false'}" ${isBuy?'buy':'sell'} ${isClosed?'closed':''}" style="margin-bottom:12px;">
     <div class="rec-header">
       <div>
         <div class="rec-symbol">${r.symbol}</div>
@@ -371,7 +391,9 @@ function buildProfileCard(r) {
       <div class="price-block"><div class="price-val sl-val">${r.stopLoss?fmtPrice(r.stopLoss):'—'}</div><div class="price-lbl">Stop Loss</div></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-      <span style="font-size:12px;color:var(--muted);">Live: <span style="font-weight:700;font-family:var(--font-mono);">${fmtPrice(r.currentPrice||r.entryPrice)}</span></span>
+      <span style="font-size:12px;color:var(--muted);">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
+      <span class="live-change" style="font-size:11px;color:var(--muted);margin-left:4px;"></span>
+    </span>
       <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${retColor};">${r.returnPct?fmtPct(r.returnPct):'—'}</span>
       <span style="margin-left:auto;font-size:12px;color:var(--muted);">♥ ${r.likes?.length||0}</span>
       <button class="btn btn-sm btn-ghost"
@@ -379,6 +401,10 @@ function buildProfileCard(r) {
         style="font-size:12px;padding:5px 10px;cursor:pointer;">
         💬 ${commentCount} Comment${commentCount!==1?'s':''}
       </button>
+      ${isOwn && r.source==='repost' ? `<button class="btn btn-sm btn-outline" data-action="undo-repost" data-recid="${r._id}"
+        style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--red);border-color:var(--red);">
+        ✕ Undo Repost
+      </button>` : ''}
     </div>
     ${r.note?`<div class="rec-note">"${r.note}"</div>`:''}
     <div id="pcs-${r._id}" style="display:none;margin-top:10px;border-top:1px solid var(--bg3);padding-top:10px;">

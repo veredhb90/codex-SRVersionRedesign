@@ -92,3 +92,34 @@ router.get('/check-username/:username', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+    const user = await User.findOne({ email, isVerified: true });
+    if (!user) return res.status(404).json({ message: 'No verified account found with this email' });
+    const newPassword = require('crypto').randomBytes(6).toString('base64url').slice(0, 10);
+    user.password = newPassword;
+    await user.save();
+    const { sendPassword } = require('../services/emailService');
+    await sendPassword(email, newPassword);
+    res.json({ message: 'New password sent to your email!' });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/auth/change-password
+router.post('/change-password', require('../middleware/authMiddleware').protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Both fields required' });
+    if (newPassword.length < 6) return res.status(400).json({ message: 'Min 6 characters' });
+    const user = await User.findById(req.user._id);
+    const match = await user.comparePassword(currentPassword);
+    if (!match) return res.status(400).json({ message: 'Current password is incorrect' });
+    user.password = newPassword;
+    await user.save();
+    res.json({ message: 'Password changed successfully!' });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});

@@ -95,6 +95,26 @@
         <div class="form-error" id="l-err"></div>
       </div>
       <button type="submit" class="btn btn-login" id="login-btn">Enter the Feed →</button>
+      <div style="text-align:center;margin-top:16px;">
+        <button type="button" onclick="showForgotPassword()" style="background:none;border:none;color:var(--accent2);cursor:pointer;font-size:14px;text-decoration:underline;">
+          Forgot your password?
+        </button>
+      </div>
+
+      <!-- Forgot password form -->
+      <div id="forgot-section" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <p style="font-size:14px;color:var(--muted);margin-bottom:12px;">Enter your email and we'll send you a new password.</p>
+        <div class="form-group">
+          <input id="forgot-email" type="email" class="form-input" placeholder="your@email.com"/>
+        </div>
+        <div class="form-error" id="forgot-err"></div>
+        <button type="button" onclick="submitForgotPassword()" class="btn btn-primary" style="width:100%;justify-content:center;" id="forgot-btn">
+          Send New Password
+        </button>
+        <button type="button" onclick="hideForgotPassword()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;margin-top:8px;width:100%;">
+          Cancel
+        </button>
+      </div>
     </form>
 
     <div class="login-footer">New trader? <a href="/index.html#register">Create free account</a></div>
@@ -102,6 +122,33 @@
 </div>
 
 <script src="/js/api.js"></script>
+<script>
+  function showForgotPassword() {
+    document.getElementById('forgot-section').style.display = 'block';
+    document.getElementById('forgot-email').focus();
+  }
+  function hideForgotPassword() {
+    document.getElementById('forgot-section').style.display = 'none';
+    document.getElementById('forgot-err').textContent = '';
+  }
+  async function submitForgotPassword() {
+    const email  = document.getElementById('forgot-email').value.trim();
+    const errEl  = document.getElementById('forgot-err');
+    const btn    = document.getElementById('forgot-btn');
+    errEl.textContent = '';
+    if (!email) { errEl.textContent = 'Enter your email'; return; }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const res = await API.forgotPassword({ email });
+      toast(res.message, 'success', 5000);
+      hideForgotPassword();
+    } catch (err) {
+      errEl.textContent = err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Send New Password';
+    }
+  }
+</script>
 <script src="/js/auth.js"></script>
 <script>
   if (Auth.token()) location.href = '/feed.html';

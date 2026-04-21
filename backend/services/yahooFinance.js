@@ -42,11 +42,48 @@ const DISPLAY_MAP = {
 const REAL_NAMES = { 'GLD':'Gold','SLV':'Silver','USO':'Crude Oil','UNG':'Natural Gas','PPLT':'Platinum','CPER':'Copper' };
 const resolveSymbol = (s) => SYMBOL_MAP[s.toUpperCase()] || s.toUpperCase();
 
+// ── ETFs that Finnhub prices incorrectly — use Yahoo instead ──────
+const YAHOO_ONLY = new Set(['SPY','QQQ','IWM','DIA','GLD','SLV','USO','UNG','GDX','GDXJ','XLF','XLK','XLE','XLV','XLI','XLU']);
+
 // ── Quote ──────────────────────────────────────────────────────────
 const getQuote = (symbol) => new Promise((resolve, reject) => {
   const resolved = resolveSymbol(symbol.toUpperCase());
   const cached   = fromCache(resolved);
   if (cached) return resolve(cached);
+
+  // Use Yahoo Finance for ETFs — Finnhub has wrong prices for these
+  if (YAHOO_ONLY.has(resolved)) {
+    getCandles(symbol, 2).then(candles => {
+      const price = candles.c[candles.c.length - 1];
+      const prev  = candles.c[candles.c.length - 2] || price;
+      const change = price - prev;
+      const changePct = prev ? (change / prev * 100) : 0;
+      const result = {
+        symbol: DISPLAY_MAP[resolved] || resolved,
+        shortName: REAL_NAMES[resolved] || resolved,
+        price, change: +change.toFixed(2), changePct: +changePct.toFixed(2),
+        high: price, low: price, open: prev, prevClose: prev,
+      };
+      toCache(resolved, result);
+      resolve(result);
+    }).catch(() => {
+      // Fallback to Finnhub if Yahoo fails
+      client.quote(resolved, (err, data) => {
+        if (err || !data || !data.c) return reject(new Error(`Symbol not found: ${symbol}`));
+        const result = {
+          symbol: DISPLAY_MAP[resolved] || resolved,
+          shortName: REAL_NAMES[resolved] || resolved,
+          price: data.c, change: data.d || 0, changePct: data.dp || 0,
+          high: data.h || data.c, low: data.l || data.c,
+          open: data.o || data.c, prevClose: data.pc || data.c,
+        };
+        toCache(resolved, result);
+        resolve(result);
+      });
+    });
+    return;
+  }
+
   client.quote(resolved, (err, data) => {
     if (err || !data || !data.c) return reject(new Error(`Symbol not found: ${symbol}. Try: GLD, SLV, USO, AAPL, NVDA`));
     const result = {
@@ -100,21 +137,27 @@ const getWeeklyCandles = async (symbol) => {
   } catch { return null; }
 };
 
-// ── Market regime: is SPY in uptrend? ─────────────────────────────
+// ── Market regime: is SPY in uptrend? (Yahoo Finance only) ────────
 const getMarketRegime = async () => {
   const cacheKey = 'market_regime';
-  const cached   = fromCache(cacheKey);
-  if (cached) return cached;
+  // Use longer TTL for regime - 10 minutes
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < 10*60*1000) return cached.data;
   try {
-    const candles = await getCandles('SPY', 60);
-    const closes  = candles.c;
-    const sma50val = closes.slice(-50).reduce((a,b) => a+b, 0) / Math.min(50, closes.length);
+    // Use Yahoo Finance candles directly — more accurate than Finnhub for SPY
+    const candles   = await getCandles('SPY', 60);
+    const closes    = candles.c;
     const lastClose = closes[closes.length - 1];
-    const regime = lastClose > sma50val ? 'bull' : 'bear';
-    const result = { regime, spyPrice: lastClose, spy50ma: +sma50val.toFixed(2) };
+    const sma50val  = closes.slice(-50).reduce((a,b) => a+b, 0) / Math.min(50, closes.length);
+    const regime    = lastClose > sma50val ? 'bull' : 'bear';
+    console.log(`📊 Market regime: SPY=$${lastClose.toFixed(2)} vs 50MA=$${sma50val.toFixed(2)} → ${regime}`);
+    const result = { regime, spyPrice: +lastClose.toFixed(2), spy50ma: +sma50val.toFixed(2) };
     toCache(cacheKey, result);
     return result;
-  } catch { return { regime: 'unknown', spyPrice: 0, spy50ma: 0 }; }
+  } catch(e) {
+    console.log('Market regime error:', e.message);
+    return { regime: 'bull', spyPrice: 0, spy50ma: 0 }; // default bull if error
+  }
 };
 
 // ── News + Analyst sentiment ───────────────────────────────────────
@@ -122,6 +165,12 @@ const getNewsSentiment = async (symbol) => {
   try {
     const resolved = resolveSymbol(symbol);
     if (resolved.startsWith('BINANCE:')) return { score: 0, news: [], label: 'No news data', analystScore: 0 };
+
+    // Cache news per symbol for 5 minutes
+    const newsCacheKey = `news_${resolved}`;
+    const newsCached   = fromCache(newsCacheKey);
+    if (newsCached) return newsCached;
+
     const now      = Math.floor(Date.now() / 1000);
     const fromDate = new Date((now - 7*86400)*1000).toISOString().split('T')[0];
     const toDate   = new Date(now*1000).toISOString().split('T')[0];
@@ -198,7 +247,7 @@ const getNewsSentiment = async (symbol) => {
     else if (totalScore === -2)label = 'Negative ⚠️';
     else                       label = 'Very Negative 🔴';
 
-    return {
+    const newsResult = {
       score:        totalScore,
       newsScore:    newsNormalized,
       analystScore,
@@ -207,6 +256,9 @@ const getNewsSentiment = async (symbol) => {
       label,
       totalArticles: articles.length,
     };
+    // Cache for 5 minutes
+    cache.set(newsCacheKey, { data: newsResult, ts: Date.now() - TTL + 5*60*1000 });
+    return newsResult;
   } catch (err) {
     console.log('News error:', err.message);
     return { score: 0, news: [], label: 'News unavailable', analystScore: 0 };
@@ -498,6 +550,16 @@ const getEngineRecommendation = async (symbol) => {
   const high52=Math.max(...highs), low52=Math.min(...lows);
   const rangePct=high52!==low52?((price-low52)/(high52-low52)*100):50;
 
+  // Estimate days to reach TP based on ATR
+  // Average daily move = ATR, so days = distance to TP / ATR
+  const distToTP  = Math.abs(takeProfit - price);
+  const estDays   = Math.round(distToTP / realAtr);
+  const timeframe = estDays <= 3  ? 'Very short-term (1-3 days)' :
+                    estDays <= 7  ? 'Short-term (3-7 days)' :
+                    estDays <= 14 ? 'Short-term (1-2 weeks)' :
+                    estDays <= 30 ? 'Medium-term (2-4 weeks)' :
+                                    'Medium-term (1-2 months)';
+
   return {
     symbol: quote.symbol, name: quote.shortName, price,
     direction, confidence, takeProfit, stopLoss, riskReward,
@@ -509,6 +571,8 @@ const getEngineRecommendation = async (symbol) => {
     newsScore:  news.score,
     analystLabel: news.analystLabel,
     regime:     regime.regime,
+    estDays,
+    timeframe,
     indicators: {
       rsi:   +rsiVal.toFixed(1),
       ema9:  ema9?.toFixed(2),

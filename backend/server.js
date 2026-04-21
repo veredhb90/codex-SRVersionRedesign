@@ -29,6 +29,7 @@ app.use('/api/recommendations', require('./routes/recommendations'));
 app.use('/api/users',           require('./routes/users'));
 app.use('/api/notifications',   require('./routes/notifications'));
 app.use('/api/scanner',         require('./routes/scanner'));
+app.use('/api/leaderboard',      require('./routes/leaderboard'));
 app.get('/api/health', (_, res) => res.json({ status:'ok', time:new Date() }));
 
 // ── Socket.io ──────────────────────────────────────────────────────
