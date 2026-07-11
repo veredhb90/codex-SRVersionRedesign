@@ -30,6 +30,7 @@ app.use('/api/users',           require('./routes/users'));
 app.use('/api/notifications',   require('./routes/notifications'));
 app.use('/api/scanner',         require('./routes/scanner'));
 app.use('/api/leaderboard',      require('./routes/leaderboard'));
+app.use('/api/chat',             require('./routes/chat'));
 app.get('/api/health', (_, res) => res.json({ status:'ok', time:new Date() }));
 
 // ── Socket.io ──────────────────────────────────────────────────────

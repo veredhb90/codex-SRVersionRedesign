@@ -14,8 +14,46 @@ router.get('/quote/:symbol', async (req, res) => {
 // GET /api/stocks/engine/:symbol
 router.get('/engine/:symbol', async (req, res) => {
   try {
+    const User = require('../models/User');
+    const jwt  = require('jsonwebtoken');
+
+    // Check if user is logged in
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ message: 'Please register or login to use the Signal Engine', requireAuth: true });
+    }
+
+    // Decode token
+    let userId;
+    try {
+      const decoded = jwt.verify(authHeader.replace('Bearer ', ''), process.env.JWT_SECRET);
+      userId = decoded.id;
+    } catch(e) {
+      return res.status(401).json({ message: 'Session expired. Please login again.', requireAuth: true });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(401).json({ message: 'User not found', requireAuth: true });
+
+    // Check engine limit for free users
+    if (!user.isPro() && user.engineUsed >= 1) {
+      return res.status(403).json({
+        message: 'You have used your free analysis. Subscribe to SwingRush Pro for unlimited access!',
+        requireSubscription: true,
+        engineUsed: user.engineUsed,
+        chatUsed: user.chatUsed,
+      });
+    }
+
+    // Run engine
     const rec = await yf.getEngineRecommendation(decodeURIComponent(req.params.symbol));
-    res.json(rec);
+
+    // Increment usage for free users
+    if (!user.isPro()) {
+      await User.findByIdAndUpdate(userId, { $inc: { engineUsed: 1 } });
+    }
+
+    res.json({ ...rec, engineUsed: user.engineUsed + 1, isPro: user.isPro() });
   } catch (err) { res.status(500).json({ message: 'Engine error: ' + err.message }); }
 });
 

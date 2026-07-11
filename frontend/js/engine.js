@@ -12,6 +12,13 @@
     e.preventDefault();
     const sym = symInput.value.trim().toUpperCase();
     if (!sym) return;
+
+    // Check auth first
+    if (!Auth.token()) {
+      if (window.Paywall) Paywall.showRegisterPrompt();
+      return;
+    }
+
     resultEl.innerHTML = `
       <div style="text-align:center;padding:32px;">
         <div class="spinner"></div>
@@ -25,9 +32,21 @@
         renderNoSignal(r);
       } else {
         renderResult(r);
+        if (window.setChatStockContext) {
+          window.setChatStockContext(r);
+        }
       }
     } catch (err) {
-      resultEl.innerHTML = `<p style="color:var(--red);text-align:center;padding:16px;">${err.message}</p>`;
+      // Handle paywall errors
+      if (err.message && err.message.includes('Subscribe')) {
+        if (window.Paywall) Paywall.showSubscribePaywall('engine');
+        resultEl.innerHTML = '';
+      } else if (err.message && err.message.includes('register')) {
+        if (window.Paywall) Paywall.showRegisterPrompt();
+        resultEl.innerHTML = '';
+      } else {
+        resultEl.innerHTML = `<p style="color:var(--red);text-align:center;padding:16px;">${err.message}</p>`;
+      }
     }
   });
 

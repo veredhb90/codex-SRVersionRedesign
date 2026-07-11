@@ -552,8 +552,10 @@ const getEngineRecommendation = async (symbol) => {
 
   // Estimate days to reach TP based on ATR
   // Average daily move = ATR, so days = distance to TP / ATR
-  const distToTP  = Math.abs(takeProfit - price);
-  const estDays   = Math.round(distToTP / realAtr);
+  const distToTP     = Math.abs(takeProfit - price);
+  const dailyMovePct = Math.abs(changePct) > 0.1 ? Math.abs(changePct) : 1.5;
+  const avgDailyMove = (price * dailyMovePct / 100 + realAtr * 0.6) / 2;
+  const estDays      = Math.max(1, Math.round(distToTP / avgDailyMove));
   const timeframe = estDays <= 3  ? 'Very short-term (1-3 days)' :
                     estDays <= 7  ? 'Short-term (3-7 days)' :
                     estDays <= 14 ? 'Short-term (1-2 weeks)' :
