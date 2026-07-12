@@ -150,7 +150,7 @@ const delay = (ms) => new Promise(r => setTimeout(r, ms));
 // ── PHASE 1: Technical scan (Yahoo Finance, no rate limit) ─────────
 const scanTechnical = async (symbols) => {
   const results = [];
-  const concurrency = 5;
+  const concurrency = 3;
   for (let i = 0; i < symbols.length; i += concurrency) {
     const batch = symbols.slice(i, i + concurrency);
     const batchResults = await Promise.allSettled(
@@ -164,7 +164,7 @@ const scanTechnical = async (symbols) => {
     });
     const done = Math.min(i + concurrency, symbols.length);
     if (done % 50 === 0) console.log(`📊 Phase 1: ${done}/${symbols.length} scanned...`);
-    if (i + concurrency < symbols.length) await delay(300);
+    if (i + concurrency < symbols.length) await delay(600);
   }
   return results;
 };
@@ -224,28 +224,22 @@ const runFullScan = async () => {
     // Save phase 1 immediately so users see something
     await ScanResult.findOneAndUpdate({ key: 'latest' }, {
       results:      withScores.slice(0, 100),
-      top5:         withScores.slice(0, 15),
-      topBuys:      withScores.filter(r => r.direction === 'BUY').slice(0, 15),
-      topSells:     withScores.filter(r => r.direction === 'SELL').slice(0, 10),
+      top5:         withScores.slice(0, 20),
+      topBuys:      withScores.filter(r => r.direction === 'BUY').slice(0, 20),
+      topSells:     withScores.filter(r => r.direction === 'SELL').slice(0, 20),
       scannedCount: allResults.length,
       running:      true,
     }, { upsert: true });
 
-    // Phase 2: Enrich top 50 with news
-    console.log('\n📰 PHASE 2: News enrichment for top 50...');
-    const top50 = withScores.slice(0, 50);
-    await enrichWithNews(top50);
-
-    // Re-sort after news
-    const finalResults = [...top50, ...withScores.slice(50)]
-      .sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+    // News already included in Phase 1 - no Phase 2 needed
+    const finalResults = withScores;
 
     const duration = Math.round((Date.now() - start) / 1000);
     await ScanResult.findOneAndUpdate({ key: 'latest' }, {
-      results:      finalResults.slice(0, 100),
-      top5:         finalResults.slice(0, 15),
-      topBuys:      finalResults.filter(r => r.direction === 'BUY').slice(0, 15),
-      topSells:     finalResults.filter(r => r.direction === 'SELL').slice(0, 10),
+      results:      finalResults,
+      top5:         finalResults.slice(0, 20),
+      topBuys:      finalResults.filter(r => r.direction === 'BUY').slice(0, 20),
+      topSells:     finalResults.filter(r => r.direction === 'SELL').slice(0, 20),
       scannedAt:    new Date(),
       scannedCount: allResults.length,
       duration,
@@ -308,17 +302,21 @@ setTimeout(() => {
 }, 10000);
 
 // Weekdays every 2 hours, Weekend: Saturday morning only
+// Smart schedule: weekdays at 0,8,16,17 UTC | Saturday 8 UTC only
 setInterval(() => {
-  const now = new Date();
+  const now  = new Date();
   const day  = now.getUTCDay();
   const hour = now.getUTCHours();
-  if (day !== 0 && day !== 6) {
-    console.log('⏰ Weekday scheduled scan...');
+  const min  = now.getUTCMinutes();
+  if (min > 2) return; // only trigger at top of hour
+  const isWeekend  = day === 0 || day === 6;
+  const scanHours  = [0, 8, 16, 17];
+    console.log('⏰ Scheduled scan at UTC ' + hour + ':00');
     runFullScan().catch(console.error);
   } else if (day === 6 && hour === 8) {
-    console.log('⏰ Saturday scan...');
+    console.log('⏰ Saturday scan');
     runFullScan().catch(console.error);
   }
-}, 2*60*60*1000);
+}, 60*1000); // check every minute
 
 module.exports = { getTop5, runFullScan, UNIVERSE };

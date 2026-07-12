@@ -11,15 +11,47 @@ const TTL   = 30000;
 const fromCache = (k) => { const e = cache.get(k); if (!e) return null; if (Date.now()-e.ts > TTL) { cache.delete(k); return null; } return e.data; };
 const toCache   = (k, d) => cache.set(k, { data: d, ts: Date.now() });
 
-const fetchJSON = (url) => new Promise((resolve, reject) => {
-  const opts = { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SwingRush/1.0)', 'Accept': 'application/json' } };
-  https.get(url, opts, (res) => {
-    if (res.statusCode === 301 || res.statusCode === 302) return fetchJSON(res.headers.location).then(resolve).catch(reject);
-    let data = '';
-    res.on('data', d => data += d);
-    res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(e); } });
-  }).on('error', reject).on('timeout', () => reject(new Error('Timeout')));
-});
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+const fetchJSON = async (url, retries = 3) => {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const opts = {
+          timeout: 12000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json,text/html,*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://finance.yahoo.com/',
+          }
+        };
+        https.get(url, opts, (res) => {
+          if (res.statusCode === 301 || res.statusCode === 302) {
+            return fetchJSON(res.headers.location, retries).then(resolve).catch(reject);
+          }
+          if (res.statusCode === 429 || res.statusCode === 503) {
+            return reject(new Error('RATE_LIMITED'));
+          }
+          let data = '';
+          res.on('data', d => data += d);
+          res.on('end', () => {
+            try { resolve(JSON.parse(data)); }
+            catch(e) { reject(new Error('PARSE_ERROR')); }
+          });
+        }).on('error', reject).on('timeout', () => reject(new Error('TIMEOUT')));
+      });
+      return result;
+    } catch(err) {
+      if (attempt < retries) {
+        const waitMs = err.message === 'RATE_LIMITED' ? 3000 : 1000;
+        await sleep(waitMs);
+      } else {
+        throw err;
+      }
+    }
+  }
+};
 
 // ── Symbol maps ────────────────────────────────────────────────────
 const SYMBOL_MAP = {
@@ -611,4 +643,4 @@ const simpleFallback = (quote, symbol, news={score:0,news:[],label:'N/A'}, regim
   };
 };
 
-module.exports = { getQuote, getEngineRecommendation };
+module.exports = { getQuote, getEngineRecommendation, getNewsSentiment };

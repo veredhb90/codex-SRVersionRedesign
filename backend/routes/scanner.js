@@ -4,7 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const { getTop5, runFullScan, UNIVERSE } = require('../services/stockScanner');
 
 // GET /api/scanner/top5 — returns instantly from DB
-router.get('/top5', protect, async (req, res) => {
+router.get('/top5', async (req, res) => {
   try {
     const forceRefresh = req.query.refresh === 'true';
     const result = await getTop5(forceRefresh);

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Top 5 Scanner — SwingRush</title>
+  <title>SwingRush Scanner — Top Signals</title>
   <link rel="stylesheet" href="/css/main.css"/>
   <style>
     body { background:var(--bg2); }
@@ -153,8 +153,8 @@
 
   <!-- Header -->
   <div class="scanner-header">
-    <div class="scanner-title">⚡ TOP 5 <span>SCANNER</span></div>
-    <div class="scanner-sub">AI-powered scan of 500 US stocks — best opportunities ranked by composite score · Results cached in database</div>
+    <div class="scanner-title">⚡ SWINGRUSH <span>SCANNER</span></div>
+    <div class="scanner-sub">AI-powered scan of 682 US stocks — best opportunities ranked by composite score · Results cached in database</div>
     <div class="scanner-meta" id="scanner-meta" style="display:none;">
       <div class="scanner-meta-item">📊 Scanned: <strong id="meta-count">—</strong> stocks</div>
       <div class="scanner-meta-item">⏱ Duration: <strong id="meta-duration">—</strong>s</div>
@@ -165,12 +165,12 @@
   <!-- Controls -->
   <div style="display:flex;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
     <div class="scan-tabs">
-      <button class="scan-tab active" onclick="switchTab('all')" id="tab-all">🏆 Top 5 Overall</button>
-      <button class="scan-tab" onclick="switchTab('buy')"  id="tab-buy">▲ Top BUY</button>
-      <button class="scan-tab" onclick="switchTab('sell')" id="tab-sell">▼ Top SELL</button>
+      <button class="scan-tab active" onclick="switchTab('all')" id="tab-all">🏆 Top 20 Overall</button>
+      <button class="scan-tab" onclick="switchTab('buy')"  id="tab-buy">▲ Top 10 BUY</button>
+      <button class="scan-tab" onclick="switchTab('sell')" id="tab-sell">▼ Top 10 SELL</button>
     </div>
     <button class="scan-btn" id="scan-btn" onclick="runScan(false)">⚡ Run Scanner</button>
-    <button class="scan-btn refresh" id="refresh-btn" onclick="runScan(true)" style="display:none;">🔄 Refresh</button>
+    
     <span class="cache-notice" id="cache-notice" style="display:none;">📦 Cached result</span>
   </div>
 
@@ -265,7 +265,7 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      if (data.scanning || !data.top5 || !data.top5.length) {
+      if (data.scanning === true || !data.top5 || !data.top5.length) {
         // Still scanning — show loading, poll until done
         showScanningProgress(data.scannedCount || 0, data.message);
         startPolling();
@@ -274,7 +274,7 @@
         scanData = data;
         renderResults();
         updateMeta(data);
-        document.getElementById('refresh-btn').style.display = 'inline-flex';
+        
         document.getElementById('cache-notice').style.display = data.cached ? 'inline-flex' : 'none';
       }
     } catch (err) {
@@ -327,7 +327,7 @@
         const res  = await fetch('/api/scanner/top5', { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
         const data = await res.json();
         if (!res.ok) return;
-        if (data.scanning || !data.top5 || !data.top5.length) {
+        if (data.scanning === true || !data.top5 || !data.top5.length) {
           // Still scanning — update progress bar
           showScanningProgress(data.scannedCount || 0, '');
         } else {
@@ -335,14 +335,14 @@
           scanData = data;
           renderResults();
           updateMeta(data);
-          document.getElementById('refresh-btn').style.display = 'inline-flex';
+          
           const banner = document.getElementById('scan-banner');
           if (banner) banner.remove();
           clearInterval(pollTimer);
           pollTimer = null;
         }
       } catch (_) {}
-    }, 10000); // poll every 10 seconds
+    }, 5000); // poll every 5 seconds
   }
 
   const UNIVERSE_SIZE = 500;
