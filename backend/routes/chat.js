@@ -1,28 +1,29 @@
-const express = require('express');
-const router  = express.Router();
+const express    = require('express');
+const router     = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { getEngineRecommendation } = require('../services/yahooFinance');
-const https = require('https');
+const ChatSession = require('../models/ChatSession');
+const https      = require('https');
 
-// Extract stock symbols from message
+// ── Extract stock symbols ──────────────────────────────────────────
 const extractSymbols = (text) => {
   const matches = text.toUpperCase().match(/\b[A-Z]{2,5}\b/g) || [];
   const SKIP = new Set([
     'THE','AND','FOR','BUY','SELL','NOW','TOP','GET','HOW','WHY','CAN','ARE',
     'YOU','WHAT','WHEN','WILL','DOES','HAS','ITS','SHOULD','WOULD','TELL',
-    'ABOUT','STOCK','NEWS','PRICE','TODAY','MARKET','TRADE','SIGNAL','WHAT',
-    'MOVING','AVERAGE','MEAN','RSI','MACD','ADX','EMA','SMA','WHO','CEO',
-    'THIS','THAT','WITH','FROM','THEY','HAVE','LAST','WEEK','MONTH','YEAR',
-    'GIVE','SHOW','LIST','BEST','MOST','SOME','ALSO','LIKE','JUST','VERY',
-    'GOOD','MAKE','INTO','THEN','THAN','BEEN','WERE','SAID','EACH','WHICH',
+    'ABOUT','STOCK','NEWS','PRICE','TODAY','MARKET','TRADE','SIGNAL','ALL',
+    'GIVE','SHOW','LIST','BEST','WITH','FROM','LAST','YEAR','WEEK','THIS',
+    'THAT','HAVE','BEEN','THEY','WERE','SAID','EACH','WHICH','THEIR','THAN',
+    'RSI','MACD','ADX','EMA','SMA','ATR','CEO','CFO','IPO','ETF','USD',
   ]);
   return [...new Set(matches.filter(s => !SKIP.has(s) && s.length >= 2 && s.length <= 5))].slice(0, 3);
 };
 
+// ── Call Claude ────────────────────────────────────────────────────
 const callClaude = (messages, systemPrompt) => new Promise((resolve, reject) => {
   const body = JSON.stringify({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1500,
+    max_tokens: 2000,
     system: systemPrompt,
     messages,
   });
@@ -51,141 +52,234 @@ const callClaude = (messages, systemPrompt) => new Promise((resolve, reject) => 
   req.end();
 });
 
+// ── GET /api/chat/sessions ─────────────────────────────────────────
+router.get('/sessions', protect, async (req, res) => {
+  try {
+    const sessions = await ChatSession.find({ user: req.user._id })
+      .select('title createdAt updatedAt messages')
+      .sort({ updatedAt: -1 })
+      .limit(20);
+    res.json(sessions);
+  } catch(err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── GET /api/chat/sessions/:id ─────────────────────────────────────
+router.get('/sessions/:id', protect, async (req, res) => {
+  try {
+    const session = await ChatSession.findOne({ _id: req.params.id, user: req.user._id });
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+    res.json(session);
+  } catch(err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── POST /api/chat/sessions ────────────────────────────────────────
+router.post('/sessions', protect, async (req, res) => {
+  try {
+    const session = await ChatSession.create({ user: req.user._id, title: 'New Chat', messages: [] });
+    res.json(session);
+  } catch(err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── DELETE /api/chat/sessions/:id ─────────────────────────────────
+router.delete('/sessions/:id', protect, async (req, res) => {
+  try {
+    await ChatSession.deleteOne({ _id: req.params.id, user: req.user._id });
+    res.json({ message: 'Deleted' });
+  } catch(err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── POST /api/chat ─────────────────────────────────────────────────
 router.post('/', protect, async (req, res) => {
   try {
-    const { message, history = [], stockContext } = req.body;
+    const { message, history = [], stockContext, sessionId } = req.body;
     if (!message) return res.status(400).json({ message: 'Message required' });
 
-    // Check chat limit for free users
+    // ── Check chat limit ─────────────────────────────────────────
     const User = require('../models/User');
     const user = await User.findById(req.user._id);
-    if (!user.isPro() && user.chatUsed >= 2) {
+    console.log('CHAT LIMIT CHECK - user:', user.email, 'plan:', user.plan, 'chatUsed:', user.chatUsed);
+    console.log('CHAT LIMIT CHECK - user:', user.email, 'plan:', user.plan, 'chatUsed:', user.chatUsed);
+    if (user.plan !== 'pro' && (user.chatUsed || 0) >= 2) {
       return res.status(403).json({
-        message: 'You have used your 2 free AI chat messages. Subscribe to SwingRush Pro for unlimited AI trading assistant!',
+        message: 'You have used your 2 free AI chat messages. Subscribe to SwingRush Pro for unlimited AI!',
         requireSubscription: true,
-        chatUsed: user.chatUsed,
       });
     }
-
-    // Increment chat usage for free users
-    if (!user.isPro()) {
+    if (user.plan !== 'pro') {
       await User.findByIdAndUpdate(req.user._id, { $inc: { chatUsed: 1 } });
     }
 
-    // Auto-detect stock symbols and run full engine
+    // ── Session management ───────────────────────────────────────
+    let session;
+    if (sessionId) {
+      try { session = await ChatSession.findOne({ _id: sessionId, user: req.user._id }); } catch(e) {}
+    }
+    if (!session) {
+      const recent = await ChatSession.findOne({
+        user: req.user._id,
+        updatedAt: { $gte: new Date(Date.now() - 24*60*60*1000) }
+      }).sort({ updatedAt: -1 });
+      session = recent || await ChatSession.create({ user: req.user._id, title: 'New Chat', messages: [] });
+    }
+
+    // ── Run engine on mentioned stocks ───────────────────────────
     const symbols = extractSymbols(message);
     let engineResults = '';
-
     if (symbols.length > 0) {
-      console.log('Chat: analyzing symbols:', symbols);
-      const results = await Promise.allSettled(
-        symbols.map(sym => getEngineRecommendation(sym, { skipNews: false }))
-      );
+      console.log('Chat: analyzing', symbols);
+      const results = await Promise.allSettled(symbols.map(sym => getEngineRecommendation(sym, { skipNews: false })));
       results.forEach((r, idx) => {
         if (r.status === 'fulfilled') {
           const e = r.value;
           const sym = symbols[idx];
-
-          // Full news with headlines and links
           let newsSection = `News sentiment: ${e.newsLabel || 'N/A'}`;
           if (e.news && e.news.length > 0) {
-            newsSection += '\nLatest news articles:\n' + e.news.map((n, i) =>
-              `  ${i+1}. [${n.sentiment === 'positive' ? '▲ Positive' : n.sentiment === 'negative' ? '▼ Negative' : '● Neutral'}] ${n.headline}\n     Source: ${n.source || 'Unknown'} | Link: ${n.url || 'N/A'}`
+            newsSection += '\nRecent news:\n' + e.news.map((n, i) =>
+              `  ${i+1}. [${n.sentiment === 'positive' ? '▲' : n.sentiment === 'negative' ? '▼' : '●'}] ${n.headline} — ${n.url}`
             ).join('\n');
           }
-
-          // All signals
-          const allSignals = (e.signals || []).join('\n  - ');
-
           engineResults += `
-═══════════════════════════════════
-📊 ${sym} — FULL ENGINE ANALYSIS
-═══════════════════════════════════
-PRICE & SIGNAL:
-- Current Price: $${e.price} (${e.change >= 0 ? '+' : ''}${e.changePct}% today)
-- Signal: ${e.direction} | Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | Confidence: ${e.confidence}
-- Entry: $${e.price} | Take Profit: $${e.takeProfit} | Stop Loss: $${e.stopLoss}
-- Risk/Reward: 1:${e.riskReward} | Est. time to TP: ${e.timeframe || 'N/A'}
-- 52W position: ${e.rangePct}% | Trend: ${e.trend}
-- Market: ${e.regime === 'bull' ? '✅ Bull market (SPY above 50MA)' : '⚠️ Bear market (SPY below 50MA)'}
-${e.noSignal ? '⚠️ NO SIGNAL: ' + e.noSignalReason : ''}
+╔══════════════════════════════════════╗
+  SWINGRUSH ENGINE: ${sym}
+╚══════════════════════════════════════╝
+Price: $${e.price} (${e.changePct >= 0 ? '+' : ''}${e.changePct}% today)
+SIGNAL: ${e.direction} | Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | Confidence: ${e.confidence}
+Entry: $${e.price} | Take Profit: $${e.takeProfit} | Stop Loss: $${e.stopLoss}
+Risk/Reward: 1:${e.riskReward} | Est. time to TP: ${e.timeframe || 'N/A'}
+52W position: ${e.rangePct}% | Trend: ${e.trend}
+Market: ${e.regime === 'bull' ? '✅ Bull (SPY above 50MA)' : '⚠️ Bear (SPY below 50MA)'}
+${e.noSignal ? '⚠️ NO CLEAR SIGNAL: ' + e.noSignalReason : ''}
 
-TECHNICAL INDICATORS (all 12):
-  - ${allSignals}
+ALL 12 INDICATORS:
+${(e.signals || []).join('\n')}
 
-${e.analystLabel ? 'ANALYST CONSENSUS:\n- ' + e.analystLabel : ''}
+${e.analystLabel ? 'ANALYSTS: ' + e.analystLabel : ''}
 
 ${newsSection}
-═══════════════════════════════════
 `;
         }
       });
     }
 
-    // Get scanner top results
+    // ── Full scanner data ────────────────────────────────────────
     let scannerContext = '';
     try {
       const mongoose = require('mongoose');
       const ScanResult = mongoose.models.ScanResult ||
-        mongoose.model('ScanResult', new mongoose.Schema({ top5: Array, scannedCount: Number }, { strict: false }));
+        mongoose.model('ScanResult', new mongoose.Schema({ results: Array, top5: Array, scannedCount: Number }, { strict: false }));
       const doc = await ScanResult.findOne({ key: 'latest' });
-      if (doc && doc.top5 && doc.top5.length > 0) {
-        scannerContext = `\n🏆 SCANNER TOP STOCKS (${doc.scannedCount} stocks scanned):\n` +
-          doc.top5.slice(0, 10).map((r, i) =>
-            `${i+1}. ${r.symbol}: ${r.direction} | Score: ${r.score > 0 ? '+' : ''}${r.score} | $${r.price} | TP: $${r.takeProfit} | SL: $${r.stopLoss} | ${r.confidence}`
-          ).join('\n');
+      if (doc && doc.results && doc.results.length > 0) {
+        const all = [...doc.results].sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+        const buys  = all.filter(r => r.direction === 'BUY');
+        const sells = all.filter(r => r.direction === 'SELL');
+
+        scannerContext = `
+╔══════════════════════════════════════╗
+  FULL SWINGRUSH SCANNER DATA
+  ${doc.scannedCount} stocks scanned | ${all.length} with signals
+╚══════════════════════════════════════╝
+
+ALL BUY SIGNALS (sorted by score):
+${buys.map((r, i) => `${i+1}. ${r.symbol}: +${r.score} | $${r.price} | TP:$${r.takeProfit} | SL:$${r.stopLoss} | ${r.confidence}`).join('\n')}
+
+ALL SELL SIGNALS:
+${sells.map((r, i) => `${i+1}. ${r.symbol}: ${r.score} | $${r.price} | TP:$${r.takeProfit} | SL:$${r.stopLoss} | ${r.confidence}`).join('\n')}
+
+BY PRICE RANGE (BUY signals):
+UNDER $20: ${buys.filter(r => r.price < 20).map(r => `${r.symbol}:+${r.score}($${r.price})`).join(', ') || 'None'}
+$20-$50:   ${buys.filter(r => r.price >= 20 && r.price < 50).map(r => `${r.symbol}:+${r.score}($${r.price})`).join(', ') || 'None'}
+$50-$100:  ${buys.filter(r => r.price >= 50 && r.price < 100).map(r => `${r.symbol}:+${r.score}($${r.price})`).join(', ') || 'None'}
+OVER $100: ${buys.filter(r => r.price >= 100).map(r => `${r.symbol}:+${r.score}($${r.price})`).join(', ') || 'None'}
+`;
       }
-    } catch(e) {}
+    } catch(e) { console.log('Scanner error:', e.message); }
 
-    const systemPrompt = `You are SwingRush AI — the expert trading assistant of SwingRush, a financial recommendation platform.
+    // ── Trader profile ───────────────────────────────────────────
+    let profileContext = '';
+    if (user.traderProfile && user.traderProfile.onboardingDone) {
+      const p = user.traderProfile;
+      profileContext = `
+TRADER PROFILE — personalize ALL advice based on this:
+- Age: ${p.age || 'N/A'} | Investment: ${p.investmentAmount || 'N/A'}
+- Style: ${p.tradingStyle === 'day' ? 'Day Trader' : p.tradingStyle === 'swing' ? 'Swing Trader' : p.tradingStyle === 'longterm' ? 'Long-Term Investor' : 'N/A'}
+- Experience: ${p.experience || 'N/A'} | Risk: ${p.riskTolerance || 'N/A'}
+- Goals: ${p.goals || 'N/A'}
+`;
+    }
 
-YOU MUST ALWAYS USE BOTH SOURCES TOGETHER:
-1. OUR ENGINE DATA — real-time analysis provided below (use for signals, scores, TP/SL, live prices)
-2. YOUR OWN VAST KNOWLEDGE — ALWAYS use this freely for EVERYTHING:
-   - Company info, CEO, management team, history
-   - Earnings reports, revenue, profit, guidance
-   - Sector analysis, competitors, market position  
-   - News sources in ANY language — English, Arabic, Hebrew, etc.
-   - Arabic financial sites: argaam.com, mubasher.info, aleqt.com, cnbcarabia.com, bloomberg.com/arabic
-   - Technical indicator explanations
-   - Trading strategies and education
-   - Market context, macro economics
-   - NEVER say "I cannot provide" or "I don't have access" — you have extensive knowledge, USE IT
-   - Always combine engine data WITH your knowledge for the best answer
-   - When asked for news links, provide direct URLs you know about
-   - When asked in Arabic, respond fully in Arabic and provide Arabic sources
+    // ── System prompt ────────────────────────────────────────────
+    const systemPrompt = `You are SwingRush AI — a professional trading analyst and assistant for the SwingRush platform.
 
-SCORING SYSTEM (CRITICAL — never say the range is ±12):
-- Total range: -24 to +24
-- RSI: ±3 | EMA: ±2 | MACD: ±2 | Bollinger: ±2 | ADX: ±2 | Stochastic: ±2
-- Williams %R: ±1 | ROC: ±1 | 50MA: ±1 | Volume: ±1 | Multi-TF: ±2
-- News: ±3 | Analysts: ±2 | TOTAL: ±24
-- Confidence: ±4-7=Low | ±8-11=Medium | ±12-16=High | ±17-24=Very High
+YOU ARE AN EXPERT WITH TWO POWERFUL SOURCES:
+1. YOUR OWN VAST KNOWLEDGE (Claude) — use freely for EVERYTHING:
+   - Full company analysis, business model, competitive position
+   - Financial history: revenue, profit, debt, earnings reports, guidance
+   - CEO, management team, major shareholders
+   - Industry trends, macro factors, catalysts
+   - News from any source, in any language
+   - Arabic sources: argaam.com, mubasher.info, cnbcarabia.com, bloomberg.com/arabic
+   - Technical analysis education, trading strategies
+   - Risk factors, bear/bull case
 
-RULES:
-1. When user asks about a stock signal/score → use engine data below
-2. When user asks for news → provide headlines AND clickable links from engine data
-3. When user asks about CEO, earnings, company history → use your own knowledge freely
-4. When user asks about indicators (RSI, MACD etc.) → explain clearly in simple terms
-5. Respond in the SAME LANGUAGE as the user (Hebrew=Hebrew, Arabic=Arabic)
-6. Be concise but complete — include links when available
-7. Add ⚠️ Educational purposes only, not financial advice
+2. SWINGRUSH ENGINE DATA (real-time, provided below)
+   - Live price, signal, score, TP/SL for specific stocks
+   - Full scanner results for ALL stocks
 
-${engineResults ? `\n${engineResults}` : ''}
-${stockContext ? `\nCURRENT STOCK (user is viewing):\n${stockContext}` : ''}
+HOW TO ANSWER:
+- When asked about a stock (e.g. "Tell me about MDB"):
+  → Start with SwingRush signal (from engine data below)
+  → Then add your knowledge: what the company does, last earnings, revenue trend, debt, key risks, catalysts, CEO
+  → Give a COMPLETE professional analysis
+  
+- When asked "best stocks under $X" or "all stocks with score above X":
+  → Use the scanner data below — it has ALL stocks with prices and scores
+  → Filter and list them clearly
+  
+- When asked about news:
+  → Provide links from engine data + add your own knowledge about recent events
+  
+- NEVER say "I cannot", "I don't have access", "I only see top 5"
+  → You have COMPLETE scanner data below
+  → You have your own knowledge for everything else
+
+SCORING SYSTEM:
+- Range: -24 to +24 (NOT -12 to +12)
+- RSI:±3, EMA:±2, MACD:±2, Bollinger:±2, ADX:±2, Stoch:±2, Williams:±1, ROC:±1, 50MA:±1, Volume:±1, Multi-TF:±2, News:±3, Analysts:±2
+- Confidence: ±4-7=Low, ±8-11=Medium, ±12-16=High, ±17-24=Very High
+
+RESPONSE FORMAT:
+- Be comprehensive and professional
+- Use clear sections with headers
+- Include both technical (engine) and fundamental (your knowledge)
+- Always add risk disclaimer at end
+- Respond in user's language (Arabic/Hebrew/English)
+- For Arabic users: include Arabic financial site links
+
+${stockContext ? `CURRENT STOCK USER IS VIEWING:\n${stockContext}\n` : ''}
+${engineResults ? `\nLIVE ENGINE ANALYSIS:\n${engineResults}` : ''}
 ${scannerContext}
-
+${profileContext}
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}`;
 
+    // ── Build messages ───────────────────────────────────────────
     const claudeMessages = [
       ...history.slice(-8).map(h => ({ role: h.role, content: h.content })),
       { role: 'user', content: message }
     ];
 
     const response = await callClaude(claudeMessages, systemPrompt);
-    res.json({ response, symbols });
 
-  } catch (err) {
+    // ── Save to session ──────────────────────────────────────────
+    session.messages.push({ role: 'user', content: message });
+    session.messages.push({ role: 'ai', content: response });
+    if (session.messages.length <= 2) {
+      session.title = message.length > 45 ? message.substring(0, 45) + '...' : message;
+    }
+    await session.save();
+
+    res.json({ response, symbols, sessionId: session._id });
+
+  } catch(err) {
     console.error('Chat error:', err.message);
     res.status(500).json({ message: err.message });
   }

@@ -9,21 +9,25 @@ const userSchema = new mongoose.Schema({
   password:    { type: String },
   isVerified:  { type: Boolean, default: false },
   otpCode:     { type: String },
+  plan:            { type: String, enum: ['free','pro'], default: 'free' },
+  traderProfile: {
+    age:              { type: Number },
+    investmentAmount: { type: String },
+    tradingStyle:     { type: String },
+    experience:       { type: String },
+    riskTolerance:    { type: String },
+    goals:            { type: String },
+    onboardingDone:   { type: Boolean, default: false },
+    hideAmount:       { type: Boolean, default: false },
+  },
+  subscriptionEnd: { type: Date },
+  engineUsed:      { type: Number, default: 0 },
+  chatUsed:        { type: Number, default: 0 },
   otpExpires:  { type: Date },
   following:   [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   followers:   [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  // Instrument subscriptions — persisted in DB
   watchlist:   [{ type: String, uppercase: true, trim: true }],
-
-  // ── Subscription & Usage ──────────────────────────────────────
-  plan:            { type: String, enum: ['free', 'pro'], default: 'free' },
-  subscriptionId:  { type: String }, // Stripe subscription ID
-  subscribedAt:    { type: Date },
-  subscriptionEnd: { type: Date },
-
-  // Free tier usage tracking
-  engineUsed:  { type: Number, default: 0 }, // how many engine analyses used
-  chatUsed:    { type: Number, default: 0 }, // how many AI chat messages used
-  usageReset:  { type: Date, default: Date.now }, // reset monthly
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {
@@ -36,22 +40,18 @@ userSchema.methods.comparePassword = function (plain) {
   return bcrypt.compare(plain, this.password);
 };
 
-// Check if user has active subscription
 userSchema.methods.isPro = function() {
-  if (this.plan === 'pro' && this.subscriptionEnd && this.subscriptionEnd > new Date()) return true;
-  return false;
+  return this.plan === 'pro' && this.subscriptionEnd && this.subscriptionEnd > new Date();
 };
 
-// Check engine limit
 userSchema.methods.canUseEngine = function() {
   if (this.isPro()) return true;
-  return this.engineUsed < 1; // 1 free analysis
+  return (this.engineUsed || 0) < 1;
 };
 
-// Check chat limit
 userSchema.methods.canUseChat = function() {
   if (this.isPro()) return true;
-  return this.chatUsed < 2; // 2 free chat messages
+  return (this.chatUsed || 0) < 2;
 };
 
 module.exports = mongoose.model('User', userSchema);

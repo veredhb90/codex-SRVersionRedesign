@@ -232,6 +232,7 @@
     <div class="prof-actions">
       <button id="share-call-btn" class="btn btn-green" style="display:none;" onclick="openShareForm()">📤 Share a Call</button>
       <button id="change-pwd-btn" class="btn btn-outline btn-sm" style="display:none;" onclick="openChangePwd()">🔑 Password</button>
+      <button id="trader-profile-btn" class="btn btn-sm" style="display:none;background:#00897B;color:#fff;border:none;" onclick="openTraderProfile()">🎯 My Profile</button>
       <button id="follow-btn" class="btn btn-primary" style="display:none;">+ Follow</button>
     </div>
   </div>
@@ -245,6 +246,12 @@
       <div class="stat-box"><div class="stat-val" id="stat-return">—</div><div class="stat-lbl">Total Return</div></div>
       <div class="stat-box"><div class="stat-val" id="stat-open">—</div><div class="stat-lbl">Open Calls</div></div>
     </div>
+  </div>
+
+  <!-- Trader Profile Section -->
+  <div class="stats-wrap" id="trader-profile-section" style="display:none;">
+    <div class="section-title">🎯 TRADER PROFILE</div>
+    <div id="trader-profile-display" style="padding:4px 0;"></div>
   </div>
 
   <!-- Box 1: My Recommendations -->
@@ -458,7 +465,125 @@ setInterval(refreshProfilePrices, 30000);
     if (e.target === document.getElementById('pwd-overlay')) closeChangePwd();
   });
 </script>
+<script src="/js/auth.js"></script>
+<script src="/js/api.js"></script>
 <script src="/js/chat.js"></script>
 <script src="/js/paywall.js"></script>
+<script src="/js/onboarding.js"></script>
+<script>
+// ── Display trader profile ─────────────────────────────────────────
+function displayTraderProfile(profile, isOwn) {
+  if (!profile || !profile.onboardingDone) return;
+  
+  const section = document.getElementById('trader-profile-section');
+  const display = document.getElementById('trader-profile-display');
+  if (!section || !display) return;
+  
+  section.style.display = 'block';
+
+  const styleMap = {
+    day: '⚡ Day Trader',
+    swing: '📊 Swing Trader', 
+    longterm: '📈 Long-Term Investor'
+  };
+  const expMap = {
+    beginner: '🌱 Beginner',
+    intermediate: '📊 Intermediate',
+    advanced: '🚀 Advanced'
+  };
+  const riskMap = {
+    low: '🛡️ Low Risk',
+    medium: '⚖️ Medium Risk',
+    high: '🔥 High Risk'
+  };
+
+  const hideAmount = isOwn 
+    ? profile.hideAmount 
+    : profile.hideAmount;
+
+  display.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:8px;">
+      ${profile.age ? `
+      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:22px;margin-bottom:4px;">🎂</div>
+        <div style="font-size:18px;font-weight:700;color:var(--accent);">${profile.age}</div>
+        <div style="font-size:11px;color:var(--muted);">Age</div>
+      </div>` : ''}
+      
+      ${profile.investmentAmount && !profile.hideAmount ? `
+      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:22px;margin-bottom:4px;">💰</div>
+        <div style="font-size:14px;font-weight:700;color:var(--green);">${profile.investmentAmount}</div>
+        <div style="font-size:11px;color:var(--muted);">Investing</div>
+      </div>` : ''}
+      
+      ${profile.tradingStyle ? `
+      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:22px;margin-bottom:4px;">${profile.tradingStyle === 'day' ? '⚡' : profile.tradingStyle === 'swing' ? '📊' : '📈'}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);">${styleMap[profile.tradingStyle] || profile.tradingStyle}</div>
+        <div style="font-size:11px;color:var(--muted);">Style</div>
+      </div>` : ''}
+      
+      ${profile.experience ? `
+      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:22px;margin-bottom:4px;">${profile.experience === 'beginner' ? '🌱' : profile.experience === 'intermediate' ? '📊' : '🚀'}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);">${expMap[profile.experience] || profile.experience}</div>
+        <div style="font-size:11px;color:var(--muted);">Experience</div>
+      </div>` : ''}
+      
+      ${profile.riskTolerance ? `
+      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:22px;margin-bottom:4px;">${profile.riskTolerance === 'low' ? '🛡️' : profile.riskTolerance === 'medium' ? '⚖️' : '🔥'}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);">${riskMap[profile.riskTolerance] || profile.riskTolerance}</div>
+        <div style="font-size:11px;color:var(--muted);">Risk</div>
+      </div>` : ''}
+    </div>
+    
+    ${profile.goals ? `
+    <div style="margin-top:10px;background:var(--bg2);border-radius:12px;padding:12px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🎯 GOALS</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.5;">${profile.goals}</div>
+    </div>` : ''}
+    
+    ${isOwn ? `
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;">
+        <input type="checkbox" id="hide-amount-toggle" ${profile.hideAmount ? 'checked' : ''} onchange="toggleHideAmount(this.checked)">
+        Hide investment amount from others
+      </label>
+    </div>` : ''}
+  `;
+}
+
+async function toggleHideAmount(hide) {
+  try {
+    await API.onboarding({ hideAmount: hide });
+  } catch(e) { console.log('Could not update:', e.message); }
+}
+
+// Hook into existing profile load
+const origLoadProfile = window.loadProfile;
+</script>
 </body>
 </html>
+<script>
+function openTraderProfile() {
+  var userId = Auth.user ? Auth.user()._id : 'user';
+  localStorage.removeItem('sr_onboarding_done_' + userId);
+  sessionStorage.removeItem('sr_onboarding_skipped_' + userId);
+  if (window.Onboarding) Onboarding.show();
+}
+
+// Show trader-profile-btn on own profile
+(function() {
+  var pwdBtn = document.getElementById('change-pwd-btn');
+  var tpBtn  = document.getElementById('trader-profile-btn');
+  if (!pwdBtn || !tpBtn) return;
+  var obs = new MutationObserver(function() {
+    if (pwdBtn.style.display !== 'none') {
+      tpBtn.style.display = 'inline-flex';
+    }
+  });
+  obs.observe(pwdBtn, { attributes: true, attributeFilter: ['style'] });
+})();
+</script>

@@ -18,6 +18,7 @@ const API = {
   login:               (b)       => API._req('/auth/login',           { method:'POST', body:JSON.stringify(b) }),
   forgotPassword:      (b)       => API._req('/auth/forgot-password', { method:'POST', body:JSON.stringify(b) }),
   changePassword:      (b)       => API._req('/auth/change-password', { method:'POST', body:JSON.stringify(b) }),
+  onboarding:          (b)       => API._req('/auth/onboarding',      { method:'POST', body:JSON.stringify(b) }),
   checkUsername:       (u)       => API._req('/auth/check-username/'  + encodeURIComponent(u)),
   quote:               (sym)     => API._req('/stocks/quote/'         + encodeURIComponent(sym)),
   engine:              (sym)     => API._req('/stocks/engine/'        + encodeURIComponent(sym)),
@@ -44,5 +45,9 @@ const API = {
   clearNotifs:         ()        => API._req('/notifications',        { method:'DELETE' }),
   scanTop5:            (refresh) => API._req('/scanner/top5'+(refresh?'?refresh=true':'')),
   leaderboard:         ()        => API._req('/leaderboard'),
+  getChatSessions:     ()        => API._req('/chat/sessions'),
+  getChatSession:      (id)      => API._req('/chat/sessions/' + id),
+  newChatSession:      ()        => API._req('/chat/sessions', { method:'POST' }),
+  deleteChatSession:   (id)      => API._req('/chat/sessions/' + id, { method:'DELETE' }),
 };
 window.API = API;

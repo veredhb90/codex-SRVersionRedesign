@@ -32,10 +32,12 @@ app.use('/api/scanner',         require('./routes/scanner'));
 app.use('/api/leaderboard',      require('./routes/leaderboard'));
 app.use('/api/chat',             require('./routes/chat'));
 app.get('/api/health', (_, res) => res.json({ status:'ok', time:new Date() }));
+app.get('/api/online-users', (_, res) => res.json(Array.from(onlineUsersMap.values())));
 
 // ── Socket.io ──────────────────────────────────────────────────────
 // userId (string) -> socketId (string)  — simple 1:1 map
 const userSocketMap = new Map();
+const onlineUsersMap = new Map(); // userId -> { username, fullName, lastSeen }
 
 io.on('connection', (socket) => {
   console.log('🔌 Connected:', socket.id);
@@ -62,6 +64,7 @@ io.on('connection', (socket) => {
 
 // Save notification to DB and emit to socket if online
 const Notification = require('./models/Notification');
+require('./models/ChatSession'); // ensure model is registered
 io.notifyUser = async (userId, event, data) => {
   const uid      = String(userId).trim();
   const socketId = userSocketMap.get(uid);

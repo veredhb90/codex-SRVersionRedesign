@@ -36,7 +36,7 @@ router.get('/engine/:symbol', async (req, res) => {
     if (!user) return res.status(401).json({ message: 'User not found', requireAuth: true });
 
     // Check engine limit for free users
-    if (!user.isPro() && user.engineUsed >= 1) {
+    if (user.plan !== 'pro' && (user.engineUsed || 0) >= 1) {
       return res.status(403).json({
         message: 'You have used your free analysis. Subscribe to SwingRush Pro for unlimited access!',
         requireSubscription: true,
@@ -49,11 +49,11 @@ router.get('/engine/:symbol', async (req, res) => {
     const rec = await yf.getEngineRecommendation(decodeURIComponent(req.params.symbol));
 
     // Increment usage for free users
-    if (!user.isPro()) {
+    if (user.plan !== 'pro') {
       await User.findByIdAndUpdate(userId, { $inc: { engineUsed: 1 } });
     }
 
-    res.json({ ...rec, engineUsed: user.engineUsed + 1, isPro: user.isPro() });
+    res.json({ ...rec, engineUsed: (user.engineUsed||0) + 1, isPro: user.plan === 'pro' });
   } catch (err) { res.status(500).json({ message: 'Engine error: ' + err.message }); }
 });
 

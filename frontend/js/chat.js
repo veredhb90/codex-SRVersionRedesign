@@ -102,7 +102,7 @@
     '<button id="sr-selection-popup">💬 Ask AI about this</button>' +
     '<button id="sr-chat-btn" title="SwingRush AI"><div id="sr-chat-pulse"></div><svg viewBox="0 0 120 120" width="52" height="52"><g class="srb"><ellipse cx="60" cy="70" rx="22" ry="16" fill="#E3F2FD"/><g class="srwl"><path d="M50 64 Q28 38 24 50 Q36 66 50 67 Z" fill="#64B5F6"/><path d="M50 64 Q30 42 27 52 Q38 64 50 66 Z" fill="#90CAF9"/></g><g class="srwr"><path d="M70 64 Q92 38 96 50 Q84 66 70 67 Z" fill="#64B5F6"/><path d="M70 64 Q90 42 93 52 Q82 64 70 66 Z" fill="#90CAF9"/></g><path d="M38 70 Q22 60 20 70 Q28 78 38 73 Z" fill="#42A5F5"/><circle cx="78" cy="56" r="15" fill="#E3F2FD"/><circle cx="83" cy="52" r="4" fill="#1a237e"/><circle cx="84.5" cy="50.8" r="1.5" fill="white"/><path d="M92 53 L106 56 L92 57 Z" fill="#FF9800"/><path d="M92 57 L104 58.5 L92 59 Z" fill="#F57C00"/><ellipse cx="79" cy="58" rx="5" ry="3" fill="#FF8A80" opacity="0.4"/><line x1="55" y1="85" x2="50" y2="98" stroke="#FFB74D" stroke-width="3" stroke-linecap="round"/><line x1="65" y1="85" x2="70" y2="98" stroke="#FFB74D" stroke-width="3" stroke-linecap="round"/><line x1="50" y1="98" x2="44" y2="102" stroke="#FFB74D" stroke-width="2.5" stroke-linecap="round"/><line x1="50" y1="98" x2="50" y2="103" stroke="#FFB74D" stroke-width="2.5" stroke-linecap="round"/><line x1="50" y1="98" x2="56" y2="102" stroke="#FFB74D" stroke-width="2.5" stroke-linecap="round"/><line x1="70" y1="98" x2="64" y2="102" stroke="#FFB74D" stroke-width="2.5" stroke-linecap="round"/><line x1="70" y1="98" x2="70" y2="103" stroke="#FFB74D" stroke-width="2.5" stroke-linecap="round"/><line x1="70" y1="98" x2="76" y2="102" stroke="#FFB74D" stroke-width="2.5" stroke-linecap="round"/></g></svg><span id="sr-chat-badge"></span></button>' +
     '<div id="sr-chat-box" class="normal">' +
-    '<div id="sr-chat-header"><div id="sr-chat-avatar"><svg viewBox="0 0 120 120" width="30" height="30"><ellipse cx="60" cy="70" rx="22" ry="16" fill="white" opacity="0.9"/><path d="M50 64 Q28 38 24 50 Q36 66 50 67 Z" fill="rgba(255,255,255,0.8)"/><path d="M70 64 Q92 38 96 50 Q84 66 70 67 Z" fill="rgba(255,255,255,0.8)"/><circle cx="78" cy="56" r="15" fill="white" opacity="0.9"/><circle cx="83" cy="52" r="4" fill="#0D47A1"/><path d="M92 53 L104 56 L92 57 Z" fill="#FFC107"/></svg></div><div id="sr-chat-hinfo"><div id="sr-chat-title">SwingRush AI</div><div id="sr-chat-status">Online — Ask about any stock</div></div><button class="sr-header-btn" id="sr-fullscreen-btn" title="Fullscreen">⛶</button><button class="sr-header-btn" id="sr-chat-close" title="Close">✕</button></div>' +
+    '<div id="sr-chat-header"><div id="sr-chat-avatar"><svg viewBox="0 0 120 120" width="30" height="30"><ellipse cx="60" cy="70" rx="22" ry="16" fill="white" opacity="0.9"/><path d="M50 64 Q28 38 24 50 Q36 66 50 67 Z" fill="rgba(255,255,255,0.8)"/><path d="M70 64 Q92 38 96 50 Q84 66 70 67 Z" fill="rgba(255,255,255,0.8)"/><circle cx="78" cy="56" r="15" fill="white" opacity="0.9"/><circle cx="83" cy="52" r="4" fill="#0D47A1"/><path d="M92 53 L104 56 L92 57 Z" fill="#FFC107"/></svg></div><div id="sr-chat-hinfo"><div id="sr-chat-title">SwingRush AI</div><div id="sr-chat-status">Online — Ask about any stock</div></div><button class="sr-header-btn" id="sr-history-btn" title="History" style="font-size:13px;">🕐</button><button class="sr-header-btn" id="sr-newchat-btn" title="New Chat" style="font-size:11px;">+New</button><button class="sr-header-btn" id="sr-fullscreen-btn" title="Fullscreen">⛶</button><button class="sr-header-btn" id="sr-chat-close" title="Close">✕</button></div>' +
     '<div id="sr-chat-messages"></div>' +
     '<div id="sr-chat-suggestions"><button class="sr-sug" onclick="srSuggest(\'Analyze AAPL with full signals\')">📊 Analyze AAPL</button><button class="sr-sug" onclick="srSuggest(\'Show top stocks today from scanner\')">🔥 Top stocks</button><button class="sr-sug" onclick="srSuggest(\'Is the market bullish or bearish?\')">📈 Market mood</button><button class="sr-sug" onclick="srSuggest(\'Explain RSI and how it works\')">📚 What is RSI?</button><button class="sr-sug" onclick="srSuggest(\'What stocks have best risk reward today?\')">🎯 Best R:R</button></div>' +
     '<div id="sr-chat-input-row"><textarea id="sr-chat-input" placeholder="Ask about any stock, indicator, or market..." rows="1"></textarea><button id="sr-chat-send">➤</button></div>' +
@@ -219,10 +219,11 @@
       stockContextStr = currentStock.symbol + ' @ $' + currentStock.price + ' | ' + currentStock.direction + ' | Score: ' + currentStock.score + '/24 | ' + currentStock.confidence + ' | TP: $' + currentStock.takeProfit + ' | SL: $' + currentStock.stopLoss;
     }
 
+    window.currentSessionId = window.currentSessionId || localStorage.getItem('sr_chat_session');
     fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + Auth.token() },
-      body: JSON.stringify({ message: text, history: history.slice(-8), stockContext: stockContextStr }),
+      body: JSON.stringify({ message: text, history: history.slice(-8), stockContext: stockContextStr, sessionId: window.currentSessionId }),
     })
     .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
     .then(function(result) {
@@ -278,4 +279,85 @@
     return div;
   }
 
+})();
+
+(function() {
+  var historyBtn = document.getElementById('sr-history-btn');
+  var newChatBtn = document.getElementById('sr-newchat-btn');
+  var box        = document.getElementById('sr-chat-box');
+  var messagesEl = document.getElementById('sr-chat-messages');
+  var panel      = document.createElement('div');
+  panel.id       = 'sr-history-panel';
+  panel.style.cssText = 'display:none;position:absolute;top:60px;right:0;left:0;bottom:0;background:rgba(255,255,255,0.97);z-index:10;overflow-y:auto;padding:14px;';
+  panel.innerHTML = '<div style="font-weight:700;font-size:14px;color:#0D47A1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #E3EEFF;">Previous Chats</div><div id="sr-history-list"></div>';
+  if (box) box.appendChild(panel);
+
+  if (historyBtn) historyBtn.addEventListener('click', function() {
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    if (panel.style.display === 'block') loadHistoryList();
+  });
+
+  if (newChatBtn) newChatBtn.addEventListener('click', function() {
+    window.currentSessionId = null;
+    localStorage.removeItem('sr_chat_session');
+    if (messagesEl) messagesEl.innerHTML = '';
+    panel.style.display = 'none';
+    var bSvg = '<svg viewBox="0 0 120 120" width="18" height="18"><ellipse cx="60" cy="70" rx="22" ry="16" fill="white"/><circle cx="78" cy="56" r="15" fill="white"/><circle cx="83" cy="52" r="4" fill="#0D47A1"/><path d="M92 53 L104 56 L92 57 Z" fill="#FFC107"/></svg>';
+    var div = document.createElement('div');
+    div.className = 'sr-msg ai';
+    div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + bSvg + '</div><div class="sr-bubble">New chat started! What would you like to discuss?</div></div>';
+    if (messagesEl) { messagesEl.appendChild(div); messagesEl.scrollTop = messagesEl.scrollHeight; }
+  });
+
+  async function loadHistoryList() {
+    var listEl = document.getElementById('sr-history-list');
+    if (!listEl || !Auth.token()) return;
+    listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">Loading...</div>';
+    try {
+      var sessions = await API.getChatSessions();
+      if (!sessions || !sessions.length) {
+        listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">No previous chats</div>';
+        return;
+      }
+      listEl.innerHTML = '';
+      sessions.forEach(function(s) {
+        var d = new Date(s.updatedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        var div = document.createElement('div');
+        div.style.cssText = 'padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:6px;background:#F8FAFF;border:1.5px solid #E3EEFF;';
+        div.innerHTML = '<div style="font-size:13px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (s.title || 'Chat') + '</div><div style="font-size:11px;color:#94a3b8;margin-top:3px;">' + d + ' - ' + (s.messages ? s.messages.length : 0) + ' messages</div>';
+        div.addEventListener('click', function() { loadSession(s._id); });
+        div.addEventListener('mouseover', function() { this.style.background = '#EEF4FF'; });
+        div.addEventListener('mouseout', function() { this.style.background = '#F8FAFF'; });
+        listEl.appendChild(div);
+      });
+    } catch(e) {
+      listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">Could not load</div>';
+    }
+  }
+
+  async function loadSession(sessionId) {
+    try {
+      var session = await API.getChatSession(sessionId);
+      window.currentSessionId = session._id;
+      localStorage.setItem('sr_chat_session', session._id);
+      if (messagesEl) messagesEl.innerHTML = '';
+      var bSvg = '<svg viewBox="0 0 120 120" width="18" height="18"><ellipse cx="60" cy="70" rx="22" ry="16" fill="white"/><circle cx="78" cy="56" r="15" fill="white"/><circle cx="83" cy="52" r="4" fill="#0D47A1"/><path d="M92 53 L104 56 L92 57 Z" fill="#FFC107"/></svg>';
+      if (session.messages) {
+        session.messages.forEach(function(m) {
+          var div = document.createElement('div');
+          var role = m.role === 'user' ? 'user' : 'ai';
+          div.className = 'sr-msg ' + role;
+          var escaped = m.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          if (role === 'ai') {
+            div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + bSvg + '</div><div class="sr-bubble">' + escaped + '</div></div>';
+          } else {
+            div.innerHTML = '<div class="sr-msg-row"><div class="sr-bubble">' + escaped + '</div></div>';
+          }
+          if (messagesEl) messagesEl.appendChild(div);
+        });
+        if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+      panel.style.display = 'none';
+    } catch(e) { console.log('Load session error:', e.message); }
+  }
 })();

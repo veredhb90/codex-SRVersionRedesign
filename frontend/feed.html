@@ -209,20 +209,9 @@
 
   <!-- Right Sidebar — ONE popular, ONE engine, ONE market -->
   <aside class="sidebar-right">
-    <!-- Best Traders Leaderboard at top -->
-    <div class="sb-card" id="leaderboard-card">
-      <div class="sb-title">🏆 BEST TRADERS</div>
-      <div style="display:flex;gap:6px;margin-bottom:10px;">
-        <button onclick="switchLeaderTab('winrate')" id="lb-tab-winrate"
-          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--green);background:var(--green);color:#000;font-size:11px;font-weight:700;cursor:pointer;">
-          🎯 Win Rate
-        </button>
-        <button onclick="switchLeaderTab('return')" id="lb-tab-return"
-          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;">
-          💰 Total Return
-        </button>
-      </div>
-      <div id="leaderboard-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
+    <div class="sb-card">
+      <div class="sb-title">🔥 POPULAR TODAY</div>
+      <div id="popular-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
     </div>
     <div class="sb-card">
       <div class="sb-title">⚡ QUICK SIGNAL</div>
@@ -237,11 +226,22 @@
       <div id="mkt-overview"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
     </div>
 
-    <div class="sb-card">
-      <div class="sb-title">🔥 POPULAR TODAY</div>
-      <div id="popular-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
+    <!-- Best Traders Leaderboard -->
+    <div class="sb-card" id="leaderboard-card">
+      <div class="sb-title">🏆 BEST TRADERS</div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button onclick="switchLeaderTab('winrate')" id="lb-tab-winrate"
+          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--green);background:var(--green);color:#000;font-size:11px;font-weight:700;cursor:pointer;">
+          🎯 Win Rate
+        </button>
+        <button onclick="switchLeaderTab('return')" id="lb-tab-return"
+          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;">
+          💰 Total Return
+        </button>
+      </div>
+      <div id="leaderboard-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
     </div>
-
   </aside>
 </div>
 
@@ -249,6 +249,7 @@
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/ticker.js"></script>
+<script src="/js/onboarding.js"></script>
 <script src="/js/feed.js"></script>
 <script>
   // ── Leaderboard ──────────────────────────────────────────────
@@ -308,6 +309,9 @@
       </div>`;
     }).join('');
   }
+
+  // ── Check onboarding
+  if (window.Onboarding) Onboarding.checkAndShow();
 
   // ── User init ────────────────────────────────────────────────
   const u = Auth.user();
@@ -680,6 +684,8 @@
     }
   });
 </script>
+<script src="/js/auth.js"></script>
+<script src="/js/api.js"></script>
 <script src="/js/chat.js"></script>
 <script src="/js/paywall.js"></script>
 </body>

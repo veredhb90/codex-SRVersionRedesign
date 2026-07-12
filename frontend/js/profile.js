@@ -48,6 +48,8 @@
       followBtn && (followBtn.style.display = 'none');
       const pwdBtn = document.getElementById('change-pwd-btn');
       if (pwdBtn) pwdBtn.style.display = 'inline-flex';
+      const tpBtn = document.getElementById('trader-profile-btn');
+      if (tpBtn) tpBtn.style.display = 'inline-flex';
       repostsBox && (repostsBox.style.display = 'block');
       engineBox  && (engineBox.style.display  = 'block');
       // Show and load watchlist
@@ -59,6 +61,11 @@
       repostsBox && (repostsBox.style.display = 'block');
       engineBox  && (engineBox.style.display  = 'none');
       setFollowBtn(followBtn, isFollowing, user._id);
+    }
+
+    // Display trader profile for all visitors
+    if (user.traderProfile && window.displayTraderProfile) {
+      displayTraderProfile(user.traderProfile, isOwn);
     }
   }
 
