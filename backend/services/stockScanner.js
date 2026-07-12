@@ -302,21 +302,13 @@ setTimeout(() => {
 }, 10000);
 
 // Weekdays every 2 hours, Weekend: Saturday morning only
-// Smart schedule: weekdays at 0,8,16,17 UTC | Saturday 8 UTC only
+// Run every 2 hours
 setInterval(() => {
-  const now  = new Date();
-  const day  = now.getUTCDay();
-  const hour = now.getUTCHours();
-  const min  = now.getUTCMinutes();
-  if (min > 2) return; // only trigger at top of hour
-  const isWeekend  = day === 0 || day === 6;
-  const scanHours  = [0, 8, 16, 17];
-    console.log('⏰ Scheduled scan at UTC ' + hour + ':00');
-    runFullScan().catch(console.error);
-  } else if (day === 6 && hour === 8) {
-    console.log('⏰ Saturday scan');
+  const day = new Date().getUTCDay();
+  if (day !== 0 && day !== 6) {
+    console.log('⏰ Scheduled scan...');
     runFullScan().catch(console.error);
   }
-}, 60*1000); // check every minute
+}, 2*60*60*1000);
 
 module.exports = { getTop5, runFullScan, UNIVERSE };
