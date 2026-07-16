@@ -25,7 +25,7 @@ const Paywall = {
             🏆 View Top 5 Scanner results
           </div>
         </div>
-        <a href="/index.html#register" onclick="document.getElementById('sr-paywall-modal').remove()"
+        <a href="/index.html#register" onclick="document.getElementById('sr-paywall-modal').remove();document.getElementById('sr-chat-box').style.display='none'"
           style="display:block;padding:16px;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border-radius:14px;font-weight:700;font-size:16px;text-decoration:none;margin-bottom:12px;box-shadow:0 6px 20px rgba(13,71,161,0.4);transition:transform .2s;"
           onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
           🚀 Create Free Account
