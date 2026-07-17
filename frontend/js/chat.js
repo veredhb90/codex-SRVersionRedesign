@@ -231,6 +231,7 @@
     box.style.display = 'flex';
     input.focus();
     document.getElementById('sr-chat-badge').style.display = 'none';
+    if (window.innerWidth <= 680) btn.style.display = 'none';
     // Load last session automatically when opening
     if (Auth.token() && !currentSessionId) {
       loadLastSession();
@@ -240,6 +241,7 @@
   function closeChat() {
     isOpen = false;
     box.style.display = 'none';
+    btn.style.display = 'flex';
     box.classList.remove('fullscreen');
     box.classList.add('normal');
     fsBtn.textContent = '⛶';
