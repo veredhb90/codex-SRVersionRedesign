@@ -153,20 +153,20 @@
     '#sr-chat-btn svg{width:44px;height:41px;}' +
     '#sr-chat-badge{top:-2px;right:-2px;min-width:19px;height:19px;font-size:10px;}' +
     '#sr-ask-prompt{bottom:calc(84px + env(safe-area-inset-bottom)) !important;right:12px !important;left:12px;max-width:none;font-size:12px;padding:9px 14px;}' +
-    '#sr-chat-box.normal{width:100vw;height:100vh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
-    '#sr-chat-box.fullscreen{width:100vw;height:100vh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
+    '#sr-chat-box.normal{width:100vw;height:100vh;height:100dvh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
+    '#sr-chat-box.fullscreen{width:100vw;height:100vh;height:100dvh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
     '#sr-chat-header{padding:calc(10px + env(safe-area-inset-top)) 12px 10px;gap:8px;}' +
     '#sr-chat-avatar{width:36px;height:36px;}' +
     '#sr-chat-title{font-size:13.5px;}' +
     '#sr-chat-status{font-size:10px;}' +
     '.sr-header-btn{width:30px;height:30px;font-size:12px;}' +
     '#sr-newchat-btn{font-size:10px !important;padding:0 6px !important;}' +
-    '#sr-chat-messages{padding:14px 10px;gap:10px;}' +
+    '#sr-chat-messages{padding:14px 10px;gap:10px;min-height:0;}' +
     '#sr-chat-box.fullscreen #sr-chat-messages{padding:14px 10px;}' +
     '.sr-msg{max-width:94% !important;}' +
     '#sr-chat-box.fullscreen .sr-msg{max-width:94% !important;}' +
     '.sr-bubble{font-size:13px;padding:10px 13px;}' +
-    '#sr-chat-suggestions{padding:8px 10px;max-height:74px;}' +
+    '#sr-chat-suggestions{padding:8px 10px;max-height:48px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;}' +
     '#sr-chat-box.fullscreen #sr-chat-suggestions{padding:8px 10px;}' +
     '.sr-sug{font-size:11px;padding:5px 11px;}' +
     '#sr-chat-input-row{padding:10px 10px calc(10px + env(safe-area-inset-bottom));}' +
