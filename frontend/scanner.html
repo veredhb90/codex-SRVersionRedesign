@@ -265,7 +265,7 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
-      if (data.scanning === true || !data.top5 || !data.top5.length) {
+      if (!data.top5 || !data.top5.length) {
         // Still scanning — show loading, poll until done
         showScanningProgress(data.scannedCount || 0, data.message);
         startPolling();
@@ -327,7 +327,7 @@
         const res  = await fetch('/api/scanner/top5', { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
         const data = await res.json();
         if (!res.ok) return;
-        if (data.scanning === true || !data.top5 || !data.top5.length) {
+        if (!data.top5 || !data.top5.length) {
           // Still scanning — update progress bar
           showScanningProgress(data.scannedCount || 0, '');
         } else {

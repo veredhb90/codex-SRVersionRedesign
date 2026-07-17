@@ -5,9 +5,23 @@ const { getEngineRecommendation } = require('../services/yahooFinance');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
 
+// ── Company name → ticker mapping ──────────────────────────────────
+const NAME_TO_TICKER = {
+  'APPLE':'AAPL', 'MICROSOFT':'MSFT', 'GOOGLE':'GOOGL', 'ALPHABET':'GOOGL',
+  'AMAZON':'AMZN', 'TESLA':'TSLA', 'FACEBOOK':'META', 'NVIDIA':'NVDA',
+  'NETFLIX':'NFLX', 'ORACLE':'ORCL', 'INTEL':'INTC', 'DISNEY':'DIS',
+  'BOEING':'BA', 'PAYPAL':'PYPL', 'STARBUCKS':'SBUX', 'WALMART':'WMT',
+  'COSTCO':'COST', 'MCDONALDS':'MCD', 'NIKE':'NKE', 'VISA':'V',
+  'MASTERCARD':'MA', 'PEPSI':'PEP', 'ADOBE':'ADBE', 'SALESFORCE':'CRM',
+  'AIRBNB':'ABNB', 'PALANTIR':'PLTR', 'COINBASE':'COIN', 'ROBINHOOD':'HOOD',
+  'SNAPCHAT':'SNAP', 'SPOTIFY':'SPOT', 'MONGODB':'MDB', 'BROADCOM':'AVGO',
+  'QUALCOMM':'QCOM', 'MICRON':'MU', 'FORD':'F', 'RIVIAN':'RIVN',
+  'LUCID':'LCID', 'ALIBABA':'BABA', 'BAIDU':'BIDU', 'AMD':'AMD',
+};
+
 // ── Extract stock symbols ──────────────────────────────────────────
 const extractSymbols = (text) => {
-  const matches = text.toUpperCase().match(/\b[A-Z]{2,5}\b/g) || [];
+  const words = (text.toUpperCase().match(/\b[A-Z]{2,12}\b/g)) || [];
   const SKIP = new Set([
     'THE','AND','FOR','BUY','SELL','NOW','TOP','GET','HOW','WHY','CAN','ARE',
     'YOU','WHAT','WHEN','WILL','DOES','HAS','ITS','SHOULD','WOULD','TELL',
@@ -16,8 +30,18 @@ const extractSymbols = (text) => {
     'THAT','HAVE','BEEN','THEY','WERE','SAID','EACH','WHICH','THEIR','THAN',
     'RSI','MACD','ADX','EMA','SMA','ATR','CEO','CFO','IPO','ETF','USD',
     'NEW','OLD','HIGH','LOW','OPEN','CLOSE','GOOD','BAD','MORE','LESS',
+    'ME','MY','SO','IF','IS','IT','AT','ON','IN','TO','OF','OR','AN','AS',
+    'BE','BY','DO','GO','HE','WE','UP','US','AM','PM','OK','NO','YES','ANY',
+    'GRAPH','CHART','CHARTS','TREND','STOCKS','SCORE','GRAPHS',
   ]);
-  return [...new Set(matches.filter(s => !SKIP.has(s) && s.length >= 2 && s.length <= 5))].slice(0, 3);
+  const found = [];
+  for (const w of words) {
+    if (NAME_TO_TICKER[w]) found.push(NAME_TO_TICKER[w]);
+  }
+  for (const w of words) {
+    if (w.length >= 2 && w.length <= 5 && !SKIP.has(w) && !NAME_TO_TICKER[w]) found.push(w);
+  }
+  return [...new Set(found)].slice(0, 3);
 };
 
 // ── Call Claude ────────────────────────────────────────────────────
@@ -51,6 +75,29 @@ const callClaude = (messages, systemPrompt) => new Promise((resolve, reject) => 
   req.on('error', reject);
   req.write(body);
   req.end();
+});
+
+// ── Fetch candles for chart display ────────────────────────────────
+const fetchCandles = (symbol) => new Promise((resolve) => {
+  const now  = Math.floor(Date.now() / 1000);
+  const from = now - 120 * 24 * 60 * 60;
+  const url  = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?period1=' + from + '&period2=' + now + '&interval=1d';
+  https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
+    let data = '';
+    res.on('data', d => data += d);
+    res.on('end', () => {
+      try {
+        const parsed = JSON.parse(data);
+        const result = parsed.chart.result[0];
+        const ts = result.timestamp || [];
+        const q  = result.indicators.quote[0];
+        const candles = ts.map((t, i) => ({
+          time: t, open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i]
+        })).filter(c => c.open != null && c.close != null);
+        resolve(candles);
+      } catch(e) { resolve(null); }
+    });
+  }).on('error', () => resolve(null));
 });
 
 // ── GET /api/chat/sessions ─────────────────────────────────────────
@@ -129,13 +176,15 @@ router.post('/', protect, async (req, res) => {
     }
 
     // ── Run engine on mentioned stocks ───────────────────────────
+    // Always run when a stock symbol is mentioned — regardless of wording
     const symbols = extractSymbols(message || '');
     let engineResults = '';
-    const needsEngine = symbols.length > 0 && /analyz|signal|buy|sell|score|recommend|think|should|target|stop|tp|sl|price|chart/i.test(message || '');
+    const needsEngine = symbols.length > 0;
+    let engineRunResults = []; // kept in outer scope for chart building later
     if (needsEngine) {
       console.log('Chat: running engine for', symbols);
-      const results = await Promise.allSettled(symbols.map(sym => getEngineRecommendation(sym)));
-      results.forEach((r, idx) => {
+      engineRunResults = await Promise.allSettled(symbols.map(sym => getEngineRecommendation(sym)));
+      engineRunResults.forEach((r, idx) => {
         if (r.status === 'fulfilled') {
           const e = r.value;
           const sym = symbols[idx];
@@ -227,16 +276,24 @@ CRITICAL RULES — NEVER BREAK THESE:
 3. NEVER say you cannot provide information — always give the best answer possible
 4. Use YOUR OWN KNOWLEDGE as priority: company info, CEO, earnings, revenue, debt, news, analysis
 5. COMBINE your knowledge + SwingRush Engine + Scanner data for perfect answers
-6. When asked about a stock → engine data below + add your own deep knowledge
+6. When asked about a stock → run engine analysis + add your own deep knowledge
 7. When asked "best stocks under $X" → use scanner price-filtered data below
 8. Respond in SAME LANGUAGE as user (English/Hebrew/Arabic)
 9. For Arabic users → include Arabic financial sites: argaam.com, mubasher.info, cnbcarabia.com
 10. ALWAYS be consistent — remember what you said earlier in this conversation
-11. YOU ARE THE LEAD ANALYST: If your own analysis DISAGREES with the engine signal — say so openly!
-    Example: "The engine shows BUY +8, but based on my knowledge of the company's debt situation and recent earnings miss, I'd be more cautious. Here's my combined view..."
+11. YOU ARE THE LEAD ANALYST: If your own analysis DISAGREES with the engine signal — say so openly and explain why
 12. Your knowledge of news, fundamentals, and market context can OVERRIDE or ADJUST the engine's technical signal
 13. Always give YOUR final combined recommendation — engine technicals + your fundamental knowledge = the best answer
 14. Think like a professional analyst: engine gives the technical picture, YOU add fundamentals, news context, risks, and final judgment
+
+RESPONSE FORMAT for stock analysis (use clean markdown — it renders beautifully in the chat):
+## 📊 Technical Picture
+Brief summary + indicator table: | Indicator | Reading | Signal |
+## 📰 Fundamentals & News
+Your knowledge: business health, earnings, catalysts + latest news highlights
+## 🎯 My Recommendation
+Final combined judgment: **Entry** / **TP** / **SL**, key risks, confidence level
+Keep sections concise and scannable. Bold the key numbers. For simple/casual questions answer naturally WITHOUT this structure.
 
 YOUR KNOWLEDGE INCLUDES (use freely):
 - Every company: business model, revenue, profit, debt, growth
@@ -298,7 +355,31 @@ Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric'
     }
     await session.save();
 
-    res.json({ response, symbols, sessionId: session._id });
+    // Build chart data for frontend — supports multiple stocks (comparisons)
+    let stockDataList = [];
+    if (needsEngine && symbols.length > 0) {
+      for (let i = 0; i < symbols.length; i++) {
+        const sym = symbols[i];
+        const engineResult = engineRunResults[i] && engineRunResults[i].status === 'fulfilled' ? engineRunResults[i].value : null;
+        if (!engineResult) continue;
+        const candles = await fetchCandles(sym);
+        if (candles && candles.length > 10) {
+          stockDataList.push({
+            symbol:     sym,
+            price:      engineResult.price,
+            direction:  engineResult.direction,
+            score:      engineResult.score,
+            confidence: engineResult.confidence,
+            takeProfit: engineResult.takeProfit,
+            stopLoss:   engineResult.stopLoss,
+            news:       (engineResult.news || []).slice(0, 3),
+            candles:    candles,
+          });
+        }
+      }
+    }
+
+    res.json({ response, symbols, sessionId: session._id, stockData: stockDataList[0] || null, stockDataList });
 
   } catch(err) {
     console.error('Chat error:', err.message);

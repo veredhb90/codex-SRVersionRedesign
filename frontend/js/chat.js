@@ -6,13 +6,24 @@
   var currentStock   = null;
   var currentSessionId = null; // null = no session yet, 'NEW' = force new, ID = continue existing
 
+  var pendingStockData = null;
+
   window.setChatStockContext = function(stockData) {
-    currentStock = stockData;
+    // Don't auto-open chat. Just prepare context and show a subtle prompt bubble.
+    pendingStockData = stockData;
+    currentStock = null; // not yet loaded into chat until user opens it
     chatHistory  = [];
+    showAskAiPrompt(stockData);
+  };
+
+  function loadPendingStockIntoChat() {
+    if (!pendingStockData) return;
+    var stockData = pendingStockData;
+    currentStock = stockData;
     var statusEl = document.getElementById('sr-chat-status');
-    if (statusEl && stockData) statusEl.textContent = 'Analyzing ' + stockData.symbol;
+    if (statusEl) statusEl.textContent = 'Analyzing ' + stockData.symbol;
     var suggestEl = document.getElementById('sr-chat-suggestions');
-    if (suggestEl && stockData) {
+    if (suggestEl) {
       var isBuy = stockData.direction === 'BUY';
       var dir = stockData.direction;
       var sym = stockData.symbol;
@@ -24,18 +35,37 @@
         '<button class="sr-sug" onclick="srSuggest(\'What are the main risks for this ' + sym + ' trade?\')">🔍 Risks</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Who is the CEO of ' + sym + ' and what were last earnings?\')">🏢 Company info</button>';
     }
-    if (!isOpen) openChat();
+    var dir2 = stockData.direction === 'BUY' ? '▲ BUY' : '▼ SELL';
+    var sc2  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
+    addMessage('ai',
+      'Loaded full analysis for ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
+      dir2 + ' | Score: ' + sc2 + '/24 | ' + stockData.confidence + ' Confidence\n' +
+      'TP: $' + stockData.takeProfit + ' | SL: $' + stockData.stopLoss + ' | R:R 1:' + stockData.riskReward + '\n\n' +
+      'Ask me anything — signals, news links, company info, risks, entry strategy!'
+    );
+    pendingStockData = null;
+  }
+
+  function showAskAiPrompt(stockData) {
+    var old = document.getElementById('sr-ask-prompt');
+    if (old) old.remove();
+    var bubble = document.createElement('div');
+    bubble.id = 'sr-ask-prompt';
+    bubble.style.cssText = 'position:fixed; bottom:112px; right:26px; z-index:9999; background:#0d1f3c; color:#F5D061; padding:10px 16px; border-radius:20px; font-size:12.5px; font-weight:600; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,0.35), 0 0 12px rgba(245,208,97,0.4); display:flex; align-items:center; gap:8px; animation:srMsgIn .3s ease;';
+    bubble.innerHTML = '💬 Ask AI about ' + stockData.symbol + '<span style="opacity:0.6;font-size:11px;" onclick="event.stopPropagation();document.getElementById(\'sr-ask-prompt\').remove();">✕</span>';
+    bubble.addEventListener('click', function() {
+      bubble.remove();
+      openChat();
+      loadPendingStockIntoChat();
+    });
+    document.body.appendChild(bubble);
+    var badge = document.getElementById('sr-chat-badge');
+    if (badge) { badge.style.display = 'flex'; badge.textContent = '1'; }
     setTimeout(function() {
-      var dir2 = stockData.direction === 'BUY' ? '▲ BUY' : '▼ SELL';
-      var sc2  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
-      addMessage('ai',
-        'Loaded full analysis for ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
-        dir2 + ' | Score: ' + sc2 + '/24 | ' + stockData.confidence + ' Confidence\n' +
-        'TP: $' + stockData.takeProfit + ' | SL: $' + stockData.stopLoss + ' | R:R 1:' + stockData.riskReward + '\n\n' +
-        'Ask me anything — signals, news links, company info, risks, entry strategy!'
-      );
-    }, 100);
-  };
+      var b = document.getElementById('sr-ask-prompt');
+      if (b) b.remove();
+    }, 15000);
+  }
 
   var widget = document.createElement('div');
   widget.id = 'sr-chat-widget';
@@ -56,16 +86,16 @@
     '#sr-chat-box.normal { bottom:114px; right:28px; width:420px; height:600px; }' +
     '#sr-chat-box.fullscreen { bottom:32px; right:32px; left:32px; top:32px; width:calc(100vw - 64px); height:calc(100vh - 64px); border-radius:24px; background:rgba(255,255,255,0.93) !important; backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); }' +
     '@keyframes srSlideUp { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:translateY(0)} }' +
-    '#sr-chat-header { background:linear-gradient(135deg,#0D47A1,#1565C0,#1976D2); padding:14px 18px; color:#fff; display:flex; align-items:center; gap:12px; flex-shrink:0; }' +
-    '#sr-chat-avatar { width:44px; height:44px; border-radius:50%; flex-shrink:0; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; border:1.5px solid rgba(255,255,255,0.25); }' +
+    '#sr-chat-header { background:#0D2244; padding:14px 18px; color:#fff; display:flex; align-items:center; gap:12px; flex-shrink:0; }' +
+    '#sr-chat-avatar { width:44px; height:44px; border-radius:50%; flex-shrink:0; background:#1A3A6B; display:flex; align-items:center; justify-content:center; border:1.5px solid rgba(255,255,255,0.15); }' +
     '#sr-chat-hinfo { flex:1; min-width:0; }' +
     '#sr-chat-title { font-size:15px; font-weight:700; }' +
-    '#sr-chat-status { font-size:11px; opacity:.85; margin-top:2px; display:flex; align-items:center; gap:5px; }' +
+    '#sr-chat-status { font-size:11px; color:#00E676; margin-top:2px; display:flex; align-items:center; gap:5px; }' +
     '#sr-chat-status::before { content:""; width:7px; height:7px; border-radius:50%; background:#4CAF50; display:inline-block; flex-shrink:0; animation:srBlink 2s infinite; }' +
     '@keyframes srBlink { 0%,100%{opacity:1} 50%{opacity:.35} }' +
-    '.sr-header-btn { background:rgba(255,255,255,0.12); border:none; color:#fff; cursor:pointer; width:32px; height:32px; border-radius:8px; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .2s; }' +
+    '.sr-header-btn { background:#1A3A6B; border:none; color:#DCE8F8; cursor:pointer; width:32px; height:32px; border-radius:8px; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .2s; }' +
     '.sr-header-btn:hover { background:rgba(255,255,255,0.22); }' +
-    '#sr-chat-messages { flex:1; overflow-y:auto; padding:18px 16px; background:rgba(240,244,255,0.5); display:flex; flex-direction:column; gap:14px; }' +
+    '#sr-chat-messages { flex:1; overflow-y:auto; padding:18px 16px; background:#F5F9FF; display:flex; flex-direction:column; gap:14px; }' +
     '#sr-chat-messages::-webkit-scrollbar { width:4px; }' +
     '#sr-chat-messages::-webkit-scrollbar-thumb { background:rgba(13,71,161,0.2); border-radius:2px; }' +
     '.sr-msg { max-width:85%; display:flex; flex-direction:column; gap:4px; animation:srMsgIn .25s ease; }' +
@@ -75,8 +105,22 @@
     '.sr-msg-row { display:flex; align-items:flex-end; gap:8px; }' +
     '.sr-av-sm { width:28px; height:28px; border-radius:50%; background:#1565C0; display:flex; align-items:center; justify-content:center; flex-shrink:0; }' +
     '.sr-bubble { padding:12px 16px; font-size:13.5px; line-height:1.65; white-space:pre-wrap; word-break:break-word; }' +
-    '.sr-msg.user .sr-bubble { background:linear-gradient(135deg,#1565C0,#0D47A1); color:#fff; border-radius:18px 18px 4px 18px; }' +
-    '.sr-msg.ai .sr-bubble { background:#fff; color:#1a1a2e; border-radius:4px 18px 18px 18px; box-shadow:0 2px 10px rgba(0,0,0,0.08); border:1px solid rgba(13,71,161,0.1); cursor:text; user-select:text; }' +
+    '.sr-msg.user .sr-bubble { background:#1565C0; color:#fff; border-radius:14px 14px 4px 14px; }' +
+    '.sr-msg.ai .sr-bubble { background:#fff; color:#1A2540; border-radius:4px 14px 14px 14px; box-shadow:0 1px 6px rgba(13,71,161,0.06); border:1px solid #D6E4F5; cursor:text; user-select:text; }' +
+    '.sr-bubble.sr-md { white-space:normal; }' +
+    '.sr-bubble.sr-md h1, .sr-bubble.sr-md h2 { margin:12px 0 6px; color:#0D2244; font-size:15px; font-weight:800; border-bottom:1.5px solid #E3EEFF; padding-bottom:4px; }' +
+    '.sr-bubble.sr-md h3 { margin:10px 0 5px; color:#0D2244; font-size:13.5px; font-weight:700; }' +
+    '.sr-bubble.sr-md p { margin:6px 0; }' +
+    '.sr-bubble.sr-md ul, .sr-bubble.sr-md ol { margin:6px 0; padding-left:20px; }' +
+    '.sr-bubble.sr-md li { margin:3px 0; }' +
+    '.sr-bubble.sr-md table { border-collapse:collapse; width:100%; margin:8px 0; font-size:12.5px; }' +
+    '.sr-bubble.sr-md th { background:#EEF4FF; color:#0D2244; font-weight:700; text-align:left; padding:6px 9px; border:1px solid #D6E4F5; }' +
+    '.sr-bubble.sr-md td { padding:6px 9px; border:1px solid #E3EEFF; }' +
+    '.sr-bubble.sr-md tr:nth-child(even) td { background:#F8FAFF; }' +
+    '.sr-bubble.sr-md strong { color:#0D47A1; }' +
+    '.sr-bubble.sr-md hr { border:none; border-top:1px solid #E3EEFF; margin:10px 0; }' +
+    '.sr-bubble.sr-md code { background:#EEF4FF; padding:1px 5px; border-radius:4px; font-size:12px; }' +
+    '.sr-bubble.sr-md a { color:#1565C0; }' +
     '.sr-msg-time { font-size:10px; color:#94a3b8; padding:0 4px; }' +
     '#sr-selection-popup { position:fixed; z-index:10000; background:#1565C0; color:#fff; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(13,71,161,0.4); display:none; align-items:center; gap:6px; border:none; }' +
     '.sr-typing { display:flex; gap:5px; padding:14px 16px; background:#fff; border-radius:4px 18px 18px 18px; width:fit-content; box-shadow:0 2px 10px rgba(0,0,0,0.08); }' +
@@ -92,17 +136,46 @@
     '#sr-chat-input { flex:1; border:1.5px solid #E3EEFF; border-radius:18px; padding:11px 16px; font-size:13.5px; outline:none; resize:none; font-family:inherit; max-height:120px; background:#F5F8FF; transition:all .2s; line-height:1.5; }' +
     '#sr-chat-input:focus { border-color:#1565C0; background:#fff; box-shadow:0 0 0 3px rgba(21,101,192,0.1); }' +
     '#sr-chat-input::placeholder { color:#94a3b8; }' +
-    '#sr-chat-send { width:44px; height:44px; border-radius:50%; border:none; cursor:pointer; background:linear-gradient(135deg,#42A5F5,#1565C0); color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:18px; }' +
+    '#sr-chat-send { width:44px; height:44px; border-radius:50%; border:none; cursor:pointer; background:#00C853; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:18px; transition:background .2s; }' +
     '#sr-chat-send:disabled { background:#cbd5e1; cursor:not-allowed; }' +
     '#sr-img-preview { padding:8px 14px; background:rgba(255,255,255,0.65); border-top:1px solid rgba(227,238,255,0.8); display:none; align-items:center; gap:8px; flex-shrink:0; }' +
     '#sr-img-preview img { width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #E3EEFF; }' +
     '#sr-img-remove { background:none; border:none; color:#ef4444; cursor:pointer; font-size:18px; }' +
     '#sr-history-panel { display:none; position:absolute; top:60px; right:0; left:0; bottom:0; background:rgba(255,255,255,0.97); z-index:10; overflow-y:auto; padding:14px; backdrop-filter:blur(10px); }' +
-    '#sr-chat-box.fullscreen #sr-chat-messages { padding:24px 20%; }' +
-    '#sr-chat-box.fullscreen .sr-msg { max-width:70%; }' +
-    '#sr-chat-box.fullscreen #sr-chat-suggestions { padding:12px 20%; }' +
-    '#sr-chat-box.fullscreen #sr-chat-input-row { padding:14px 20%; }' +
-    '@media(max-width:600px){#sr-chat-box.normal{width:calc(100vw - 16px);right:8px;bottom:100px;height:520px;}#sr-chat-box.fullscreen{bottom:16px;right:16px;left:16px;top:16px;width:calc(100vw - 32px);height:calc(100vh - 32px);}#sr-chat-box.fullscreen #sr-chat-messages,#sr-chat-box.fullscreen #sr-chat-suggestions,#sr-chat-box.fullscreen #sr-chat-input-row{padding-left:12px;padding-right:12px;}.sr-msg{max-width:92%;}}' +
+    '#sr-chat-box.fullscreen #sr-chat-messages { padding:24px 16%; }' +
+    '#sr-chat-box.fullscreen #sr-chat-suggestions { padding:12px 16%; }' +
+    '#sr-chat-box.fullscreen #sr-chat-input-row { padding:14px 16%; }' +
+    '#sr-chat-box.fullscreen .sr-msg { max-width:78%; }' +
+    
+    
+    '@media(max-width:680px){' +
+    '#sr-chat-btn{width:60px;height:60px;bottom:calc(16px + env(safe-area-inset-bottom));right:16px;}' +
+    '#sr-chat-btn svg{width:44px;height:41px;}' +
+    '#sr-chat-badge{top:-2px;right:-2px;min-width:19px;height:19px;font-size:10px;}' +
+    '#sr-ask-prompt{bottom:calc(84px + env(safe-area-inset-bottom)) !important;right:12px !important;left:12px;max-width:none;font-size:12px;padding:9px 14px;}' +
+    '#sr-chat-box.normal{width:100vw;height:100vh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
+    '#sr-chat-box.fullscreen{width:100vw;height:100vh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
+    '#sr-chat-header{padding:calc(10px + env(safe-area-inset-top)) 12px 10px;gap:8px;}' +
+    '#sr-chat-avatar{width:36px;height:36px;}' +
+    '#sr-chat-title{font-size:13.5px;}' +
+    '#sr-chat-status{font-size:10px;}' +
+    '.sr-header-btn{width:30px;height:30px;font-size:12px;}' +
+    '#sr-newchat-btn{font-size:10px !important;padding:0 6px !important;}' +
+    '#sr-chat-messages{padding:14px 10px;gap:10px;}' +
+    '#sr-chat-box.fullscreen #sr-chat-messages{padding:14px 10px;}' +
+    '.sr-msg{max-width:94% !important;}' +
+    '#sr-chat-box.fullscreen .sr-msg{max-width:94% !important;}' +
+    '.sr-bubble{font-size:13px;padding:10px 13px;}' +
+    '#sr-chat-suggestions{padding:8px 10px;max-height:74px;}' +
+    '#sr-chat-box.fullscreen #sr-chat-suggestions{padding:8px 10px;}' +
+    '.sr-sug{font-size:11px;padding:5px 11px;}' +
+    '#sr-chat-input-row{padding:10px 10px calc(10px + env(safe-area-inset-bottom));}' +
+    '#sr-chat-box.fullscreen #sr-chat-input-row{padding:10px 10px calc(10px + env(safe-area-inset-bottom));}' +
+    '#sr-chat-input{font-size:16px;padding:10px 14px;}' +
+    '#sr-chat-send,#sr-chat-img-btn{width:38px;height:38px;}' +
+    '#sr-history-panel{padding:12px;top:56px;}' +
+    '}' +
+    '@media(max-width:680px) and (orientation:landscape){#sr-chat-btn{bottom:10px;}}' +
     '</style>' +
     '<button id="sr-selection-popup">💬 Reply to this</button>' +
     '<input type="file" id="sr-img-input" accept="image/*" style="display:none">'+
@@ -450,6 +523,11 @@
       typingEl.remove();
       if (!result.ok) throw new Error(result.data.message);
       addMessage('ai', result.data.response);
+      if (result.data.stockDataList && result.data.stockDataList.length > 0) {
+        result.data.stockDataList.forEach(function(sd) { renderStockChart(sd); });
+      } else if (result.data.stockData) {
+        renderStockChart(result.data.stockData);
+      }
       chatHistory.push({ role: 'user', content: text || 'Image uploaded' });
       chatHistory.push({ role: 'assistant', content: result.data.response });
       // Save sessionId — now we know which session to continue
@@ -487,12 +565,34 @@
     var escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     if (role === 'ai') {
       div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + birdSvg + '</div><div class="sr-bubble">' + escaped + '</div></div><span class="sr-msg-time">' + now + '</span>';
+      renderMarkdownInto(div.querySelector('.sr-bubble'), text);
     } else {
       div.innerHTML = '<div class="sr-msg-row"><div class="sr-bubble">' + escaped + '</div></div><span class="sr-msg-time">' + now + '</span>';
     }
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
     return div;
+  }
+
+  function loadMarkedLib(cb) {
+    if (window.marked) return cb();
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js';
+    s.onload = cb;
+    s.onerror = function() {};
+    document.head.appendChild(s);
+  }
+
+  function renderMarkdownInto(bubbleEl, rawText) {
+    if (!bubbleEl || !rawText) return;
+    loadMarkedLib(function() {
+      try {
+        var safe = rawText.replace(/</g, '&lt;');
+        bubbleEl.innerHTML = marked.parse(safe);
+        bubbleEl.classList.add('sr-md');
+        messages.scrollTop = messages.scrollHeight;
+      } catch(e) {}
+    });
   }
 
   function addTyping() {
@@ -502,6 +602,88 @@
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
     return div;
+  }
+
+  // ── Stock Chart Rendering ───────────────────────────────────────
+  function loadChartLib(cb) {
+    if (window.LightweightCharts) return cb();
+    var s = document.createElement('script');
+    s.src = 'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js';
+    s.onload = cb;
+    s.onerror = function() { console.log('Chart lib failed to load'); };
+    document.head.appendChild(s);
+  }
+
+  function renderStockChart(sd) {
+    if (!sd || !sd.candles || sd.candles.length < 10) return;
+    loadChartLib(function() {
+      try {
+        var container = document.createElement('div');
+        container.className = 'sr-msg ai';
+        container.style.maxWidth = '95%';
+        container.style.width = '95%';
+
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'background:#fff;border-radius:14px;padding:' + (window.innerWidth<=680?'10px':'14px') + ';box-shadow:0 2px 10px rgba(0,0,0,0.08);border:1px solid rgba(13,71,161,0.1);width:100%;box-sizing:border-box;';
+
+        var isBuy = sd.direction === 'BUY';
+        var badgeStyle = isBuy ? 'background:#e8f5e9;color:#2e7d32;' : sd.direction === 'SELL' ? 'background:#ffebee;color:#c62828;' : 'background:#f5f5f5;color:#616161;';
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;';
+        header.innerHTML = '<div style="font-weight:800;font-size:16px;color:#1a1a2e;">' + sd.symbol + ' — $' + sd.price + '</div>' +
+          '<div style="padding:4px 12px;border-radius:14px;font-size:12px;font-weight:700;' + badgeStyle + '">' + sd.direction + ' ' + (sd.score > 0 ? '+' : '') + sd.score + '</div>';
+        wrap.appendChild(header);
+
+        var scorePct = ((sd.score + 24) / 48) * 100;
+        var gauge = document.createElement('div');
+        gauge.style.cssText = 'margin-bottom:12px;';
+        gauge.innerHTML = '<div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-bottom:3px;"><span>SELL -24</span><span>0</span><span>+24 BUY</span></div>' +
+          '<div style="height:10px;background:linear-gradient(90deg,#ef5350,#eeeeee 50%,#26a69a);border-radius:5px;position:relative;">' +
+          '<div style="position:absolute;left:' + scorePct + '%;top:-3px;width:5px;height:16px;background:#1a1a2e;border-radius:2px;transform:translateX(-50%);"></div></div>';
+        wrap.appendChild(gauge);
+
+        var isMobile = window.innerWidth <= 680;
+        var chartH = isMobile ? 190 : 260;
+        var chartDiv = document.createElement('div');
+        chartDiv.style.cssText = 'height:' + chartH + 'px;width:100%;';
+        wrap.appendChild(chartDiv);
+
+        container.appendChild(wrap);
+        messages.appendChild(container);
+
+        var chart = LightweightCharts.createChart(chartDiv, {
+          height: chartH,
+          layout: { background: { color: 'transparent' }, textColor: '#64748b', fontSize: 11 },
+          grid: { vertLines: { color: 'rgba(0,0,0,0.04)' }, horzLines: { color: 'rgba(0,0,0,0.04)' } },
+          timeScale: { timeVisible: false, borderColor: 'rgba(0,0,0,0.1)' },
+          rightPriceScale: { borderColor: 'rgba(0,0,0,0.1)' },
+        });
+        var series = chart.addCandlestickSeries({
+          upColor: '#26a69a', downColor: '#ef5350',
+          wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+          borderVisible: false,
+        });
+        series.setData(sd.candles);
+
+        if (sd.takeProfit) series.createPriceLine({ price: Number(sd.takeProfit), color: '#26a69a', lineWidth: 2, lineStyle: 2, title: 'TP' });
+        if (sd.stopLoss)   series.createPriceLine({ price: Number(sd.stopLoss),   color: '#ef5350', lineWidth: 2, lineStyle: 2, title: 'SL' });
+        chart.timeScale().fitContent();
+
+        if (sd.news && sd.news.length) {
+          var newsWrap = document.createElement('div');
+          newsWrap.style.cssText = 'margin-top:12px;';
+          var newsHtml = '<div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:1px;margin-bottom:6px;">📰 LATEST NEWS</div>';
+          sd.news.forEach(function(n) {
+            var sColor = n.sentiment === 'positive' ? '#26a69a' : n.sentiment === 'negative' ? '#ef5350' : '#94a3b8';
+            newsHtml += '<a href="' + n.url + '" target="_blank" style="display:block;padding:8px 12px;margin-bottom:5px;background:#f8faff;border-left:3px solid ' + sColor + ';border-radius:0 8px 8px 0;font-size:12px;color:#1a1a2e;text-decoration:none;line-height:1.4;">' + (n.headline || '').replace(/</g,'&lt;') + '</a>';
+          });
+          newsWrap.innerHTML = newsHtml;
+          wrap.appendChild(newsWrap);
+        }
+
+        messages.scrollTop = messages.scrollHeight;
+      } catch(e) { console.log('Chart render error:', e.message); }
+    });
   }
 
 })();
