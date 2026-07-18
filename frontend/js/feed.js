@@ -120,6 +120,26 @@
   }
 
   feedEl.addEventListener('click', async (e) => {
+    // Reply to a comment — prefill @username
+    const replyBtn = e.target.closest('.comment-reply-btn');
+    if (replyBtn) {
+      const rid = replyBtn.dataset.rec;
+      const input = document.getElementById('comment-input-' + rid);
+      if (input) {
+        if (input.offsetParent === null) {
+          const card = replyBtn.closest('.rec-card');
+          const tog = card && card.querySelector('.comment-toggle');
+          if (tog) tog.click();
+        }
+        setTimeout(() => {
+          input.value = '@' + replyBtn.dataset.username + ' ';
+          input.focus();
+          input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 120);
+      }
+      return;
+    }
+
     // Who liked — click the count number
     const likeCountEl = e.target.closest('.like-count');
     if (likeCountEl) {
@@ -454,16 +474,69 @@ function closeSymbolModal() {
 }
 
 // ── Comment helpers ────────────────────────────────────────────────
+function threadComments(comments) {
+  const items = (comments || []).map(c => {
+    const m = String(c.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
+    return { c: c, mention: m ? m[1].toLowerCase() : null, children: [], depth: 0 };
+  });
+  const authorOf = it => String(it.c.user?.username || it.c.user?.fullName || '').toLowerCase();
+  const roots = [];
+  items.forEach((it, idx) => {
+    let parent = null;
+    if (it.mention) {
+      for (let j = idx - 1; j >= 0; j--) {
+        if (authorOf(items[j]) === it.mention) { parent = items[j]; break; }
+      }
+    }
+    if (parent) { parent.children.push(it); it.depth = Math.min(parent.depth + 1, 4); }
+    else roots.push(it);
+  });
+  const out = [];
+  const walk = it => { out.push(it); it.children.forEach(walk); };
+  roots.forEach(walk);
+  return out;
+}
+
+function renderCommentHtml(c, recId, depth) {
+  const uname  = c.user?.username ? '@' + c.user.username : (c.user?.fullName || 'Trader');
+  const dataU  = c.user?.username || c.user?.fullName || 'Trader';
+  const text   = String(c.text || '');
+  const m      = text.match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
+  const ind    = 22 * Math.min(Math.max(depth || (m ? 1 : 0), m ? 1 : 0), 2);
+  const replyBtn = `<button class="comment-reply-btn" data-username="${dataU}" data-rec="${recId}" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;margin-left:8px;font-weight:700;">↩ Reply</button>`;
+  const userLink = c.user?._id
+    ? `<a href="/profile.html?id=${c.user._id}" style="color:var(--accent2);font-weight:700;font-size:13px;text-decoration:none;">${uname}</a>`
+    : `<strong style="color:var(--accent2);font-size:13px;">${uname}</strong>`;
+  if (m) {
+    return `<div class="comment-item comment-reply" data-author="${dataU.toLowerCase()}" style="margin-left:${ind}px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;margin-top:4px;">
+      <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">↩ Reply to <span style="color:var(--accent2);font-weight:700;">@${m[1]}</span></div>
+      ${userLink}
+      <span style="font-size:13px;color:var(--text2);margin-left:8px;">${m[2]}</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
+      ${replyBtn}
+    </div>`;
+  }
+  return `<div class="comment-item" data-author="${dataU.toLowerCase()}">
+      ${userLink}
+      <span style="font-size:13px;color:var(--text2);margin-left:8px;">${text}</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
+      ${replyBtn}
+    </div>`;
+}
+
 function appendComment(section, comment, recId) {
   const list = section.querySelector('.comment-list');
   if (!list) return;
-  const div = document.createElement('div');
-  div.className = 'comment-item';
-  div.innerHTML = `
-    <strong style="color:var(--accent2);font-size:13px;">@${comment.user?.username||comment.user?.fullName||'trader'}</strong>
-    <span style="font-size:13px;color:var(--text2);margin-left:8px;">${comment.text}</span>
-    <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(comment.createdAt||new Date())}</span>`;
-  list.appendChild(div);
+  const wrap = document.createElement('div');
+  wrap.innerHTML = renderCommentHtml(comment, recId);
+  const div = wrap.firstElementChild;
+  const mm = String(comment.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s/);
+  let placed = false;
+  if (mm) {
+    const kin = list.querySelectorAll('[data-author="' + mm[1].toLowerCase() + '"]');
+    if (kin.length) { kin[kin.length - 1].insertAdjacentElement('afterend', div); placed = true; }
+  }
+  if (!placed) list.appendChild(div);
   list.scrollTop = list.scrollHeight;
 }
 
@@ -630,12 +703,7 @@ function buildCard(r) {
     ? (isWin ? '<span class="outcome-badge badge-win">🏆 WIN</span>' : '<span class="outcome-badge badge-loss">💸 LOSS</span>')
     : '<span class="outcome-badge badge-open">● OPEN</span>';
 
-  const commentsHtml = (r.comments||[]).map(c => `
-    <div class="comment-item">
-      <a href="/profile.html?id=${c.user?._id}" style="color:var(--accent2);font-weight:700;font-size:13px;text-decoration:none;">${c.user?.username?'@'+c.user.username:(c.user?.fullName||'Trader')}</a>
-      <span style="font-size:13px;color:var(--text2);margin-left:8px;">${c.text}</span>
-      <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt)}</span>
-    </div>`).join('');
+  const commentsHtml = threadComments(r.comments||[]).map(t => renderCommentHtml(t.c, r._id, t.depth)).join('');
 
   return `
   <div class="rec-card ${isBuy?'buy':'sell'} ${isClosed?'closed':''} ${isWin?'win-flash':''}"

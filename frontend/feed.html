@@ -348,9 +348,10 @@
       return;
     }
     list.innerHTML = notifications.slice(0,20).map(n => {
-      const icons = { new_rec:'📡', win:'🏆', loss:'💸', like:'❤️', comment:'💬', repost:'↩', instrument:'🔔' };
-      const goRec = ((n.type==='win'||n.type==='loss') && n.recId) ? String(n.recId) : '';
-      return `<div class="notif-item" data-rec="${goRec}" onclick="notifClick(this)" style="${goRec?'cursor:pointer;':''}">
+      const icons = { new_rec:'📡', win:'🏆', loss:'💸', like:'❤️', comment:'💬', repost:'↩', instrument:'🔔', follow:'👤' };
+      const goRec  = n.recId ? String(n.recId) : '';
+      const goUser = n.fromUser ? String(n.fromUser) : '';
+      return `<div class="notif-item" data-rec="${goRec}" data-user="${goUser}" onclick="notifClick(this)" style="${(goRec||goUser)?'cursor:pointer;':''}">
         <div class="notif-icon">${icons[n.type]||'🔔'}</div>
         <div class="notif-body">
           <div class="notif-title">${n.title}</div>
@@ -361,13 +362,31 @@
     }).join('');
   }
 
-  window.notifClick = function(el) {
+  window.notifClick = async function(el) {
     closeNotif();
-    if (el.dataset.rec) location.href = '/profile.html?rec=' + el.dataset.rec;
+    var u = el.dataset.user, r = el.dataset.rec;
+    if (u && r) { location.href = '/profile.html?id=' + u + '&rec=' + r; return; }
+    if (u) { location.href = '/profile.html?id=' + u; return; }
+    if (r) {
+      try {
+        var res = await fetch('/api/recommendations/' + r + '/owner', { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') } });
+        if (res.ok) {
+          var d = await res.json();
+          if (d.userId) { location.href = '/profile.html?id=' + d.userId + '&rec=' + r; return; }
+        }
+      } catch (e) {}
+      location.href = '/profile.html?rec=' + r;
+    }
   };
 
   function addNotif(notif) {
     console.log('🔔 Notification received:', notif);
+    var dup = notifications.some(function(n) {
+      var t1 = new Date(n.createdAt || n.time || 0).getTime();
+      var t2 = new Date(notif.createdAt || notif.time || Date.now()).getTime();
+      return n.title === notif.title && Math.abs(t1 - t2) < 20000;
+    });
+    if (dup) return;
     notifications.unshift(notif);
     if (notifications.length > 50) notifications.pop();
     sessionStorage.setItem('sr_notifs', JSON.stringify(notifications));
@@ -433,27 +452,17 @@
   searchInput.addEventListener('input', () => {
     const raw = searchInput.value.trim();
     const val = raw.toUpperCase();
-
-    // If starts with @ or contains a space → user search
-    if (raw.startsWith('@') || (raw.length >= 2 && /^[a-zA-Z ]+$/.test(raw) && raw.includes(' '))) {
-      const q = raw.startsWith('@') ? raw.slice(1) : raw;
-      clearTimeout(searchTimer);
-      document.getElementById('search-panel').style.display = 'none';
-      document.getElementById('search-clear-btn').style.display = raw ? 'block' : 'none';
-      if (q.length >= 2) {
-        searchTimer = setTimeout(() => loadUserSearch(q), 400);
-      } else {
-        document.getElementById('user-search-panel').style.display = 'none';
-      }
-      return;
-    }
-
-    // Otherwise → symbol search (existing logic)
-    document.getElementById('user-search-panel').style.display = 'none';
-    searchClearB.style.display = val ? 'block' : 'none';
+    searchClearB.style.display = raw ? 'block' : 'none';
     clearTimeout(searchTimer);
-    if (!val) { clearSearch(); return; }
-    searchTimer = setTimeout(() => loadSymbolSearch(val), 600);
+    if (!raw) { document.getElementById('user-search-panel').style.display = 'none'; clearSearch(); return; }
+    if (raw.length < 2) { document.getElementById('user-search-panel').style.display = 'none'; searchPanel.style.display = 'none'; return; }
+    const q = raw.startsWith('@') ? raw.slice(1) : raw;
+    const looksTicker = !raw.startsWith('@') && /^[A-Za-z]{1,5}$/.test(raw);
+    searchTimer = setTimeout(() => {
+      loadUserSearch(q);
+      if (looksTicker) loadSymbolSearch(val);
+      else searchPanel.style.display = 'none';
+    }, 400);
   });
   searchClearB.addEventListener('click', clearSearch);
 
@@ -476,6 +485,7 @@
         API.quote(symbol).catch(() => null),
       ]);
       const { stats, recommendations } = data;
+      if (!quote && (!stats || stats.total === 0)) { searchPanel.style.display = 'none'; return; }
       if (quote) {
         const up = (quote.changePct||0) >= 0;
         document.getElementById('search-live-price').innerHTML =

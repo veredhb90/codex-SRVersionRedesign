@@ -48,9 +48,9 @@ const checkOutcome = async (rec, io) => {
       followers.forEach(f => {
         io.notifyUser && io.notifyUser(String(f._id), 'notification', {
           type:'win', title:`🏆 @${author?.username||author?.fullName}'s $${rec.symbol} hit Take Profit!`,
-          body:`+${rec.returnPct}% return`, recId:rec._id, time:new Date(),
+          body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
         });
-        sendFollowAlert(f.email, author?.username||author?.fullName, rec.symbol, rec.direction, rec.takeProfit)
+        sendFollowAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.direction, rec.takeProfit)
           .catch(()=>{});
       });
 
@@ -61,7 +61,7 @@ const checkOutcome = async (rec, io) => {
         if (wid !== String(rec.user)) {
           io.notifyUser && io.notifyUser(wid, 'notification', {
             type:'win', title:`🏆 $${rec.symbol} hit Take Profit!`,
-            body:`+${rec.returnPct}% — @${author?.username||author?.fullName}`, recId:rec._id, time:new Date(),
+            body:`+${rec.returnPct}% — @${author?.username||author?.fullName}`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
           });
         }
       });
@@ -95,7 +95,7 @@ const checkOutcome = async (rec, io) => {
       followers.forEach(f => {
         io.notifyUser && io.notifyUser(String(f._id), 'notification', {
           type:'loss', title:`💸 @${author?.username||author?.fullName}'s $${rec.symbol} hit Stop Loss`,
-          body:`${rec.returnPct}%`, recId:rec._id, time:new Date(),
+          body:`${rec.returnPct}%`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
         });
       });
 
@@ -219,9 +219,9 @@ router.post('/', protect, async (req, res) => {
       notified.add(fid);
       io.notifyUser && io.notifyUser(fid, 'notification', {
         type:'new_rec', title:`📡 @${req.user.username||req.user.fullName} posted ${direction} on $${sym}`,
-        body:`TP: $${tp} · Entry: $${quote.price.toFixed(2)}`, recId:rec._id, time:new Date(),
+        body:`TP: $${tp} · Entry: $${quote.price.toFixed(2)}`, recId:rec._id, fromUser:String(req.user._id), time:new Date(),
       });
-      sendFollowAlert(f.email, req.user.fullName, sym, direction, tp).catch(()=>{});
+      sendFollowAlert(f.email, '@' + (req.user.username || req.user.fullName), sym, direction, tp).catch(()=>{});
     });
 
     // Notify instrument subscribers from DB watchlist
@@ -237,10 +237,10 @@ router.post('/', protect, async (req, res) => {
           type:'instrument',
           title:`🔔 New ${direction} on $${sym}`,
           body:`By @${req.user.username||req.user.fullName} · TP: $${tp}`,
-          recId: rec._id, time: new Date(),
+          recId: rec._id, fromUser: String(req.user._id), time: new Date(),
         });
         // Email notification
-        sendInstrumentAlert(sub.email, sym, direction, req.user.username||req.user.fullName, tp, rec._id).catch(()=>{});
+        sendInstrumentAlert(sub.email, sym, direction, '@' + (req.user.username || req.user.fullName), tp, rec._id).catch(()=>{});
       }
     });
 
@@ -357,6 +357,21 @@ router.post('/:id/comment', protect, async (req, res) => {
         body:text.trim().slice(0,60), recId:rec._id, time:new Date(),
       });
     }
+    // Notify mentioned users (@username replies)
+    try {
+      const mentions = [...new Set((text.match(/@([a-zA-Z0-9_.-]+)/g) || []).map(m => m.slice(1)))].slice(0, 5);
+      if (mentions.length) {
+        const mentioned = await User.find({ username: { $in: mentions } }).select('_id');
+        mentioned.forEach(mu => {
+          if (String(mu._id) === String(req.user._id)) return;
+          if (String(mu._id) === String(rec.user._id)) return;
+          io.notifyUser && io.notifyUser(String(mu._id), 'notification', {
+            type:'comment', title:`↩ @${req.user.username||req.user.fullName} replied to you on $${rec.symbol}`,
+            body:text.trim().slice(0,60), recId:rec._id, fromUser:String(rec.user._id), time:new Date(),
+          });
+        });
+      }
+    } catch (e) {}
     res.status(201).json(newComment);
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
@@ -380,6 +395,15 @@ router.get('/watchlist', protect, async (req, res) => {
     const user = await User.findById(req.user._id).select('watchlist');
     res.json({ watchlist: user.watchlist || [] });
   } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// GET /api/recommendations/:id/owner — whose call is this
+router.get('/:id/owner', protect, async (req, res) => {
+  try {
+    const rec = await Recommendation.findById(req.params.id).select('user');
+    if (!rec) return res.status(404).json({ message:'Not found' });
+    res.json({ userId: String(rec.user) });
+  } catch (err) { res.status(500).json({ message:err.message }); }
 });
 
 module.exports = router;

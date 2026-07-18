@@ -139,6 +139,33 @@
     el.innerHTML = recs.map(r => buildProfileCard(r)).join('');
   }
 
+  // ── Reply-aware comment renderer ───────────────────────────────
+  window.renderProfileComment = function(c, recId) {
+    const uname = c.user?.username ? '@' + c.user.username : (c.user?.fullName || 'trader');
+    const dataU = c.user?.username || c.user?.fullName || 'trader';
+    const text  = String(c.text || '');
+    const m     = text.match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
+    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;font-weight:700;padding:2px 0;">↩ Reply</button>`;
+    const nameLink = c.user?._id
+      ? `<a href="/profile.html?id=${c.user._id}" style="text-decoration:none;"><strong class="pc-name">${uname}</strong></a>`
+      : `<strong class="pc-name">${uname}</strong>`;
+    if (m) {
+      return `<div class="pc-item" style="margin-left:20px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;">
+        <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">↩ Reply to <span style="color:var(--accent2);font-weight:700;">@${m[1]}</span></div>
+        ${nameLink}
+        <span class="pc-time">${timeAgo(c.createdAt||new Date())}</span>
+        <div class="pc-text">${m[2]}</div>
+        ${replyBtn}
+      </div>`;
+    }
+    return `<div class="pc-item">
+      ${nameLink}
+      <span class="pc-time">${timeAgo(c.createdAt||new Date())}</span>
+      <div class="pc-text">${text}</div>
+      ${replyBtn}
+    </div>`;
+  };
+
   // ── Event delegation for comments ──────────────────────────────
   document.addEventListener('click', async (e) => {
     // Undo repost
@@ -185,13 +212,14 @@
         inp.value = '';
         const list = document.getElementById('pcl-' + recId);
         if (list) {
-          const div = document.createElement('div');
-          div.className = 'pc-item';
           const _me = Auth.user();
-          div.innerHTML = `<a href="/profile.html?id=${_me?.id}" style="text-decoration:none;"><strong class="pc-name">${_me?.username?'@'+_me.username:(_me?.fullName||'You')}</strong></a>
-            <span class="pc-time">just now</span>
-            <div class="pc-text">${comment.text}</div>`;
-          list.appendChild(div);
+          const wrap = document.createElement('div');
+          wrap.innerHTML = renderProfileComment({
+            user: { _id: _me?.id, username: _me?.username, fullName: _me?.fullName },
+            text: comment.text,
+            createdAt: new Date(),
+          }, recId);
+          list.appendChild(wrap.firstElementChild);
         }
         // Update count
         const tb = document.querySelector(`[data-action="toggle-comments"][data-recid="${recId}"]`);
@@ -203,6 +231,27 @@
         toast('Comment posted!', 'success');
       } catch (err) { toast(err.message, 'error'); }
       finally { submitBtn.disabled = false; }
+      return;
+    }
+
+    // Reply to a comment — prefill @username
+    const pcReply = e.target.closest('.pc-reply-btn');
+    if (pcReply) {
+      const rid = pcReply.dataset.recid;
+      const input = document.getElementById('pci-' + rid) || document.querySelector('[data-recid="' + rid + '"].pc-input, input[data-recid="' + rid + '"]') || (document.getElementById('rec-' + rid) && document.getElementById('rec-' + rid).querySelector('input[maxlength="500"]'));
+      const card = document.getElementById('rec-' + rid);
+      const realInput = input || (card && card.querySelector('input[maxlength="500"]'));
+      if (realInput) {
+        if (realInput.offsetParent === null) {
+          const tog = document.querySelector('[data-action="toggle-comments"][data-recid="' + rid + '"]');
+          if (tog) tog.click();
+        }
+        setTimeout(function() {
+          realInput.value = '@' + pcReply.dataset.username + ' ';
+          realInput.focus();
+          realInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 120);
+      }
       return;
     }
 
@@ -389,13 +438,7 @@ function buildProfileCard(r, isOwn) {
        </div>`
     : '';
 
-  const commentsHtml = (r.comments||[]).map(c =>
-    `<div class="pc-item">
-      <strong class="pc-name">@${c.user?.username||c.user?.fullName||'trader'}</strong>
-      <span class="pc-time">${timeAgo(c.createdAt)}</span>
-      <div class="pc-text">${c.text}</div>
-    </div>`
-  ).join('');
+  const commentsHtml = (r.comments||[]).map(c => renderProfileComment(c, r._id)).join('');
 
   const commentCount = r.comments?.length || 0;
 
@@ -503,6 +546,11 @@ function buildProfileCard(r, isOwn) {
       el.style.transition = 'box-shadow .4s';
       el.style.boxShadow = '0 0 0 3px #F5D061, 0 8px 24px rgba(245,208,97,0.35)';
       setTimeout(function() { el.style.boxShadow = ''; }, 3500);
+      // Auto-open comments so replies are visible right away
+      setTimeout(function() {
+        var tog = el.querySelector('.comment-toggle, [class*="comment"][class*="toggle"]');
+        if (tog) tog.click();
+      }, 700);
     } else if (tries > 40) { clearInterval(t); }
   }, 250);
 })();

@@ -6,6 +6,7 @@ const notificationSchema = new mongoose.Schema({
   title:   { type: String, required: true },
   body:    { type: String, default: '' },
   recId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Recommendation' },
+  fromUser:{ type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   read:    { type: Boolean, default: false },
 }, { timestamps: true });
 

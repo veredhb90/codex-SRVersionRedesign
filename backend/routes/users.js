@@ -23,11 +23,16 @@ router.get('/search', protect, async (req, res) => {
   try {
     const q = req.query.q?.trim();
     if (!q || q.length < 2) return res.json([]);
-    const users = await User.find({
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const words = q.split(/\s+/).filter(Boolean).slice(0, 4);
+    const conditions = words.map(w => ({
       $or: [
-        { username: { $regex: q, $options: 'i' } },
-        { fullName: { $regex: q, $options: 'i' } },
+        { username: { $regex: esc(w), $options: 'i' } },
+        { fullName: { $regex: esc(w), $options: 'i' } },
       ],
+    }));
+    const users = await User.find({
+      $and: conditions,
       isVerified: true,
     })
     .select('fullName username followers following')
@@ -94,9 +99,9 @@ router.post('/:id/follow', protect, async (req, res) => {
       try {
         const Notification = require('../models/Notification');
         const title = '👤 ' + (current.username || current.fullName) + ' started following you!';
-        await Notification.create({ user: target._id, type: 'follow', title, body: 'Visit their profile to follow back.' });
+        await Notification.create({ user: target._id, type: 'follow', title, body: 'Visit their profile to follow back.', fromUser: current._id });
         const io = req.app.get('io');
-        io && io.notifyUser && io.notifyUser(String(target._id), 'notification', { type:'follow', title, body:'Visit their profile to follow back.', time:new Date() });
+        io && io.notifyUser && io.notifyUser(String(target._id), 'notification', { type:'follow', title, body:'Visit their profile to follow back.', fromUser:String(current._id), time:new Date() });
       } catch (e) { console.log('Follow notif error:', e.message); }
     }
     res.json({ following: !already });
