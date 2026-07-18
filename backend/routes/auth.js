@@ -139,10 +139,15 @@ router.post('/forgot-password', async (req, res) => {
 // POST /api/auth/onboarding — save trader profile
 router.post('/onboarding', require('../middleware/authMiddleware').protect, async (req, res) => {
   try {
-    const { age, investmentAmount, tradingStyle, experience, riskTolerance, goals } = req.body;
+    const allowed = ['age','investmentAmount','tradingStyle','experience','riskTolerance','goals','hideAmount'];
+    const sets = {};
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) sets['traderProfile.' + k] = req.body[k];
+    }
+    sets['traderProfile.onboardingDone'] = true;
     const user = await require('../models/User').findByIdAndUpdate(
       req.user._id,
-      { traderProfile: { age, investmentAmount, tradingStyle, experience, riskTolerance, goals, onboardingDone: true } },
+      { $set: sets },
       { new: true }
     );
     res.json({ message: 'Profile saved!', traderProfile: user.traderProfile });

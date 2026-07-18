@@ -20,7 +20,22 @@
 
   // ── Header ───────────────────────────────────────────────────
   function renderHeader({ user, isFollowing }) {
-    document.getElementById('prof-name').textContent   = user.fullName;
+    var nameEl = document.getElementById('prof-name');
+    if (nameEl.childNodes.length && nameEl.childNodes[0].nodeType === 3) {
+      nameEl.childNodes[0].textContent = user.fullName;
+    } else {
+      nameEl.insertBefore(document.createTextNode(user.fullName), nameEl.firstChild);
+    }
+    var planBadge = document.getElementById('prof-plan-badge');
+    if (planBadge) {
+      if (user.plan === 'pro') {
+        planBadge.textContent = '⚡ PRO';
+        planBadge.style.cssText += 'display:inline-block;background:linear-gradient(135deg,#F5D061,#E6A817);color:#4A3B10;box-shadow:0 2px 8px rgba(245,208,97,0.4);';
+      } else {
+        planBadge.textContent = 'FREE';
+        planBadge.style.cssText += 'display:inline-block;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.75);border:1px solid rgba(255,255,255,0.25);';
+      }
+    }
     document.getElementById('prof-avatar').textContent = initials(user.fullName);
     if (isOwn) document.getElementById('prof-email').textContent = user.email || '';
     // Show @username under name
@@ -60,7 +75,11 @@
       followBtn && (followBtn.style.display = 'inline-flex');
       repostsBox && (repostsBox.style.display = 'block');
       engineBox  && (engineBox.style.display  = 'none');
-      setFollowBtn(followBtn, isFollowing, user._id);
+      var me = null;
+      try { me = Auth.user(); } catch(e) {}
+      var myId = me ? String(me._id || me.id || '') : '';
+      var theyFollowMe = following.some(function(f) { return String(f && f._id ? f._id : f) === myId; });
+      setFollowBtn(followBtn, isFollowing, user._id, theyFollowMe);
     }
 
     // Display trader profile for all visitors
@@ -69,13 +88,13 @@
     }
   }
 
-  function setFollowBtn(btn, isFollowing, userId) {
-    btn.textContent = isFollowing ? '✓ Following' : '+ Follow';
+  function setFollowBtn(btn, isFollowing, userId, theyFollowMe) {
+    btn.textContent = isFollowing ? '✓ Following' : (theyFollowMe ? '↩ Follow Back' : '+ Follow');
     btn.className   = `btn ${isFollowing ? 'btn-outline' : 'btn-primary'}`;
     btn.onclick = async () => {
       try {
         const res = await API.follow(userId);
-        setFollowBtn(btn, res.following, userId);
+        setFollowBtn(btn, res.following, userId, theyFollowMe);
         toast(res.following ? 'Now following!' : 'Unfollowed', 'info');
       } catch (err) { toast(err.message, 'error'); }
     };
@@ -381,7 +400,7 @@ function buildProfileCard(r, isOwn) {
   const commentCount = r.comments?.length || 0;
 
   return `
-  <div class="rec-card" data-symbol="${r.symbol}" data-entry="${r.entryPrice}" data-direction="${r.direction}" data-isopen="${r.isOpen?'true':'false'}" ${isBuy?'buy':'sell'} ${isClosed?'closed':''}" style="margin-bottom:12px;">
+  <div class="rec-card" id="rec-${r._id}" data-recid="${r._id}" data-symbol="${r.symbol}" data-entry="${r.entryPrice}" data-direction="${r.direction}" data-isopen="${r.isOpen?'true':'false'}" style="margin-bottom:12px;">
     <div class="rec-header">
       <div>
         <div class="rec-symbol">${r.symbol}</div>
@@ -398,11 +417,13 @@ function buildProfileCard(r, isOwn) {
       <div class="price-block"><div class="price-val sl-val">${r.stopLoss?fmtPrice(r.stopLoss):'—'}</div><div class="price-lbl">Stop Loss</div></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-      <span style="font-size:12px;color:var(--muted);">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
+      ${r.isOpen ? `<span style="font-size:12px;color:var(--muted);">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
       <span class="live-change" style="font-size:11px;color:var(--muted);margin-left:4px;"></span>
-    </span>
-      <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${retColor};">${r.returnPct?fmtPct(r.returnPct):'—'}</span>
-      <span style="margin-left:auto;font-size:12px;color:var(--muted);">♥ ${r.likes?.length||0}</span>
+    </span>` : `<span style="font-size:12px;color:var(--muted);">${r.outcome==='WIN'?'🎯 Hit TP':'🛑 Hit SL'} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice))}</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
+    </span>`}
+      <span class="live-return" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${retColor};">${r.returnPct?fmtPct(r.returnPct):'—'}</span>
+      <button class="like-btn" data-id="${r._id}" style="margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;font-weight:700;">${r.likes?.length||0}</span></button>
       <button class="btn btn-sm btn-ghost"
         data-action="toggle-comments" data-recid="${r._id}" data-count="${commentCount}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;">
@@ -429,3 +450,114 @@ function buildProfileCard(r, isOwn) {
     </div>
   </div>`;
 }
+
+
+// ── Live return % for OPEN calls: (live price - entry) / entry ─────
+(function() {
+  async function refreshProfileLive() {
+    var cards = document.querySelectorAll('.rec-card[data-isopen="true"]');
+    if (!cards.length) return;
+    var bySym = {};
+    cards.forEach(function(c) {
+      var s = c.dataset.symbol;
+      if (!s) return;
+      if (!bySym[s]) bySym[s] = [];
+      bySym[s].push(c);
+    });
+    for (var sym in bySym) {
+      try {
+        var q = await API.quote(sym);
+        if (!q || !q.price) continue;
+        bySym[sym].forEach(function(card) {
+          var entry = parseFloat(card.dataset.entry);
+          var dir   = card.dataset.direction;
+          var retEl = card.querySelector('.live-return');
+          if (retEl && entry) {
+            var ret = dir === 'BUY'
+              ? ((q.price - entry) / entry * 100)
+              : ((entry - q.price) / entry * 100);
+            retEl.textContent = (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%';
+            retEl.style.color = ret >= 0 ? 'var(--green)' : 'var(--red)';
+          }
+        });
+      } catch (e) {}
+    }
+  }
+  setTimeout(refreshProfileLive, 2500);
+  setInterval(refreshProfileLive, 30000);
+})();
+
+
+// ── Notification deep-link: /profile.html?rec=<id> scrolls to the trade ──
+(function() {
+  var params = new URLSearchParams(location.search);
+  var recId = params.get('rec');
+  if (!recId) return;
+  var tries = 0;
+  var t = setInterval(function() {
+    tries++;
+    var el = document.getElementById('rec-' + recId);
+    if (el) {
+      clearInterval(t);
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.transition = 'box-shadow .4s';
+      el.style.boxShadow = '0 0 0 3px #F5D061, 0 8px 24px rgba(245,208,97,0.35)';
+      setTimeout(function() { el.style.boxShadow = ''; }, 3500);
+    } else if (tries > 40) { clearInterval(t); }
+  }, 250);
+})();
+
+
+// ── Likes on profile cards: heart toggles, count shows who liked ──
+(function() {
+  function authHdr() {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') };
+  }
+
+  async function fetchLikesList(recId) {
+    var res = await fetch('/api/recommendations/' + recId + '/likes', { headers: authHdr() });
+    if (!res.ok) throw new Error('Could not load likes');
+    return res.json();
+  }
+
+  async function showLikesList(recId) {
+    try {
+      var users = await fetchLikesList(recId);
+      var oldM = document.getElementById('sr-likes-modal');
+      if (oldM) oldM.remove();
+      var m = document.createElement('div');
+      m.id = 'sr-likes-modal';
+      m.style.cssText = 'position:fixed;inset:0;z-index:25000;background:rgba(8,15,36,0.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+      var items = users.length
+        ? users.map(function(u) {
+            var initial = (u.username || u.fullName || '?').charAt(0).toUpperCase();
+            return '<a href="/profile.html?id=' + u._id + '" style="display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid #EEF3FB;text-decoration:none;color:#1A2540;"><span style="width:32px;height:32px;border-radius:50%;background:#1565C0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">' + initial + '</span><span style="font-weight:600;">@' + (u.username || u.fullName) + '</span></a>';
+          }).join('')
+        : '<div style="text-align:center;color:#94a3b8;padding:16px;">No likes yet</div>';
+      m.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;max-height:70vh;overflow-y:auto;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,0.3);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><strong style="color:#0D2244;">&#10084;&#65039; Liked by</strong><button id="sr-likes-close" style="background:none;border:none;font-size:16px;cursor:pointer;color:#94a3b8;">&#10005;</button></div>' + items + '</div>';
+      m.addEventListener('click', function(ev) { if (ev.target === m || ev.target.id === 'sr-likes-close') m.remove(); });
+      document.body.appendChild(m);
+    } catch (e) { if (window.toast) toast(e.message, 'error'); }
+  }
+
+  document.addEventListener('click', async function(e) {
+    var countEl = e.target.closest('.like-count');
+    if (countEl) {
+      var b1 = countEl.closest('.like-btn');
+      if (b1 && b1.dataset.id) { e.preventDefault(); showLikesList(b1.dataset.id); }
+      return;
+    }
+    var likeBtn = e.target.closest('.like-btn');
+    if (likeBtn && likeBtn.dataset.id) {
+      e.preventDefault();
+      try {
+        var res = await fetch('/api/recommendations/' + likeBtn.dataset.id + '/like', { method: 'POST', headers: authHdr() });
+        var d = await res.json();
+        if (!res.ok) throw new Error(d.message || 'Like failed');
+        var c = likeBtn.querySelector('.like-count');
+        if (c) c.textContent = d.likes;
+        likeBtn.style.color = d.liked ? 'var(--red)' : 'var(--muted)';
+      } catch (err) { if (window.toast) toast(err.message, 'error'); }
+    }
+  });
+})();

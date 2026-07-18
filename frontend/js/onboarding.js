@@ -37,6 +37,7 @@ const Onboarding = {
 
         <!-- Form -->
         <div style="padding:28px 32px;" id="ob-form">
+          <div id="ob-err" style="display:none;background:#FFEBEE;color:#C62828;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin-bottom:12px;"></div>
           
           <!-- Step indicator -->
           <div style="display:flex;gap:6px;margin-bottom:24px;justify-content:center;">
@@ -168,7 +169,43 @@ const Onboarding = {
     btn.style.color       = '#0D47A1';
   },
 
+  showErr(msg) {
+    var el = document.getElementById('ob-err');
+    if (!el) { alert(msg); return; }
+    el.textContent = '⚠️ ' + msg;
+    el.style.display = 'block';
+    el.scrollIntoView({ block: 'nearest' });
+    setTimeout(function() { el.style.display = 'none'; }, 3500);
+  },
+
+  currentPage() {
+    if (document.getElementById('ob-page-3').style.display === 'block') return 3;
+    if (document.getElementById('ob-page-2').style.display === 'block') return 2;
+    return 1;
+  },
+
+  validatePage(p) {
+    if (p === 1) {
+      var age = parseInt(document.getElementById('ob-age').value);
+      if (!age || age < 13 || age > 100) return 'Please enter your age (13-100)';
+      if (!this.selections.amount) return 'Please select your investment amount';
+    }
+    if (p === 2) {
+      if (!this.selections.style) return 'Please select your trading style';
+      if (!this.selections.experience) return 'Please select your experience level';
+    }
+    if (p === 3) {
+      if (!this.selections.risk) return 'Please select your risk tolerance';
+    }
+    return null;
+  },
+
   nextStep(step) {
+    var cur = this.currentPage();
+    if (step > cur) {
+      var err = this.validatePage(cur);
+      if (err) { this.showErr(err); return; }
+    }
     document.getElementById('ob-page-1').style.display = step === 1 ? 'block' : 'none';
     document.getElementById('ob-page-2').style.display = step === 2 ? 'block' : 'none';
     document.getElementById('ob-page-3').style.display = step === 3 ? 'block' : 'none';
@@ -178,19 +215,29 @@ const Onboarding = {
   },
 
   async save() {
+    var err = this.validatePage(3);
+    if (err) { this.showErr(err); return; }
     var btn = document.getElementById('ob-save-btn');
     btn.textContent = 'Saving...';
     btn.disabled = true;
     try {
-      await API.onboarding({
-        age:              parseInt(document.getElementById('ob-age').value) || null,
-        investmentAmount: this.selections.amount || '',
-        tradingStyle:     this.selections.style  || '',
-        experience:       this.selections.experience || '',
-        riskTolerance:    this.selections.risk   || '',
-        goals:            document.getElementById('ob-goals').value || '',
+      var result = await API.onboarding({
+        age:              parseInt(document.getElementById('ob-age').value),
+        investmentAmount: this.selections.amount,
+        tradingStyle:     this.selections.style,
+        experience:       this.selections.experience,
+        riskTolerance:    this.selections.risk,
+        goals:            document.getElementById('ob-goals').value.trim(),
       });
       document.getElementById('sr-onboarding').remove();
+      // Instantly refresh the profile section without a page reload
+      if (result && result.traderProfile && document.getElementById('trader-profile-section')) {
+        if (typeof displayTraderProfile === 'function') {
+          displayTraderProfile(result.traderProfile, true);
+        } else {
+          location.reload();
+        }
+      }
       // Mark as done in localStorage
       var userId = Auth.userId ? Auth.userId() : 'user';
       localStorage.setItem('sr_onboarding_done_' + userId, '1');

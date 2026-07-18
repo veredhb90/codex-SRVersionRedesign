@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — SwingRush</title>
+  <link rel="stylesheet" href="/css/main.css"/>
+  <style>
+    .adm-wrap { max-width:1080px; margin:28px auto; padding:0 16px; }
+    .adm-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:24px; }
+    .adm-stat { background:#fff; border:1.5px solid var(--border); border-radius:14px; padding:18px 16px; text-align:center; }
+    .adm-stat .num { font-size:28px; font-weight:800; color:var(--accent); }
+    .adm-stat .lbl { font-size:11px; font-weight:700; letter-spacing:1px; color:var(--muted); margin-top:4px; }
+    .adm-toolbar { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+    .adm-search { flex:1; min-width:220px; border:1.5px solid var(--border); border-radius:12px; padding:11px 16px; font-size:14px; outline:none; }
+    .adm-search:focus { border-color:var(--accent); }
+    .adm-table-wrap { background:#fff; border:1.5px solid var(--border); border-radius:14px; overflow-x:auto; }
+    table.adm { border-collapse:collapse; width:100%; font-size:13px; min-width:760px; }
+    table.adm th { background:#F0F5FE; color:#0D2244; text-align:left; padding:11px 14px; font-size:11px; letter-spacing:1px; border-bottom:1.5px solid var(--border); white-space:nowrap; }
+    table.adm td { padding:11px 14px; border-bottom:1px solid #EEF3FB; vertical-align:middle; }
+    table.adm tr:last-child td { border-bottom:none; }
+    table.adm tr:hover td { background:#F8FAFF; }
+    .badge-pro  { background:linear-gradient(135deg,#F5D061,#E6A817); color:#4A3B10; font-size:10px; font-weight:800; letter-spacing:1px; padding:3px 10px; border-radius:10px; }
+    .badge-free { background:#EEF3FB; color:#64748b; font-size:10px; font-weight:800; letter-spacing:1px; padding:3px 10px; border-radius:10px; }
+    .badge-adm  { background:#0D2244; color:#fff; font-size:9px; font-weight:800; letter-spacing:1px; padding:2px 8px; border-radius:8px; margin-left:6px; }
+    .adm-btn { border:none; border-radius:8px; padding:6px 10px; font-size:11px; font-weight:700; cursor:pointer; margin:2px; }
+    .adm-btn.up { background:#E3F8EC; color:#00893E; }
+    .adm-btn.up:hover { background:#00C853; color:#fff; }
+    .adm-btn.down { background:#FFEBEE; color:#C62828; }
+    .adm-btn.down:hover { background:#ef5350; color:#fff; }
+    .adm-btn.del { background:#fff; color:#C62828; border:1px solid #FFCDD2; }
+    .adm-btn.del:hover { background:#C62828; color:#fff; border-color:#C62828; }
+    .adm-msg { padding:10px 16px; border-radius:10px; margin-bottom:14px; font-size:13px; font-weight:600; display:none; }
+    .adm-msg.ok { background:#E3F8EC; color:#00893E; }
+    .adm-msg.err { background:#FFEBEE; color:#C62828; }
+    #adm-denied { display:none; text-align:center; padding:80px 20px; }
+    #adm-denied .icon { font-size:52px; margin-bottom:12px; }
+    .sub-until { font-size:11px; color:var(--muted); }
+    @media(max-width:768px){ .adm-wrap{margin:14px auto;} .adm-stat .num{font-size:22px;} }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/feed.html">
+    <span class="brand-dot"></span>
+    <span style="color:var(--accent);">SWING</span><span style="color:var(--red);">RUSH</span>
+  </a>
+  <div class="navbar-actions">
+    <span style="color:var(--muted);font-size:13px;font-weight:700;letter-spacing:1px;">🛡 ADMIN PANEL</span>
+    <a href="/feed.html" class="btn btn-outline btn-sm">← Feed</a>
+  </div>
+</nav>
+
+<div id="adm-denied">
+  <div class="icon">🚫</div>
+  <h2 style="color:var(--accent);margin-bottom:8px;">Admin access only</h2>
+  <p style="color:var(--muted);">This page is restricted. If you are the admin, make sure you are logged in with the admin account.</p>
+</div>
+
+<div class="adm-wrap" id="adm-main" style="display:none;">
+  <div class="adm-stats">
+    <div class="adm-stat"><div class="num" id="st-total">–</div><div class="lbl">TOTAL USERS</div></div>
+    <div class="adm-stat"><div class="num" id="st-pro" style="color:#E6A817;">–</div><div class="lbl">⚡ PRO</div></div>
+    <div class="adm-stat"><div class="num" id="st-free">–</div><div class="lbl">FREE</div></div>
+    <div class="adm-stat"><div class="num" id="st-new" style="color:#00893E;">–</div><div class="lbl">NEW THIS WEEK</div></div>
+  </div>
+
+  <div class="adm-msg" id="adm-msg"></div>
+
+  <div class="adm-toolbar">
+    <input class="adm-search" id="adm-search" type="text" placeholder="🔍 Search by email, username or name..."/>
+    <button class="btn btn-outline btn-sm" onclick="loadAll()">↻ Refresh</button>
+  </div>
+
+  <div class="adm-table-wrap">
+    <table class="adm">
+      <thead>
+        <tr>
+          <th>USER</th><th>EMAIL</th><th>PLAN</th><th>PRO UNTIL</th><th>USAGE</th><th>JOINED</th><th>ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody id="adm-rows">
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px;">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+  var searchTimer = null;
+
+  function authHeaders() {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') };
+  }
+
+  function showMsg(text, ok) {
+    var el = document.getElementById('adm-msg');
+    el.textContent = text;
+    el.className = 'adm-msg ' + (ok ? 'ok' : 'err');
+    el.style.display = 'block';
+    setTimeout(function() { el.style.display = 'none'; }, 4000);
+  }
+
+  function denied() {
+    document.getElementById('adm-main').style.display = 'none';
+    document.getElementById('adm-denied').style.display = 'block';
+  }
+
+  async function loadStats() {
+    var res = await fetch('/api/admin/stats', { headers: authHeaders() });
+    if (res.status === 403 || res.status === 401) { denied(); return false; }
+    var s = await res.json();
+    document.getElementById('st-total').textContent = s.total;
+    document.getElementById('st-pro').textContent   = s.pro;
+    document.getElementById('st-free').textContent  = s.free;
+    document.getElementById('st-new').textContent   = s.newThisWeek;
+    return true;
+  }
+
+  async function loadUsers() {
+    var q = document.getElementById('adm-search').value.trim();
+    var res = await fetch('/api/admin/users' + (q ? '?search=' + encodeURIComponent(q) : ''), { headers: authHeaders() });
+    if (res.status === 403 || res.status === 401) { denied(); return; }
+    var users = await res.json();
+    var rows = document.getElementById('adm-rows');
+    if (!users.length) {
+      rows.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px;">No users found</td></tr>';
+      return;
+    }
+    rows.innerHTML = '';
+    users.forEach(function(u) {
+      var tr = document.createElement('tr');
+      var isPro = u.plan === 'pro';
+      var until = isPro && u.subscriptionEnd ? new Date(u.subscriptionEnd).toLocaleDateString() : '—';
+      var joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—';
+      var usage = 'chat ' + (u.chatUsed || 0) + ' · eng ' + (u.engineUsed || 0);
+      tr.innerHTML =
+        '<td><strong>' + esc(u.fullName || '') + '</strong><br><span style="color:var(--muted);font-size:11px;">@' + esc(u.username || '') + '</span>' + (u.isAdmin ? '<span class="badge-adm">ADMIN</span>' : '') + '</td>' +
+        '<td>' + esc(u.email || '') + '</td>' +
+        '<td>' + (isPro ? '<span class="badge-pro">⚡ PRO</span>' : '<span class="badge-free">FREE</span>') + '</td>' +
+        '<td class="sub-until">' + until + '</td>' +
+        '<td class="sub-until">' + usage + '</td>' +
+        '<td class="sub-until">' + joined + '</td>' +
+        '<td>' +
+          (isPro
+            ? '<button class="adm-btn up" onclick="upgrade(\'' + u._id + '\', 1)">+1m</button>' +
+              '<button class="adm-btn down" onclick="downgrade(\'' + u._id + '\', \'' + esc(u.email) + '\')">⬇ Free</button>'
+            : '<button class="adm-btn up" onclick="upgrade(\'' + u._id + '\', 1)">⚡ 1 mo</button>' +
+              '<button class="adm-btn up" onclick="upgrade(\'' + u._id + '\', 3)">⚡ 3 mo</button>' +
+              '<button class="adm-btn up" onclick="upgrade(\'' + u._id + '\', 12)">⚡ 1 yr</button>'
+          ) +
+          (u.isAdmin ? '' : '<button class="adm-btn del" onclick="deleteUser(\'' + u._id + '\', \'' + esc(u.email) + '\')">🗑</button>') +
+        '</td>';
+      rows.appendChild(tr);
+    });
+  }
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+  async function upgrade(userId, months) {
+    if (!confirm('Upgrade this user to PRO for ' + months + ' month(s)?')) return;
+    var res = await fetch('/api/admin/upgrade', { method:'POST', headers: authHeaders(), body: JSON.stringify({ userId: userId, months: months }) });
+    var d = await res.json();
+    showMsg(res.ok ? '✅ ' + d.message + ' until ' + new Date(d.subscriptionEnd).toLocaleDateString() : '❌ ' + d.message, res.ok);
+    loadAll();
+  }
+
+  async function downgrade(userId, email) {
+    if (!confirm('Downgrade ' + email + ' to FREE?')) return;
+    var res = await fetch('/api/admin/downgrade', { method:'POST', headers: authHeaders(), body: JSON.stringify({ userId: userId }) });
+    var d = await res.json();
+    showMsg(res.ok ? '✅ ' + d.message : '❌ ' + d.message, res.ok);
+    loadAll();
+  }
+
+  async function deleteUser(userId, email) {
+    if (!confirm('⚠️ DELETE user ' + email + '?\n\nThis permanently removes the account, their calls, chats and notifications.\nThe email and username become free to register again.')) return;
+    if (!confirm('Are you SURE? This cannot be undone.')) return;
+    var res = await fetch('/api/admin/delete', { method:'POST', headers: authHeaders(), body: JSON.stringify({ userId: userId }) });
+    var d = await res.json();
+    showMsg(res.ok ? '✅ ' + d.message : '❌ ' + d.message, res.ok);
+    loadAll();
+  }
+
+  async function loadAll() {
+    try {
+      var ok = await loadStats();
+      if (ok) {
+        document.getElementById('adm-main').style.display = 'block';
+        await loadUsers();
+      }
+    } catch(e) { denied(); }
+  }
+
+  document.getElementById('adm-search').addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadUsers, 350);
+  });
+
+  if (!localStorage.getItem('sr_token')) { denied(); } else { loadAll(); }
+</script>
+</body>
+</html>

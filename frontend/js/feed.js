@@ -100,7 +100,33 @@
   loadMoreBtn?.addEventListener('click', () => currentTab === 'all' && loadFeed());
 
   // ── Event delegation ───────────────────────────────────────
+  async function showLikesList(recId) {
+    try {
+      const likesRes = await fetch('/api/recommendations/' + recId + '/likes', { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') } });
+      if (!likesRes.ok) throw new Error('Could not load likes');
+      const users = await likesRes.json();
+      const oldM = document.getElementById('sr-likes-modal');
+      if (oldM) oldM.remove();
+      const m = document.createElement('div');
+      m.id = 'sr-likes-modal';
+      m.style.cssText = 'position:fixed;inset:0;z-index:25000;background:rgba(8,15,36,0.6);display:flex;align-items:center;justify-content:center;padding:20px;';
+      const items = users.length
+        ? users.map(u => '<a href="/profile.html?id=' + u._id + '" style="display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid #EEF3FB;text-decoration:none;color:#1A2540;"><span style="width:32px;height:32px;border-radius:50%;background:#1565C0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">' + (u.username||u.fullName||'?').charAt(0).toUpperCase() + '</span><span style="font-weight:600;">@' + (u.username||u.fullName) + '</span></a>').join('')
+        : '<div style="text-align:center;color:#94a3b8;padding:16px;">No likes yet</div>';
+      m.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;max-height:70vh;overflow-y:auto;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,0.3);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><strong style="color:#0D2244;">&#10084;&#65039; Liked by</strong><button id="sr-likes-close" style="background:none;border:none;font-size:16px;cursor:pointer;color:#94a3b8;">&#10005;</button></div>' + items + '</div>';
+      m.addEventListener('click', function(ev) { if (ev.target === m || ev.target.id === 'sr-likes-close') m.remove(); });
+      document.body.appendChild(m);
+    } catch (err) { toast(err.message, 'error'); }
+  }
+
   feedEl.addEventListener('click', async (e) => {
+    // Who liked — click the count number
+    const likeCountEl = e.target.closest('.like-count');
+    if (likeCountEl) {
+      const b = likeCountEl.closest('.like-btn');
+      if (b) showLikesList(b.dataset.id);
+      return;
+    }
     // Like
     const likeBtn = e.target.closest('.like-btn');
     if (likeBtn) {
@@ -647,11 +673,13 @@ function buildCard(r) {
       </div>
     </div>
     <div class="rec-footer">
-      <span class="live-price-tag">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
+      ${r.isOpen ? `<span class="live-price-tag">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
         <span class="live-change" style="font-size:11px;color:var(--muted);margin-left:4px;"></span>
-      </span>
+      </span>` : `<span class="live-price-tag">${r.outcome==='WIN'?'🎯 Hit TP':'🛑 Hit SL'} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice))}</span>
+        <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
+      </span>`}
       <span class="live-return" style="color:${retColor};font-family:var(--font-mono);font-size:13px;font-weight:700;">${r.isOpen?(r.returnPct?fmtPct(r.returnPct):'—'):(r.returnPct?fmtPct(r.returnPct):'—')}</span>
-      <button class="btn btn-sm btn-outline like-btn" data-id="${r._id}" style="margin-left:auto;">♥ <span class="like-count">${r.likes?.length||0}</span></button>
+      <button class="btn btn-sm btn-outline like-btn" data-id="${r._id}" style="margin-left:auto;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;">${r.likes?.length||0}</span></button>
       <button class="btn btn-sm btn-ghost comment-toggle" data-id="${r._id}">💬 <span class="comment-count">${r.comments?.length||0}</span></button>
       <button class="share-rec-btn">↗ Share</button>
       ${(() => {

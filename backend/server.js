@@ -31,6 +31,7 @@ app.use('/api/notifications',   require('./routes/notifications'));
 app.use('/api/scanner',         require('./routes/scanner'));
 app.use('/api/leaderboard',      require('./routes/leaderboard'));
 app.use('/api/chat',             require('./routes/chat'));
+app.use('/api/admin',            require('./routes/admin'));
 app.get('/api/health', (_, res) => res.json({ status:'ok', time:new Date() }));
 app.get('/api/online-users', (_, res) => res.json(Array.from(onlineUsersMap.values())));
 

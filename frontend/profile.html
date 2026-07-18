@@ -214,7 +214,7 @@
   <div class="prof-banner">
     <div class="prof-av" id="prof-avatar">?</div>
     <div class="prof-info">
-      <h1 id="prof-name">Loading…</h1>
+      <h1 id="prof-name" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Loading…<span id="prof-plan-badge" style="display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px;border-radius:12px;vertical-align:middle;"></span></h1>
       <div id="prof-username" style="color:rgba(255,255,255,0.4);font-size:13px;margin-bottom:2px;"></div>
       <div id="prof-email"></div>
       <!-- Following / Followers counts -->
@@ -231,8 +231,8 @@
     </div>
     <div class="prof-actions">
       <button id="share-call-btn" class="btn btn-green" style="display:none;" onclick="openShareForm()">📤 Share a Call</button>
+      <button id="trader-profile-btn" class="btn btn-sm" style="display:none;background:#00897B;color:#fff;border:none;" onclick="Onboarding.show()">🎯 My Profile</button>
       <button id="change-pwd-btn" class="btn btn-outline btn-sm" style="display:none;" onclick="openChangePwd()">🔑 Password</button>
-      <button id="trader-profile-btn" class="btn btn-sm" style="display:none;background:#00897B;color:#fff;border:none;" onclick="openTraderProfile()">🎯 My Profile</button>
       <button id="follow-btn" class="btn btn-primary" style="display:none;">+ Follow</button>
     </div>
   </div>
@@ -566,24 +566,3 @@ const origLoadProfile = window.loadProfile;
 </script>
 </body>
 </html>
-<script>
-function openTraderProfile() {
-  var userId = Auth.user ? Auth.user()._id : 'user';
-  localStorage.removeItem('sr_onboarding_done_' + userId);
-  sessionStorage.removeItem('sr_onboarding_skipped_' + userId);
-  if (window.Onboarding) Onboarding.show();
-}
-
-// Show trader-profile-btn on own profile
-(function() {
-  var pwdBtn = document.getElementById('change-pwd-btn');
-  var tpBtn  = document.getElementById('trader-profile-btn');
-  if (!pwdBtn || !tpBtn) return;
-  var obs = new MutationObserver(function() {
-    if (pwdBtn.style.display !== 'none') {
-      tpBtn.style.display = 'inline-flex';
-    }
-  });
-  obs.observe(pwdBtn, { attributes: true, attributeFilter: ['style'] });
-})();
-</script>

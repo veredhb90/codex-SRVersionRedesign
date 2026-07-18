@@ -349,7 +349,8 @@
     }
     list.innerHTML = notifications.slice(0,20).map(n => {
       const icons = { new_rec:'📡', win:'🏆', loss:'💸', like:'❤️', comment:'💬', repost:'↩', instrument:'🔔' };
-      return `<div class="notif-item" onclick="closeNotif()">
+      const goRec = ((n.type==='win'||n.type==='loss') && n.recId) ? String(n.recId) : '';
+      return `<div class="notif-item" data-rec="${goRec}" onclick="notifClick(this)" style="${goRec?'cursor:pointer;':''}">
         <div class="notif-icon">${icons[n.type]||'🔔'}</div>
         <div class="notif-body">
           <div class="notif-title">${n.title}</div>
@@ -359,6 +360,11 @@
       </div>`;
     }).join('');
   }
+
+  window.notifClick = function(el) {
+    closeNotif();
+    if (el.dataset.rec) location.href = '/profile.html?rec=' + el.dataset.rec;
+  };
 
   function addNotif(notif) {
     console.log('🔔 Notification received:', notif);

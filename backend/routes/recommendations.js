@@ -321,7 +321,19 @@ router.post('/:id/like', protect, async (req, res) => {
         body:'', recId:rec._id, time:new Date(),
       });
     }
-    res.json({ likes:rec.likes.length, liked:idx===-1 });
+    res.json({ likes:rec.likes.length, liked: !liked });
+  } catch (err) { res.status(500).json({ message:err.message }); }
+});
+
+// GET /api/recommendations/:id/likes — who liked this call
+router.get('/:id/likes', protect, async (req, res) => {
+  try {
+    const rec = await Recommendation.findById(req.params.id).select('likes');
+    if (!rec) return res.status(404).json({ message:'Not found' });
+    const users = await require('../models/User')
+      .find({ _id: { $in: rec.likes || [] } })
+      .select('username fullName');
+    res.json(users);
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
 

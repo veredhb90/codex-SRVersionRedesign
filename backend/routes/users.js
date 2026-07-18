@@ -90,6 +90,15 @@ router.post('/:id/follow', protect, async (req, res) => {
       target.followers.push(req.user._id);
     }
     await Promise.all([current.save(), target.save()]);
+    if (!already) {
+      try {
+        const Notification = require('../models/Notification');
+        const title = '👤 ' + (current.username || current.fullName) + ' started following you!';
+        await Notification.create({ user: target._id, type: 'follow', title, body: 'Visit their profile to follow back.' });
+        const io = req.app.get('io');
+        io && io.notifyUser && io.notifyUser(String(target._id), 'notification', { type:'follow', title, body:'Visit their profile to follow back.', time:new Date() });
+      } catch (e) { console.log('Follow notif error:', e.message); }
+    }
     res.json({ following: !already });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
