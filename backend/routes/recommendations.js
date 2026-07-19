@@ -138,7 +138,7 @@ router.get('/popular', protect, async (req, res) => {
   try {
     const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
     const popular = await Recommendation.aggregate([
-      { $match:{ createdAt:{ $gte:startOfDay }, profileOnly:{ $ne:true } } },
+      { $match:{ isOpen:true, profileOnly:{ $ne:true } } },
       { $group:{ _id:'$symbol', count:{$sum:1}, buys:{$sum:{$cond:[{$eq:['$direction','BUY']},1,0]}}, sells:{$sum:{$cond:[{$eq:['$direction','SELL']},1,0]}}, wins:{$sum:{$cond:[{$eq:['$outcome','WIN']},1,0]}} } },
       { $sort:{ count:-1 } }, { $limit:8 },
     ]);
@@ -404,6 +404,36 @@ router.get('/:id/owner', protect, async (req, res) => {
     if (!rec) return res.status(404).json({ message:'Not found' });
     res.json({ userId: String(rec.user) });
   } catch (err) { res.status(500).json({ message:err.message }); }
+});
+
+// GET /api/recommendations/activity — platform live activity
+router.get('/activity', protect, async (req, res) => {
+  try {
+    const [recent, closed, cmts] = await Promise.all([
+      Recommendation.find({ profileOnly: { $ne: true } }).sort({ createdAt: -1 }).limit(15)
+        .populate('user', 'username fullName').select('symbol direction user createdAt'),
+      Recommendation.find({ isOpen: false }).sort({ closedAt: -1 }).limit(15)
+        .populate('user', 'username fullName').select('symbol direction outcome user closedAt returnPct'),
+      Recommendation.aggregate([
+        { $unwind: '$comments' },
+        { $sort: { 'comments.createdAt': -1 } },
+        { $limit: 15 },
+        { $lookup: { from: 'users', localField: 'comments.user', foreignField: '_id', as: 'cu' } },
+        { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'ou' } },
+        { $project: { symbol:1, 'comments.text':1, 'comments.createdAt':1, cu: { $arrayElemAt: ['$cu', 0] }, ou: { $arrayElemAt: ['$ou', 0] } } },
+      ]),
+    ]);
+    const acts = [];
+    recent.forEach(r => acts.push({ kind:'new', at:r.createdAt, symbol:r.symbol, direction:r.direction, recId:String(r._id), userId:String(r.user?._id||''), username:r.user?.username||r.user?.fullName||'trader' }));
+    closed.forEach(r => acts.push({ kind: r.outcome==='WIN'?'tp':'sl', at:r.closedAt, symbol:r.symbol, direction:r.direction, recId:String(r._id), userId:String(r.user?._id||''), username:r.user?.username||r.user?.fullName||'trader', returnPct:r.returnPct }));
+    cmts.forEach(x => {
+      const txt = String((x.comments && x.comments.text) || '');
+      const isReply = /^@[a-zA-Z0-9_.\-]+\s/.test(txt);
+      acts.push({ kind: isReply ? 'reply' : 'comment', at: x.comments && x.comments.createdAt, symbol: x.symbol, recId: String(x._id), userId: String((x.ou && x.ou._id) || ''), username: (x.cu && (x.cu.username || x.cu.fullName)) || 'trader', text: txt.slice(0, 50) });
+    });
+    acts.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+    res.json(acts.slice(0, 25));
+  } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 module.exports = router;

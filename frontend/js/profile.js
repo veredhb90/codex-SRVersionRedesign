@@ -140,29 +140,52 @@
   }
 
   // ── Reply-aware comment renderer ───────────────────────────────
-  window.renderProfileComment = function(c, recId) {
+  window.threadProfileComments = function(comments) {
+    const items = (comments || []).map(c => {
+      const m = String(c.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
+      return { c: c, mention: m ? m[1].toLowerCase() : null, children: [], depth: 0 };
+    });
+    const authorOf = it => String(it.c.user?.username || it.c.user?.fullName || '').toLowerCase();
+    const roots = [];
+    items.forEach((it, idx) => {
+      let parent = null;
+      if (it.mention) {
+        for (let j = idx - 1; j >= 0; j--) {
+          if (authorOf(items[j]) === it.mention) { parent = items[j]; break; }
+        }
+      }
+      if (parent) { parent.children.push(it); it.depth = Math.min(parent.depth + 1, 4); }
+      else roots.push(it);
+    });
+    const out = [];
+    const walk = it => { out.push(it); it.children.forEach(walk); };
+    roots.forEach(walk);
+    return out;
+  };
+
+  window.renderProfileComment = function(c, recId, depth) {
     const uname = c.user?.username ? '@' + c.user.username : (c.user?.fullName || 'trader');
     const dataU = c.user?.username || c.user?.fullName || 'trader';
     const text  = String(c.text || '');
     const m     = text.match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
-    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;font-weight:700;padding:2px 0;">↩ Reply</button>`;
+    const ind   = 20 * Math.min(Math.max(depth || (m ? 1 : 0), m ? 1 : 0), 2);
+    const initial  = (dataU || '?').charAt(0).toUpperCase();
+    const isReply  = !!m;
+    const bodyText = m ? m[2] : text;
+    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" style="margin-left:auto;background:#F0F5FE;border:1px solid #D6E4F5;border-radius:12px;color:var(--accent2);font-size:10.5px;cursor:pointer;font-weight:700;padding:3px 10px;flex-shrink:0;">↩ Reply</button>`;
     const nameLink = c.user?._id
-      ? `<a href="/profile.html?id=${c.user._id}" style="text-decoration:none;"><strong class="pc-name">${uname}</strong></a>`
-      : `<strong class="pc-name">${uname}</strong>`;
-    if (m) {
-      return `<div class="pc-item" style="margin-left:20px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;">
-        <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">↩ Reply to <span style="color:var(--accent2);font-weight:700;">@${m[1]}</span></div>
+      ? `<a href="/profile.html?id=${c.user._id}" style="text-decoration:none;color:var(--accent2);font-weight:800;font-size:12.5px;">${uname}</a>`
+      : `<strong style="color:var(--accent2);font-size:12.5px;">${uname}</strong>`;
+    const replyChip = isReply ? `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#64748b;background:#EEF4FF;border-radius:8px;padding:2px 8px;margin-bottom:5px;">↩ Reply to <b style="color:var(--accent2);">@${m[1]}</b></div>` : '';
+    return `<div class="pc-item" data-author="${dataU.toLowerCase()}" style="margin:6px 0 6px ${ind}px;${isReply?'border-left:2.5px solid #90CAF9;':''}padding:9px 11px;background:${isReply?'rgba(21,101,192,0.045)':'#fff'};border:1px solid #E3EEFF;border-radius:${isReply?'0 12px 12px 12px':'12px'};">
+      ${replyChip}
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${initial}</span>
         ${nameLink}
-        <span class="pc-time">${timeAgo(c.createdAt||new Date())}</span>
-        <div class="pc-text">${m[2]}</div>
+        <span class="pc-time" style="font-size:10.5px;">${timeAgo(c.createdAt||new Date())}</span>
         ${replyBtn}
-      </div>`;
-    }
-    return `<div class="pc-item">
-      ${nameLink}
-      <span class="pc-time">${timeAgo(c.createdAt||new Date())}</span>
-      <div class="pc-text">${text}</div>
-      ${replyBtn}
+      </div>
+      <div class="pc-text" style="margin:6px 0 0 34px;">${bodyText}</div>
     </div>`;
   };
 
@@ -219,7 +242,14 @@
             text: comment.text,
             createdAt: new Date(),
           }, recId);
-          list.appendChild(wrap.firstElementChild);
+          const el2 = wrap.firstElementChild;
+          const mm = String(comment.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s/);
+          let placed = false;
+          if (mm) {
+            const kin = list.querySelectorAll('[data-author="' + mm[1].toLowerCase() + '"]');
+            if (kin.length) { kin[kin.length - 1].insertAdjacentElement('afterend', el2); placed = true; }
+          }
+          if (!placed) list.appendChild(el2);
         }
         // Update count
         const tb = document.querySelector(`[data-action="toggle-comments"][data-recid="${recId}"]`);
@@ -438,7 +468,7 @@ function buildProfileCard(r, isOwn) {
        </div>`
     : '';
 
-  const commentsHtml = (r.comments||[]).map(c => renderProfileComment(c, r._id)).join('');
+  const commentsHtml = threadProfileComments(r.comments||[]).map(t => renderProfileComment(t.c, r._id, t.depth)).join('');
 
   const commentCount = r.comments?.length || 0;
 
@@ -466,7 +496,7 @@ function buildProfileCard(r, isOwn) {
       <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
     </span>`}
       <span class="live-return" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${retColor};">${r.returnPct?fmtPct(r.returnPct):'—'}</span>
-      <button class="like-btn" data-id="${r._id}" style="margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;font-weight:700;">${r.likes?.length||0}</span></button>
+      <button class="like-btn" data-id="${r._id}" style="margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;font-weight:700;">${r.likes?.length||0}</span></button> <button class="pf-repost-btn" data-id="${r._id}" style="font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;margin-left:6px;">↻ Repost</button>
       <button class="btn btn-sm btn-ghost"
         data-action="toggle-comments" data-recid="${r._id}" data-count="${commentCount}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;">
@@ -589,6 +619,18 @@ function buildProfileCard(r, isOwn) {
   }
 
   document.addEventListener('click', async function(e) {
+    var rp = e.target.closest('.pf-repost-btn');
+    if (rp && rp.dataset.id) {
+      e.preventDefault();
+      try {
+        var rres = await fetch('/api/recommendations/' + rp.dataset.id + '/repost', { method: 'POST', headers: authHdr() });
+        var rd = await rres.json();
+        if (!rres.ok) throw new Error(rd.message || 'Repost failed');
+        rp.textContent = '✓ Reposted';
+        if (window.toast) toast('Reposted!', 'success');
+      } catch (err) { if (window.toast) toast(err.message, 'error'); }
+      return;
+    }
     var countEl = e.target.closest('.like-count');
     if (countEl) {
       var b1 = countEl.closest('.like-btn');

@@ -210,7 +210,7 @@
   <!-- Right Sidebar — ONE popular, ONE engine, ONE market -->
   <aside class="sidebar-right">
     <div class="sb-card">
-      <div class="sb-title">🔥 POPULAR TODAY</div>
+      <div class="sb-title">🔥 HOT STOCKS</div>
       <div id="popular-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
     </div>
     <div class="sb-card">
@@ -246,11 +246,11 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
-<script src="/js/api.js"></script>
-<script src="/js/auth.js"></script>
-<script src="/js/ticker.js"></script>
-<script src="/js/onboarding.js"></script>
-<script src="/js/feed.js"></script>
+<script src="/js/api.js?v=1784445641"></script>
+<script src="/js/auth.js?v=1784445641"></script>
+<script src="/js/ticker.js?v=1784445641"></script>
+<script src="/js/onboarding.js?v=1784445641"></script>
+<script src="/js/feed_v2.js"></script>
 <script>
   // ── Leaderboard ──────────────────────────────────────────────
   let leaderData = null;
@@ -498,8 +498,10 @@
         <div class="ss-box"><div class="ss-val c-green">${stats.buys}</div><div class="ss-lbl">BUY</div></div>
         <div class="ss-box"><div class="ss-val c-red">${stats.sells}</div><div class="ss-lbl">SELL</div></div>
         <div class="ss-box"><div class="ss-val">${stats.winRate}%</div><div class="ss-lbl">Win Rate</div></div>`;
-      const buyPct  = stats.total>0 ? Math.round((stats.buys/stats.total)*100) : 50;
-      const sellPct = 100 - buyPct;
+      const openForSent = recommendations.filter(r => r.outcome === 'OPEN');
+      const openBuysCt   = openForSent.filter(r => r.direction === 'BUY').length;
+      const buyPct  = openForSent.length > 0 ? Math.round((openBuysCt / openForSent.length) * 100) : 0;
+      const sellPct = openForSent.length > 0 ? 100 - buyPct : 0;
       document.getElementById('search-sentiment').innerHTML =
         `<div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct}% BUY</div>
          <div class="sentiment-sell" style="width:${sellPct}%;">${sellPct}% SELL</div>`;
@@ -513,29 +515,59 @@
             stroke-dashoffset="${circ/4}" stroke-linecap="round"
             style="transition:stroke-dasharray 1.2s ease;"/>
           <text x="${cx}" y="${cy-6}"  text-anchor="middle" font-family="Bebas Neue,sans-serif" font-size="22" fill="var(--green)">${buyPct}%</text>
-          <text x="${cx}" y="${cy+14}" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="var(--muted)">BUY SENTIMENT</text>
+          <text x="${cx}" y="${cy+14}" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="var(--muted)">OPEN BUY SENTIMENT</text>
         </svg>`;
-      if (!recommendations.length) {
-        document.getElementById('search-recs').innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No calls yet for this symbol.</p>';
-        return;
-      }
-      document.getElementById('search-recs').innerHTML = recommendations.slice(0,15).map(r => `
-        <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--bg3);flex-wrap:wrap;">
-          <span class="${r.direction==='BUY'?'badge-buy':'badge-sell'}">${r.direction==='BUY'?'▲':'▼'} ${r.direction}</span>
-          <span style="font-size:13px;">Entry: <strong>${fmtPrice(r.entryPrice)}</strong></span>
-          <span style="font-size:13px;">TP: <strong style="color:var(--green);">${fmtPrice(r.takeProfit)}</strong></span>
-          ${r.stopLoss?`<span style="font-size:13px;">SL: <strong style="color:var(--red);">${fmtPrice(r.stopLoss)}</strong></span>`:''}
-          <span style="margin-left:auto;font-size:12px;color:var(--muted);">
-            <a href="/profile.html?id=${r.user?._id}" style="color:var(--accent2);text-decoration:none;">${r.user?.fullName||'Trader'}</a>
-            · ${timeAgo(r.createdAt)}
-          </span>
-          ${r.outcome!=='OPEN'?`<span class="${r.outcome==='WIN'?'badge-win':'badge-loss'}">${r.outcome==='WIN'?'🏆':'💸'} ${r.outcome}</span>`:'<span class="badge-open">● OPEN</span>'}
-        </div>`).join('');
+      window._searchRecs = recommendations;
+      const oB2 = openForSent.filter(r => r.direction==='BUY').length;
+      const oS2 = openForSent.filter(r => r.direction==='SELL').length;
+      const cT2 = recommendations.filter(r => r.outcome==='WIN').length;
+      const cS2 = recommendations.filter(r => r.outcome==='LOSS').length;
+      document.getElementById('search-recs').innerHTML =
+        `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 12px;font-size:11.5px;font-weight:700;">
+          <span style="background:#E3F8EC;color:#00893E;border-radius:10px;padding:4px 11px;">▲ ${oB2} OPEN BUY</span>
+          <span style="background:#FFEBEE;color:#C62828;border-radius:10px;padding:4px 11px;">▼ ${oS2} OPEN SELL</span>
+          <span style="background:#E8F5E9;color:#2E7D32;border-radius:10px;padding:4px 11px;">🎯 ${cT2} HIT TP</span>
+          <span style="background:#FBE9E7;color:#BF360C;border-radius:10px;padding:4px 11px;">🛑 ${cS2} HIT SL</span>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <button class="sr-mf" data-f="all" onclick="renderSearchRecs('all')">All</button>
+          <button class="sr-mf" data-f="open" onclick="renderSearchRecs('open')">● Open</button>
+          <button class="sr-mf" data-f="closed" onclick="renderSearchRecs('closed')">✓ Closed</button>
+        </div>
+        <div id="search-recs-list"></div>`;
+      renderSearchRecs('all');
     } catch (err) {
       document.getElementById('search-stats').innerHTML = `<p style="color:var(--red);grid-column:1/-1;">${err.message}</p>`;
     }
   }
   window.loadSymbolSearch = loadSymbolSearch;
+
+  window.renderSearchRecs = function(filter) {
+    var recs = window._searchRecs || [];
+    var list = document.getElementById('search-recs-list');
+    if (!list) return;
+    document.querySelectorAll('#search-panel .sr-mf').forEach(function(b) {
+      var on = b.dataset.f === filter;
+      b.style.cssText = 'border:1.5px solid ' + (on?'var(--accent2)':'var(--border)') + ';background:' + (on?'#EAF2FF':'#fff') + ';color:' + (on?'var(--accent2)':'var(--muted)') + ';border-radius:10px;padding:5px 15px;font-size:12px;font-weight:700;cursor:pointer;';
+    });
+    var rows = recs.filter(function(r) {
+      return filter==='all' ? true : filter==='open' ? r.outcome==='OPEN' : r.outcome!=='OPEN';
+    });
+    if (!rows.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No calls in this view.</p>';
+      return;
+    }
+    list.innerHTML = rows.slice(0,15).map(function(r) {
+      return '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--bg3);flex-wrap:wrap;">' +
+        '<span class="' + (r.direction==='BUY'?'badge-buy':'badge-sell') + '">' + (r.direction==='BUY'?'▲':'▼') + ' ' + r.direction + '</span>' +
+        '<span style="font-size:13px;">Entry: <strong>' + fmtPrice(r.entryPrice) + '</strong></span>' +
+        '<span style="font-size:13px;">TP: <strong style="color:var(--green);">' + fmtPrice(r.takeProfit) + '</strong></span>' +
+        (r.stopLoss ? '<span style="font-size:13px;">SL: <strong style="color:var(--red);">' + fmtPrice(r.stopLoss) + '</strong></span>' : '') +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);"><a href="/profile.html?id=' + (r.user && r.user._id) + '" style="color:var(--accent2);text-decoration:none;">' + ((r.user && r.user.fullName) || 'Trader') + '</a> · ' + timeAgo(r.createdAt) + '</span>' +
+        (r.outcome!=='OPEN' ? '<span class="' + (r.outcome==='WIN'?'badge-win':'badge-loss') + '">' + (r.outcome==='WIN'?'🏆':'💸') + ' ' + r.outcome + '</span>' : '<span class="badge-open">● OPEN</span>') +
+        '</div>';
+    }).join('');
+  };
 
   // ── User search ───────────────────────────────────────────────
   async function loadUserSearch(q) {
@@ -618,7 +650,7 @@
   };
   window.clearSearch = clearSearch;
 
-  // ── Popular Today ─────────────────────────────────────────────
+  // ── Hot Stocks ─────────────────────────────────────────────
   async function updatePopular() {
     const el = document.getElementById('popular-list');
     if (!el) return;
@@ -627,7 +659,7 @@
       el.innerHTML = data.length ? data.map(item => {
         const buyPct  = item.count>0 ? Math.round((item.buys/item.count)*100) : 50;
         const sellPct = 100 - buyPct;
-        return `<div class="popular-item" onclick="loadSymbolSearch('${item._id}');document.getElementById('feed-search').value='${item._id}';document.getElementById('search-clear-btn').style.display='block';">
+        return `<div class="popular-item" onclick="openSymbolModal('${item._id}')" style="cursor:pointer;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span class="popular-sym">${item._id}</span>
             <span style="font-size:11px;color:var(--muted);">${item.count} calls</span>
@@ -700,9 +732,7 @@
     }
   });
 </script>
-<script src="/js/auth.js"></script>
-<script src="/js/api.js"></script>
-<script src="/js/chat.js"></script>
-<script src="/js/paywall.js"></script>
+<script src="/js/chat.js?v=1784445641"></script>
+<script src="/js/paywall.js?v=1784445641"></script>
 </body>
 </html>

@@ -1,15 +1,3 @@
-// SR DEBUG error catcher
-window.addEventListener('error', function(ev) {
-  try {
-    var d = document.getElementById('sr-err-banner') || document.createElement('div');
-    d.id = 'sr-err-banner';
-    d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#C62828;color:#fff;font-size:12px;padding:8px 12px;font-family:monospace;white-space:pre-wrap;';
-    d.textContent = 'JS ERROR: ' + ev.message + '  [line ' + ev.lineno + ']';
-    if (document.body) document.body.appendChild(d);
-    else document.addEventListener('DOMContentLoaded', function() { document.body.appendChild(d); });
-  } catch (e) {}
-});
-
 // ── Feed Logic ─────────────────────────────────────────────────────
 (function () {
   if (!Auth.require()) return;
@@ -405,8 +393,11 @@ async function openSymbolModal(symbol) {
          <span style="color:${up?'var(--green)':'var(--red)'};font-size:14px;margin-left:8px;">${up?'▲':'▼'}${Math.abs(quote.changePct||0).toFixed(2)}%</span>`;
     }
 
-    const buyPct  = stats.total > 0 ? Math.round((stats.buys  / stats.total) * 100) : 0;
-    const sellPct = 100 - buyPct;
+    const openRecsForSent = recommendations.filter(r => r.outcome === 'OPEN');
+    const openBuysCt  = openRecsForSent.filter(r => r.direction === 'BUY').length;
+    const openTotalCt = openRecsForSent.length;
+    const buyPct  = openTotalCt > 0 ? Math.round((openBuysCt / openTotalCt) * 100) : 0;
+    const sellPct = openTotalCt > 0 ? 100 - buyPct : 0;
 
     document.getElementById('modal-stats').innerHTML = `
       <div class="modal-stat-grid">
@@ -806,22 +797,8 @@ setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
   function boot() {
     // Find the Signal Engine card by its text - insert our cards ABOVE it, in the same column
     var all = document.body.getElementsByTagName('*');
-    var sig = null;
-    for (var i = 0; i < all.length; i++) {
-      var t = (all[i].textContent || '').trim();
-      if (t.length < 40 && /signal\s*engine/i.test(t)) { sig = all[i]; }
-    }
-    var dbg = document.createElement('div');
-    dbg.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:99999;background:#E65100;color:#fff;font-size:11px;padding:5px 10px;border-radius:8px;font-family:monospace;';
-    document.body.appendChild(dbg);
-    setTimeout(function() { dbg.remove(); }, 10000);
-    if (!sig) { dbg.textContent = 'RAIL: Signal Engine text NOT FOUND'; return; }
-    dbg.textContent = 'RAIL: sig found';
-    var card = sig.closest('section, aside, [class]');
-    while (card && card.parentElement && card.getBoundingClientRect().width < 150) card = card.parentElement;
-    if (!card || !card.parentElement) { dbg.textContent = 'RAIL: card container NOT FOUND'; return; }
-    dbg.textContent = 'RAIL: inserted OK';
-
+    var host = document.querySelector('aside.sidebar-left');
+    if (!host) return;
     var rail = document.createElement('div');
     rail.id = 'sr-left-rail';
     rail.style.cssText = 'display:flex;flex-direction:column;gap:12px;margin-bottom:14px;width:100%;';
@@ -851,7 +828,7 @@ setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
         '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">MARKET NEWS</span>' +
         '<span style="margin-left:auto;font-size:9px;color:#7EE2B0;font-weight:700;letter-spacing:1px;">US</span></div>' +
         '<div class="sr-rail-body" id="sr-news-list"></div></div>';
-    card.parentElement.insertBefore(rail, card);
+    host.insertBefore(rail, host.firstChild);
 
     var known = new Set(); var firstLoad = true;
     function icBg(k){return k==='new'?'#E3F2FD':k==='tp'?'#E3F8EC':k==='sl'?'#FFEBEE':k==='reply'?'#EDE7F6':'#FFF8E1';}
@@ -936,8 +913,11 @@ window.openSymbolModal = async function(symbol) {
         '<span style="font-family:var(--font-mono);font-size:22px;">$' + quote.price.toFixed(2) + '</span>' +
         '<span style="color:' + (up?'var(--green)':'var(--red)') + ';font-size:14px;margin-left:8px;">' + (up?'\u25b2':'\u25bc') + Math.abs(quote.changePct||0).toFixed(2) + '%</span>';
     }
-    var buyPct = stats.total > 0 ? Math.round((stats.buys / stats.total) * 100) : 0;
-    var sellPct = 100 - buyPct;
+    var openRecsForSent = recommendations.filter(function(r){return r.outcome==='OPEN';});
+    var openBuysCt = openRecsForSent.filter(function(r){return r.direction==='BUY';}).length;
+    var openTotalCt = openRecsForSent.length;
+    var buyPct = openTotalCt > 0 ? Math.round((openBuysCt / openTotalCt) * 100) : 0;
+    var sellPct = openTotalCt > 0 ? 100 - buyPct : 0;
     document.getElementById('modal-stats').innerHTML =
       '<div class="modal-stat-grid">' +
       '<div class="modal-stat"><div class="ms-val">' + stats.total + '</div><div class="ms-lbl">Total Calls</div></div>' +
@@ -995,17 +975,3 @@ window.renderModalRecs = function(filter) {
         '</div>';
     }).join('')||'<div style="color:var(--muted);font-size:13px;padding:12px 0;">No calls in this view</div>');
 };
-
-
-// SR DEBUG end-of-file beacon
-(function() {
-  function show() {
-    var b = document.createElement('div');
-    b.style.cssText = 'position:fixed;bottom:8px;left:8px;z-index:99999;background:#00893E;color:#fff;font-size:11px;padding:5px 10px;border-radius:8px;font-family:monospace;';
-    b.textContent = 'feed.js loaded to END \u2713';
-    document.body.appendChild(b);
-    setTimeout(function() { b.remove(); }, 6000);
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show);
-  else show();
-})();

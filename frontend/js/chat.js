@@ -309,8 +309,18 @@
       currentSessionId = session._id;
       messages.innerHTML = '';
       if (session.messages) {
+        var lastDateLabel = '';
         session.messages.forEach(function(m) {
-          addMessage(m.role === 'user' ? 'user' : 'ai', m.content);
+          var msgDate = m.time ? new Date(m.time) : new Date();
+          var dateLabel = msgDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+          if (dateLabel !== lastDateLabel) {
+            var divider = document.createElement('div');
+            divider.style.cssText = 'text-align:center;margin:14px 0 6px;font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:0.5px;';
+            divider.textContent = '— ' + dateLabel + ' —';
+            messages.appendChild(divider);
+            lastDateLabel = dateLabel;
+          }
+          addMessage(m.role === 'user' ? 'user' : 'ai', m.content, m.time);
         });
       }
       historyPanel.style.display = 'none';
@@ -560,8 +570,10 @@
 
   var birdSvg = '<svg viewBox="0 0 120 120" width="18" height="18"><ellipse cx="60" cy="70" rx="22" ry="16" fill="white"/><circle cx="78" cy="56" r="15" fill="white"/><circle cx="83" cy="52" r="4" fill="#0D47A1"/><path d="M92 53 L104 56 L92 57 Z" fill="#FFC107"/></svg>';
 
-  function addMessage(role, text) {
-    var now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  function addMessage(role, text, realTime) {
+    var now = realTime
+      ? new Date(realTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      : new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     var div = document.createElement('div');
     div.className = 'sr-msg ' + role;
     var escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
