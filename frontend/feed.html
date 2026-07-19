@@ -8,10 +8,10 @@
   <style>
     body { background:var(--bg2); }
     .layout {
-      display:grid; grid-template-columns:240px 1fr 280px;
+      display:grid; grid-template-columns:280px 1fr 280px;
       gap:24px; max-width:1200px; margin:28px auto; padding:0 16px;
     }
-    @media(max-width:1080px){ .layout{grid-template-columns:220px 1fr;} .sidebar-right{display:none;} }
+    @media(max-width:1080px){ .layout{grid-template-columns:280px 1fr;} .sidebar-right{display:none;} }
     @media(max-width:720px) { .layout{grid-template-columns:1fr;} .sidebar-left{display:none;} }
 
     .user-pill {
@@ -125,26 +125,9 @@
 </div>
 
 <div class="layout">
+  <aside class="sidebar-left"></aside>
 
   <!-- Left Sidebar -->
-  <aside class="sidebar-left">
-    <div class="user-pill">
-      <div class="avatar" id="sb-avatar">?</div>
-      <div>
-        <div class="u-name nav-username"></div>
-        <div class="u-email" id="sb-email"></div>
-      </div>
-    </div>
-    <div class="sb-card">
-      <nav class="side-nav">
-        <a href="/index.html" class="side-link">🏠 Home</a>
-        <a href="/feed.html"    class="side-link">📰 Feed</a>
-        <a href="/profile.html" class="side-link">👤 My Profile</a>
-        <a href="/index.html#engine" class="side-link">⚡ Signal Engine</a>
-        <a href="/scanner.html" class="side-link">🏆 Top 5 Scanner</a>
-      </nav>
-    </div>
-  </aside>
 
   <!-- Repost Modal -->
 <div id="repost-overlay" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(8,15,36,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
@@ -209,17 +192,21 @@
 
   <!-- Right Sidebar — ONE popular, ONE engine, ONE market -->
   <aside class="sidebar-right">
+    <div class="user-pill" style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:12px;">
+      <div class="avatar" id="sb-avatar">?</div>
+      <div>
+        <div class="u-name nav-username"></div>
+        <div class="u-email" id="sb-email"></div>
+      </div>
+    </div>
+    <div class="sb-card">
+      <div class="sb-title">🧠 AI PRO ENGINE</div>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Real Claude AI analysis on any stock — technical + news + catalysts.</p>
+      <button onclick="openProEngineModal()" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;background:linear-gradient(135deg,#0D2244,#1565C0);">Open AI Pro Engine 🧠</button>
+    </div>
     <div class="sb-card">
       <div class="sb-title">🔥 HOT STOCKS</div>
       <div id="popular-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
-    </div>
-    <div class="sb-card">
-      <div class="sb-title">⚡ QUICK SIGNAL</div>
-      <form id="qe-form" class="qe-row">
-        <input id="qe-sym" type="text" class="qe-inp" placeholder="Symbol…" autocomplete="off"/>
-        <button type="submit" class="btn btn-green btn-sm">Go</button>
-      </form>
-      <div id="qe-result" style="font-size:12px;"></div>
     </div>
     <div class="sb-card">
       <div class="sb-title"><span class="live-dot-sm"></span> LIVE MARKET</div>
@@ -536,6 +523,9 @@
         </div>
         <div id="search-recs-list"></div>`;
       renderSearchRecs('all');
+      if (typeof renderProEngineSection === 'function') {
+        renderProEngineSection('search-pro-section', 'search-chart', symbol);
+      }
     } catch (err) {
       document.getElementById('search-stats').innerHTML = `<p style="color:var(--red);grid-column:1/-1;">${err.message}</p>`;
     }
@@ -708,29 +698,7 @@
   setInterval(updateMarket, 30000);
 
   // ── Quick engine ──────────────────────────────────────────────
-  document.getElementById('qe-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const sym = document.getElementById('qe-sym').value.trim().toUpperCase();
-    if (!sym) return;
-    const res = document.getElementById('qe-result');
-    res.innerHTML = '<div class="spinner-sm" style="margin:6px 0;"></div>';
-    try {
-      const r=await API.engine(sym), isBuy=r.direction==='BUY', col=isBuy?'var(--green)':'var(--red)';
-      res.innerHTML = `
-        <div style="border:1.5px solid ${col};border-radius:8px;padding:10px;cursor:pointer;" onclick="loadSymbolSearch('${sym}');">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-            <strong style="font-family:var(--font-disp);font-size:15px;">${r.symbol}</strong>
-            <span class="${isBuy?'badge-buy':'badge-sell'}">${isBuy?'▲':'▼'} ${r.direction}</span>
-          </div>
-          <div style="font-size:12px;color:var(--muted);">Entry <strong>$${r.price?.toFixed(2)}</strong></div>
-          <div style="font-size:12px;color:var(--green);">TP <strong>$${r.takeProfit}</strong></div>
-          <div style="font-size:12px;color:var(--red);">SL <strong>$${r.stopLoss}</strong></div>
-          <div style="font-size:11px;color:var(--muted);margin-top:3px;">${r.confidence} · ${r.trend}</div>
-        </div>`;
-    } catch(err) {
-      res.innerHTML = `<p style="color:var(--red);font-size:12px;">${err.message}</p>`;
-    }
-  });
+  // Quick Signal removed — replaced with AI Pro Engine modal (see feed_v2.js)
 </script>
 <script src="/js/chat.js?v=1784445641"></script>
 <script src="/js/paywall.js?v=1784445641"></script>

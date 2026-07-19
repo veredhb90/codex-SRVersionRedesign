@@ -457,8 +457,83 @@
       </div>
 
       ${topSignals ? `<div class="stock-signals-preview">${topSignals}</div>` : ''}
+      <div style="margin-top:10px;">
+        <button onclick="scannerProAnalyze('${r.symbol}', this)" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;cursor:pointer;font-size:12.5px;">🧠 Analyze with Pro Engine</button>
+        <div class="scanner-pro-result" style="margin-top:8px;"></div>
+      </div>
     </div>`;
   }
+
+  window.scannerProAnalyze = async function(symbol, btn) {
+    var container = btn.parentElement.querySelector('.scanner-pro-result');
+    var me = null;
+    try { me = Auth.user(); } catch (e) {}
+    var isPro = me && me.plan === 'pro';
+
+    if (!isPro) {
+      container.innerHTML =
+        '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:10px;padding:14px;color:#fff;text-align:center;">' +
+        '<div style="font-size:24px;margin-bottom:6px;">🧠🔒</div>' +
+        '<div style="font-weight:800;font-size:13px;margin-bottom:6px;">Pro members only</div>' +
+        '<div style="font-size:11.5px;opacity:0.85;margin-bottom:10px;">Real Claude AI news reasoning, catalysts & risks</div>' +
+        '<a href="mailto:swingrush.admin@gmail.com?subject=SwingRush%20Pro%20Upgrade" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:7px 14px;border-radius:8px;text-decoration:none;font-size:12px;">📧 Upgrade to Pro</a>' +
+        '</div>';
+      return;
+    }
+
+    container.innerHTML = '<div style="text-align:center;padding:14px;color:#94a3b8;font-size:12.5px;">Analyzing ' + symbol + ' with Claude AI...</div>';
+
+    try {
+      var res = await fetch('/api/pro-engine/' + symbol, {
+        headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') }
+      });
+      var d = await res.json();
+      if (!res.ok) { container.innerHTML = '<p style="color:#C62828;font-size:12px;text-align:center;">' + (d.message || 'Analysis failed') + '</p>'; return; }
+      if (d.insufficientData) { container.innerHTML = '<p style="color:#94a3b8;font-size:12px;text-align:center;">Not enough price history.</p>'; return; }
+
+      var dirColor = d.direction === 'BUY' ? '#00893E' : d.direction === 'SELL' ? '#C62828' : '#64748b';
+      var dirBg = d.direction === 'BUY' ? '#E3F8EC' : d.direction === 'SELL' ? '#FFEBEE' : '#F1F5F9';
+
+      var breakdownHtml = (d.technicalBreakdown || []).map(function(b) {
+        var c = b.points > 0 ? '#00893E' : b.points < 0 ? '#C62828' : '#94a3b8';
+        return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px dashed #E3EEFF;"><span style="color:#475569;">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
+      }).join('');
+
+      var catalystsHtml = (d.catalysts || []).length
+        ? '<div style="margin-top:8px;"><div style="font-size:10.5px;font-weight:800;color:#00893E;">📈 CATALYSTS</div>' +
+          d.catalysts.map(function(c) { return '<div style="font-size:12px;color:#1A2540;padding:2px 0;">• ' + c + '</div>'; }).join('') + '</div>'
+        : '';
+
+      var risksHtml = (d.risks || []).length
+        ? '<div style="margin-top:8px;"><div style="font-size:10.5px;font-weight:800;color:#C62828;">⚠️ RISKS</div>' +
+          d.risks.map(function(r2) { return '<div style="font-size:12px;color:#1A2540;padding:2px 0;">• ' + r2 + '</div>'; }).join('') + '</div>'
+        : '';
+
+      container.innerHTML =
+        '<div style="background:#F8FAFF;border:1.5px solid #D6E4F5;border-radius:10px;padding:14px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+        '<span style="font-size:14px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:12.5px;">AI Pro Analysis</span>' +
+        '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:3px 10px;border-radius:8px;font-size:11.5px;margin-left:auto;">' + d.direction + '</span></div>' +
+        '<div style="font-size:12px;color:#475569;margin-bottom:10px;">Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</div>' +
+        (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">' +
+          '<div style="background:#fff;border-radius:6px;padding:6px;text-align:center;"><div style="font-size:10px;color:#94a3b8;">Entry</div><div style="font-weight:700;font-size:12px;">$' + d.price + '</div></div>' +
+          '<div style="background:#E3F8EC;border-radius:6px;padding:6px;text-align:center;"><div style="font-size:10px;color:#00893E;">TP</div><div style="font-weight:700;font-size:12px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
+          '<div style="background:#FFEBEE;border-radius:6px;padding:6px;text-align:center;"><div style="font-size:10px;color:#C62828;">SL</div><div style="font-weight:700;font-size:12px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
+          '</div>' : '') +
+        '<div style="font-size:10.5px;font-weight:800;color:#7E9BC4;margin-bottom:5px;">TECHNICAL (' + d.technicalScore + ' pts)</div>' +
+        breakdownHtml +
+        '<div style="margin-top:10px;padding-top:8px;border-top:1px solid #E3EEFF;">' +
+        '<div style="font-size:10.5px;font-weight:800;color:#7E9BC4;margin-bottom:5px;">NEWS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
+        '<p style="font-size:12px;color:#1A2540;line-height:1.5;margin:0;">' + (d.newsSummary || '') + '</p>' +
+        (d.analystSummary ? '<p style="font-size:11px;color:#64748b;margin-top:6px;">' + d.analystSummary + '</p>' : '') +
+        catalystsHtml + risksHtml +
+        '</div>' +
+        '<div style="margin-top:10px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles</div>' +
+        '</div>';
+    } catch (err) {
+      container.innerHTML = '<p style="color:#C62828;font-size:12px;text-align:center;">Analysis failed to load.</p>';
+    }
+  };
 </script>
 <script src="/js/chat.js"></script>
 <script src="/js/paywall.js"></script>

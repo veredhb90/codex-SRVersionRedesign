@@ -929,6 +929,7 @@ window.openSymbolModal = async function(symbol) {
       '<div class="sentiment-buy" style="width:' + buyPct + '%;height:100%;display:flex;align-items:center;justify-content:center;">' + buyPct + '% BUY</div>' +
       '<div class="sentiment-sell" style="width:' + sellPct + '%;height:100%;display:flex;align-items:center;justify-content:center;">' + sellPct + '% SELL</div></div>';
     drawDonut(buyPct, sellPct);
+    renderProEngineSection('modal-pro-section', 'modal-chart', symbol);
     window._modalRecs = recommendations;
     var oB = recommendations.filter(function(r){return r.outcome==='OPEN'&&r.direction==='BUY';}).length;
     var oS = recommendations.filter(function(r){return r.outcome==='OPEN'&&r.direction==='SELL';}).length;
@@ -974,4 +975,267 @@ window.renderModalRecs = function(filter) {
         (r.outcome!=='OPEN'?'<span class="' + (r.outcome==='WIN'?'badge-win':'badge-loss') + '">' + (r.outcome==='WIN'?'\ud83c\udfc6':'\ud83d\udcb8') + ' ' + r.outcome + '</span>':'') +
         '</div>';
     }).join('')||'<div style="color:var(--muted);font-size:13px;padding:12px 0;">No calls in this view</div>');
+};
+
+
+// ═══════════════════════════════════════════════════════════════════
+// PRO AI ENGINE — UI (locked upsell for Free, live analysis for Pro)
+// ═══════════════════════════════════════════════════════════════════
+
+function ensureProContainer(containerId, afterElementId) {
+  var existing = document.getElementById(containerId);
+  if (existing) return existing;
+  var after = document.getElementById(afterElementId);
+  if (!after) return null;
+  var div = document.createElement('div');
+  div.id = containerId;
+  div.style.cssText = 'margin-top:16px;';
+  after.insertAdjacentElement('afterend', div);
+  return div;
+}
+
+window.openProUpgradeModal = function() {
+  var old = document.getElementById('sr-pro-upgrade-modal');
+  if (old) old.remove();
+  var m = document.createElement('div');
+  m.id = 'sr-pro-upgrade-modal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:30000;background:rgba(8,15,36,0.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+  m.innerHTML = '<div style="background:#fff;border-radius:18px;padding:32px 28px;max-width:420px;width:100%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.3);">' +
+    '<div style="font-size:40px;margin-bottom:8px;">��</div>' +
+    '<h3 style="font-size:20px;color:#0D2244;margin-bottom:10px;">AI Pro Analysis is a Pro feature</h3>' +
+    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">Unlock real Claude AI news analysis, catalysts, and risk detection combined with technical scoring.<br>To upgrade, contact us at:</p>' +
+    '<a href="mailto:swingrush.admin@gmail.com?subject=SwingRush%20Pro%20Upgrade" style="display:inline-block;background:#EEF4FF;color:#0D2244;font-weight:700;padding:10px 18px;border-radius:10px;text-decoration:none;margin-bottom:18px;font-size:14px;">📧 swingrush.admin@gmail.com</a><br>' +
+    '<button onclick="document.getElementById(\'sr-pro-upgrade-modal\').remove()" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer;font-size:14px;">Got it</button>' +
+    '</div>';
+  m.addEventListener('click', function(e) { if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+};
+
+window.renderProEngineSection = function(containerId, afterElementId, symbol) {
+  var container = ensureProContainer(containerId, afterElementId);
+  if (!container) return;
+
+  var me = null;
+  try { me = Auth.user(); } catch (e) {}
+  var isPro = me && me.plan === 'pro';
+
+  if (!isPro) {
+    container.innerHTML =
+      '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:14px;padding:18px 20px;color:#fff;display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="openProUpgradeModal()">' +
+      '<div style="font-size:28px;">🧠🔒</div>' +
+      '<div style="flex:1;"><div style="font-weight:800;font-size:14px;">AI Pro Analysis</div>' +
+      '<div style="font-size:12px;opacity:0.85;margin-top:2px;">Real Claude AI news reasoning, catalysts & risks — Pro members only</div></div>' +
+      '<div style="background:rgba(255,255,255,0.2);padding:6px 14px;border-radius:10px;font-size:12px;font-weight:700;">Unlock ⚡</div>' +
+      '</div>';
+    return;
+  }
+
+  container.innerHTML =
+    '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:14px;">' +
+    '<div style="font-size:28px;">🧠</div>' +
+    '<div style="flex:1;"><div style="font-weight:800;color:#0D2244;font-size:14px;">AI Pro Analysis</div>' +
+    '<div style="font-size:12px;color:#64748b;margin-top:2px;">Run real Claude AI reasoning on ' + symbol + ' — news, catalysts, risks</div></div>' +
+    '<button onclick="runProEngineAnalysis(\'' + containerId + '\', \'' + symbol + '\')" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">Analyze 🧠</button>' +
+    '</div>';
+};
+
+window.runProEngineAnalysis = async function(containerId, symbol) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+
+  container.innerHTML =
+    '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:18px 20px;">' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
+    '<span style="font-size:18px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:14px;">AI Pro Analysis</span>' +
+    '<span style="margin-left:auto;font-size:10px;background:#F5D061;color:#4A3B10;padding:2px 9px;border-radius:8px;font-weight:800;">PRO</span></div>' +
+    '<div style="text-align:center;padding:16px;color:#94a3b8;font-size:13px;">Analyzing with Claude AI...</div></div>';
+
+  try {
+    var res = await fetch('/api/pro-engine/' + symbol, {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') }
+    });
+    var d = await res.json();
+    if (!res.ok) {
+      container.querySelector('div > div:last-child').innerHTML =
+        '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || 'Analysis unavailable') + '</p>';
+      return;
+    }
+    if (d.insufficientData) {
+      container.querySelector('div > div:last-child').innerHTML =
+        '<p style="color:#94a3b8;font-size:13px;text-align:center;">Not enough price history for this symbol.</p>';
+      return;
+    }
+
+    var dirColor = d.direction === 'BUY' ? '#00893E' : d.direction === 'SELL' ? '#C62828' : '#64748b';
+    var dirBg = d.direction === 'BUY' ? '#E3F8EC' : d.direction === 'SELL' ? '#FFEBEE' : '#F1F5F9';
+
+    var breakdownHtml = (d.technicalBreakdown || []).map(function(b) {
+      var c = b.points > 0 ? '#00893E' : b.points < 0 ? '#C62828' : '#94a3b8';
+      return '<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0;border-bottom:1px dashed #F0F5FC;"><span style="color:#475569;">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
+    }).join('');
+
+    var catalystsHtml = (d.catalysts || []).length
+      ? '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:800;color:#00893E;letter-spacing:0.5px;margin-bottom:4px;">📈 CATALYSTS</div>' +
+        d.catalysts.map(function(c) { return '<div style="font-size:12px;color:#1A2540;padding:3px 0;">• ' + c + '</div>'; }).join('') + '</div>'
+      : '';
+
+    var risksHtml = (d.risks || []).length
+      ? '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:800;color:#C62828;letter-spacing:0.5px;margin-bottom:4px;">⚠️ RISKS</div>' +
+        d.risks.map(function(r) { return '<div style="font-size:12px;color:#1A2540;padding:3px 0;">• ' + r + '</div>'; }).join('') + '</div>'
+      : '';
+
+    container.innerHTML =
+      '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:18px 20px;">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">' +
+      '<span style="font-size:18px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:14px;">AI Pro Analysis</span>' +
+      '<span style="margin-left:auto;font-size:10px;background:#F5D061;color:#4A3B10;padding:2px 9px;border-radius:8px;font-weight:800;">PRO</span></div>' +
+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
+      '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;">' + d.direction + '</span>' +
+      '<span style="font-size:13px;color:#475569;">Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</span></div>' +
+
+      (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">' +
+        '<div style="background:#F8FAFF;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry</div><div style="font-weight:700;font-size:13px;">$' + d.price + '</div></div>' +
+        '<div style="background:#E3F8EC;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#00893E;">TP</div><div style="font-weight:700;font-size:13px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
+        '<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#C62828;">SL</div><div style="font-weight:700;font-size:13px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
+        '</div>' : '') +
+
+      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">TECHNICAL BREAKDOWN (' + d.technicalScore + ' pts)</div>' +
+      breakdownHtml +
+
+      '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #F0F5FC;">' +
+      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">NEWS ANALYSIS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
+      '<p style="font-size:12.5px;color:#1A2540;line-height:1.5;margin:0;">' + (d.newsSummary || '') + '</p>' +
+      (d.analystSummary ? '<p style="font-size:11.5px;color:#64748b;margin-top:6px;">' + d.analystSummary + '</p>' : '') +
+      catalystsHtml + risksHtml +
+      '</div>' +
+
+      '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles analyzed' + (d.newsFromCache ? ' · cached' : '') + '</div>' +
+      '</div>';
+  } catch (err) {
+    container.innerHTML = '<p style="color:#C62828;font-size:13px;">AI Pro Analysis failed to load.</p>';
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════════════
+// AI PRO ENGINE — standalone modal, search ANY stock on demand
+// ═══════════════════════════════════════════════════════════════════
+window.openProEngineModal = function() {
+  var old = document.getElementById('sr-pro-engine-modal');
+  if (old) old.remove();
+
+  var m = document.createElement('div');
+  m.id = 'sr-pro-engine-modal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:29000;background:rgba(8,15,36,0.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  m.innerHTML =
+    '<div style="background:#F5F9FF;border-radius:18px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.35);">' +
+    '<div style="background:#0D2244;border-radius:18px 18px 0 0;padding:18px 22px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:2;">' +
+    '<span style="font-size:20px;">🧠</span>' +
+    '<span style="color:#fff;font-weight:800;font-size:16px;">AI Pro Engine</span>' +
+    '<span style="margin-left:auto;font-size:10px;background:#F5D061;color:#4A3B10;padding:3px 10px;border-radius:8px;font-weight:800;">PRO</span>' +
+    '<button onclick="document.getElementById(\'sr-pro-engine-modal\').remove()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;margin-left:8px;">✕</button>' +
+    '</div>' +
+    '<div style="padding:20px 22px;">' +
+    '<div style="display:flex;gap:8px;margin-bottom:16px;">' +
+    '<input id="pe-modal-sym" type="text" placeholder="Enter any symbol (e.g. TSLA, NVDA, AAPL)..." style="flex:1;border:1.5px solid #D6E4F5;border-radius:10px;padding:11px 14px;font-size:14px;outline:none;" autocomplete="off"/>' +
+    '<button onclick="runProEngineModal()" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:0 20px;font-weight:700;cursor:pointer;font-size:14px;">Analyze 🧠</button>' +
+    '</div>' +
+    '<div id="pe-modal-result"><p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px 0;">Enter a symbol above to run the AI Pro Engine.</p></div>' +
+    '</div></div>';
+
+  m.addEventListener('click', function(e) { if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+
+  var input = document.getElementById('pe-modal-sym');
+  input.focus();
+  input.addEventListener('keydown', function(e) { if (e.key === 'Enter') runProEngineModal(); });
+};
+
+window.runProEngineModal = async function() {
+  var sym = (document.getElementById('pe-modal-sym').value || '').trim().toUpperCase();
+  var resultEl = document.getElementById('pe-modal-result');
+  if (!sym) return;
+
+  var me = null;
+  try { me = Auth.user(); } catch (e) {}
+  var isPro = me && me.plan === 'pro';
+
+  if (!isPro) {
+    resultEl.innerHTML =
+      '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:14px;padding:20px;color:#fff;text-align:center;">' +
+      '<div style="font-size:32px;margin-bottom:8px;">🧠🔒</div>' +
+      '<div style="font-weight:800;font-size:15px;margin-bottom:6px;">AI Pro Engine is a Pro feature</div>' +
+      '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">Analyze any stock with real Claude AI reasoning on news, catalysts, and risks — combined with 8 technical indicators.</div>' +
+      '<a href="mailto:swingrush.admin@gmail.com?subject=SwingRush%20Pro%20Upgrade" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:9px 18px;border-radius:10px;text-decoration:none;font-size:13px;">📧 Upgrade to Pro</a>' +
+      '</div>';
+    return;
+  }
+
+  resultEl.innerHTML = '<div style="text-align:center;padding:30px 0;color:#94a3b8;font-size:13px;">Analyzing ' + sym + ' with Claude AI...</div>';
+
+  try {
+    var res = await fetch('/api/pro-engine/' + sym, {
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') }
+    });
+    var d = await res.json();
+    if (!res.ok) {
+      resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || 'Analysis failed') + '</p>';
+      return;
+    }
+    if (d.insufficientData) {
+      resultEl.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;">Not enough price history for ' + sym + '.</p>';
+      return;
+    }
+
+    var dirColor = d.direction === 'BUY' ? '#00893E' : d.direction === 'SELL' ? '#C62828' : '#64748b';
+    var dirBg = d.direction === 'BUY' ? '#E3F8EC' : d.direction === 'SELL' ? '#FFEBEE' : '#F1F5F9';
+
+    var breakdownHtml = (d.technicalBreakdown || []).map(function(b) {
+      var c = b.points > 0 ? '#00893E' : b.points < 0 ? '#C62828' : '#94a3b8';
+      return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed #E3EEFF;"><span style="color:#475569;">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
+    }).join('');
+
+    var catalystsHtml = (d.catalysts || []).length
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:#00893E;letter-spacing:0.5px;margin-bottom:5px;">📈 CATALYSTS</div>' +
+        d.catalysts.map(function(c) { return '<div style="font-size:13px;color:#1A2540;padding:3px 0;">• ' + c + '</div>'; }).join('') + '</div>'
+      : '';
+
+    var risksHtml = (d.risks || []).length
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:#C62828;letter-spacing:0.5px;margin-bottom:5px;">⚠️ RISKS</div>' +
+        d.risks.map(function(r) { return '<div style="font-size:13px;color:#1A2540;padding:3px 0;">• ' + r + '</div>'; }).join('') + '</div>'
+      : '';
+
+    resultEl.innerHTML =
+      '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:20px;">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
+      '<strong style="font-size:20px;color:#0D2244;">' + d.symbol + '</strong>' +
+      '<span style="font-size:14px;color:#475569;">$' + d.price + '</span>' +
+      '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
+      '</div>' +
+
+      '<div style="font-size:13px;color:#475569;margin-bottom:14px;">Combined Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</div>' +
+
+      (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
+        '<div style="background:#F8FAFF;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry</div><div style="font-weight:700;font-size:14px;">$' + d.price + '</div></div>' +
+        '<div style="background:#E3F8EC;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#00893E;">Take Profit</div><div style="font-weight:700;font-size:14px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
+        '<div style="background:#FFEBEE;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#C62828;">Stop Loss</div><div style="font-weight:700;font-size:14px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
+        '</div>' : '<p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">No clear directional signal — score too low for a trade setup.</p>') +
+
+      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">TECHNICAL BREAKDOWN (' + d.technicalScore + ' pts)</div>' +
+      breakdownHtml +
+
+      '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #E3EEFF;">' +
+      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">NEWS ANALYSIS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
+      '<p style="font-size:13px;color:#1A2540;line-height:1.55;margin:0;">' + (d.newsSummary || '') + '</p>' +
+      (d.analystSummary ? '<p style="font-size:12px;color:#64748b;margin-top:8px;">' + d.analystSummary + '</p>' : '') +
+      catalystsHtml + risksHtml +
+      '</div>' +
+
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles analyzed' + (d.newsFromCache ? ' · cached' : '') + '</div>' +
+      '</div>';
+  } catch (err) {
+    resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">Analysis failed to load.</p>';
+  }
 };
