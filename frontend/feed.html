@@ -125,7 +125,23 @@
 </div>
 
 <div class="layout">
-  <aside class="sidebar-left"></aside>
+  <aside class="sidebar-left">
+    <div class="sb-card" id="leaderboard-card">
+      <div class="sb-title">🏆 BEST TRADERS</div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:10px;">
+        <button onclick="switchLeaderTab('winrate')" id="lb-tab-winrate"
+          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--green);background:var(--green);color:#000;font-size:11px;font-weight:700;cursor:pointer;">
+          🎯 Win Rate
+        </button>
+        <button onclick="switchLeaderTab('return')" id="lb-tab-return"
+          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;">
+          💰 Total Return
+        </button>
+      </div>
+      <div id="leaderboard-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
+    </div>
+</aside>
 
   <!-- Left Sidebar -->
 
@@ -214,21 +230,6 @@
     </div>
 
     <!-- Best Traders Leaderboard -->
-    <div class="sb-card" id="leaderboard-card">
-      <div class="sb-title">🏆 BEST TRADERS</div>
-      <!-- Tabs -->
-      <div style="display:flex;gap:6px;margin-bottom:10px;">
-        <button onclick="switchLeaderTab('winrate')" id="lb-tab-winrate"
-          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--green);background:var(--green);color:#000;font-size:11px;font-weight:700;cursor:pointer;">
-          🎯 Win Rate
-        </button>
-        <button onclick="switchLeaderTab('return')" id="lb-tab-return"
-          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;">
-          💰 Total Return
-        </button>
-      </div>
-      <div id="leaderboard-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
-    </div>
   </aside>
 </div>
 

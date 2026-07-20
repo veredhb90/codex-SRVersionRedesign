@@ -828,7 +828,12 @@ setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
         '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">MARKET NEWS</span>' +
         '<span style="margin-left:auto;font-size:9px;color:#7EE2B0;font-weight:700;letter-spacing:1px;">US</span></div>' +
         '<div class="sr-rail-body" id="sr-news-list"></div></div>';
-    host.insertBefore(rail, host.firstChild);
+    var lbCard = document.getElementById('leaderboard-card');
+    if (lbCard && lbCard.parentElement === host) {
+      lbCard.insertAdjacentElement('afterend', rail);
+    } else {
+      host.insertBefore(rail, host.firstChild);
+    }
 
     var known = new Set(); var firstLoad = true;
     function icBg(k){return k==='new'?'#E3F2FD':k==='tp'?'#E3F8EC':k==='sl'?'#FFEBEE':k==='reply'?'#EDE7F6':'#FFF8E1';}
