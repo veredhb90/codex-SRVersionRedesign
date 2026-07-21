@@ -89,6 +89,23 @@ const sendWinAlert = async (to, username, symbol, returnPct) => {
   }).catch(e => console.error('Win alert error:', e));
 };
 
+const sendFollowerWinAlert = async (to, traderName, symbol, returnPct) => {
+  await resend.emails.send({
+    from: FROM, to,
+    subject: `\ud83c\udfc6 ${traderName}'s $${symbol} call hit Take Profit! +${returnPct}%`,
+    html: `<div style="${baseStyle}">${logo}
+      <div style="background:#111;border:2px solid #00e676;border-radius:12px;padding:24px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">\ud83c\udfc6</div>
+        <div style="font-size:24px;font-weight:900;color:#00e676;margin-bottom:8px;">TAKE PROFIT HIT!</div>
+        <div style="font-size:18px;color:#fff;margin-bottom:4px;">$${symbol}</div>
+        <div style="font-size:32px;font-weight:900;color:#00e676;">+${returnPct}%</div>
+        <div style="color:#555;margin-top:16px;font-size:14px;">${traderName}, a trader you follow, just closed a winning call!</div>
+      </div>
+      <a href="${process.env.CLIENT_URL}/feed.html" style="display:block;margin-top:24px;padding:14px;background:#00e676;color:#000;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View in Feed \u2192</a>
+    </div>`,
+  }).catch(e => console.error('Follower win alert error:', e));
+};
+
 const sendLossAlert = async (to, username, symbol, returnPct) => {
   await resend.emails.send({
     from: FROM, to,
@@ -104,6 +121,23 @@ const sendLossAlert = async (to, username, symbol, returnPct) => {
       <a href="${process.env.CLIENT_URL}/profile.html" style="display:block;margin-top:24px;padding:14px;background:#ff1744;color:#fff;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View My Profile →</a>
     </div>`,
   }).catch(e => console.error('Loss alert error:', e));
+};
+
+const sendFollowerLossAlert = async (to, traderName, symbol, returnPct) => {
+  await resend.emails.send({
+    from: FROM, to,
+    subject: `\ud83d\udcb8 ${traderName}'s $${symbol} call hit Stop Loss (${returnPct}%)`,
+    html: `<div style="${baseStyle}">${logo}
+      <div style="background:#111;border:2px solid #ff1744;border-radius:12px;padding:24px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:8px;">\ud83d\udcb8</div>
+        <div style="font-size:24px;font-weight:900;color:#ff1744;margin-bottom:8px;">STOP LOSS HIT</div>
+        <div style="font-size:18px;color:#fff;margin-bottom:4px;">$${symbol}</div>
+        <div style="font-size:32px;font-weight:900;color:#ff1744;">${returnPct}%</div>
+        <div style="color:#555;margin-top:16px;font-size:14px;">${traderName}, a trader you follow, closed this call at stop loss.</div>
+      </div>
+      <a href="${process.env.CLIENT_URL}/feed.html" style="display:block;margin-top:24px;padding:14px;background:#ff1744;color:#fff;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View in Feed \u2192</a>
+    </div>`,
+  }).catch(e => console.error('Follower loss alert error:', e));
 };
 
 const sendAdminNewUser = async (user) => {
@@ -127,4 +161,4 @@ const sendAdminNewUser = async (user) => {
   }).catch(e => console.error('Admin notification error:', e));
 };
 
-module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendAdminNewUser };
+module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser };

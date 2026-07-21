@@ -3,7 +3,7 @@ const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const Recommendation = require('../models/Recommendation');
 const yf   = require('../services/yahooFinance');
-const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert } = require('../services/emailService');
+const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert } = require('../services/emailService');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 
@@ -50,7 +50,7 @@ const checkOutcome = async (rec, io) => {
           type:'win', title:`🏆 @${author?.username||author?.fullName}'s $${rec.symbol} hit Take Profit!`,
           body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
         });
-        sendFollowAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.direction, rec.takeProfit)
+        sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
           .catch(()=>{});
       });
 
@@ -90,13 +90,17 @@ const checkOutcome = async (rec, io) => {
           .catch(()=>{});
       }
 
-      // ── Notify followers on LOSS ──────────────────────────────────
-      const followers = await User.find({ following:rec.user }).select('_id');
+      // ── Notify followers on LOSS ────────────────────────
+      const followers = await User.find({ following:rec.user }).select('_id email');
       followers.forEach(f => {
         io.notifyUser && io.notifyUser(String(f._id), 'notification', {
           type:'loss', title:`💸 @${author?.username||author?.fullName}'s $${rec.symbol} hit Stop Loss`,
           body:`${rec.returnPct}%`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
         });
+        if (f.email) {
+          sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
+            .catch(()=>{});
+        }
       });
 
     } else { await rec.save(); }
