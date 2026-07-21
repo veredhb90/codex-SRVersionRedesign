@@ -83,7 +83,7 @@
     '@keyframes srWL{0%,100%{transform:rotate(0)}50%{transform:rotate(-28deg)}}' +
     '@keyframes srWR{0%,100%{transform:rotate(0)}50%{transform:rotate(28deg)}}' +
     '#sr-chat-box { position:fixed; z-index:9998; display:none; flex-direction:column; border-radius:20px; overflow:hidden; box-shadow:0 32px 80px rgba(0,0,0,0.3); animation:srSlideUp .35s ease; }' +
-    '#sr-chat-box.normal { bottom:114px; right:28px; width:420px; height:600px; }' +
+    '#sr-chat-box.normal { bottom:114px; right:28px; width:420px; height:600px; max-height:calc(100vh - 130px); }' +
     '#sr-chat-box.fullscreen { bottom:32px; right:32px; left:32px; top:32px; width:calc(100vw - 64px); height:calc(100vh - 64px); border-radius:24px; background:rgba(255,255,255,0.93) !important; backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); }' +
     '@keyframes srSlideUp { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:translateY(0)} }' +
     '#sr-chat-header { background:#0D2244; padding:14px 18px; color:#fff; display:flex; align-items:center; gap:12px; flex-shrink:0; }' +
@@ -257,8 +257,18 @@
         currentSessionId = last._id;
         if (last.messages && last.messages.length > 0) {
           messages.innerHTML = '';
+          var lastDateLabel = '';
           last.messages.forEach(function(m) {
-            addMessage(m.role === 'user' ? 'user' : 'ai', m.content);
+            var msgDate = m.time ? new Date(m.time) : new Date();
+            var dateLabel = msgDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+            if (dateLabel !== lastDateLabel) {
+              var divider = document.createElement('div');
+              divider.style.cssText = 'text-align:center;margin:14px 0 6px;font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:0.5px;';
+              divider.textContent = '\u2014 ' + dateLabel + ' \u2014';
+              messages.appendChild(divider);
+              lastDateLabel = dateLabel;
+            }
+            addMessage(m.role === 'user' ? 'user' : 'ai', m.content, m.time);
           });
         }
       }
@@ -533,7 +543,14 @@
     .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
     .then(function(result) {
       typingEl.remove();
-      if (!result.ok) throw new Error(result.data.message);
+      if (!result.ok) {
+        if (result.data.requireSubscription) {
+          addMessage('ai', 'AI Chat is a SwingRush Pro feature.\n\nUpgrade to Pro for unlimited access to the AI analyst \u2014 real Claude AI reasoning combined with technical analysis on every stock.');
+          setTimeout(function() { if (window.Paywall) Paywall.showSubscribePaywall('chat'); }, 500);
+          return;
+        }
+        throw new Error(result.data.message);
+      }
       addMessage('ai', result.data.response);
       if (result.data.stockDataList && result.data.stockDataList.length > 0) {
         result.data.stockDataList.forEach(function(sd) { renderStockChart(sd); });
@@ -554,12 +571,7 @@
     })
     .catch(function(err) {
       typingEl.remove();
-      if (err.message && err.message.indexOf('Subscribe') !== -1) {
-        addMessage('ai', 'You have used your 2 free AI chat messages.\n\nUpgrade to SwingRush Pro for unlimited AI trading assistant!');
-        setTimeout(function() { if (window.Paywall) Paywall.showSubscribePaywall('chat'); }, 500);
-      } else {
-        addMessage('ai', 'Connection error. Please try again in a moment.');
-      }
+      addMessage('ai', 'Connection error. Please try again in a moment.');
     })
     .finally(function() {
       isTyping = false;

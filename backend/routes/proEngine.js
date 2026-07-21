@@ -88,6 +88,8 @@ router.get('/:symbol', protect, requirePro, async (req, res) => {
       risks: newsAnalysis.risks,
       analystSummary: newsAnalysis.analystSummary,
       articleCount: newsAnalysis.articleCount,
+      holdingPeriod: newsAnalysis.holdingPeriod || '',
+      upcomingEarnings: newsAnalysis.upcomingEarnings || [],
       newsFromCache: newsAnalysis.fromCache,
     });
   } catch (err) {

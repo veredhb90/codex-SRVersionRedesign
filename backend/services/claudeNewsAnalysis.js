@@ -107,21 +107,54 @@ Do this:
 5. Weigh analyst consensus data as one input, not the whole picture
 6. Give a final sentiment score from -10 (very bearish) to +10 (very bullish). Use the full range with real judgment — a genuinely major catalyst (e.g. blowout earnings beat + raised guidance, or a severe fraud/regulatory crisis) should score near the extremes (±8 to ±10). Routine or mixed news should stay closer to the middle (±1 to ±4).
 
+7. Based on the nature of the catalysts and news cycle, estimate a realistic HOLDING PERIOD for this trade idea (e.g. "3-5 days", "1-2 weeks", "2-4 weeks") — base this on how long it typically takes for the identified catalysts to play out, not a generic guess. Rely on professional technical/fundamental reasoning, not vague timeframes.
+
 Respond ONLY with valid JSON in this exact format, nothing else, no markdown fences:
-{"score": <integer -10 to 10>, "label": "<Very Positive|Positive|Slightly Positive|Neutral|Slightly Negative|Negative|Very Negative>", "summary": "<2-3 sentence plain-English summary of what's driving sentiment>", "catalysts": ["<upcoming event 1>", "<upcoming event 2>"], "risks": ["<risk 1>", "<risk 2>"]}
+{"score": <integer -10 to 10>, "label": "<Very Positive|Positive|Slightly Positive|Neutral|Slightly Negative|Negative|Very Negative>", "summary": "<2-3 sentence plain-English summary of what's driving sentiment>", "catalysts": ["<upcoming event 1>", "<upcoming event 2>"], "risks": ["<risk 1>", "<risk 2>"], "holdingPeriod": "<e.g. '3-5 days' or '1-2 weeks' or '2-4 weeks'>"}
 
 If there is no meaningful news, return score 0, label "Neutral", summary explaining there's no significant recent news, and empty catalysts/risks arrays.`;
 
 // ── MAIN: Real Claude-powered news analysis (Pro only) ───────────────
+// ── Fetch REAL upcoming earnings dates from Finnhub (not guessed) ─────
+const fetchUpcomingEarnings = (symbol) => new Promise((resolve) => {
+  const now = new Date();
+  const from = now.toISOString().split('T')[0];
+  const to = new Date(now.getTime() + 270 * 86400000).toISOString().split('T')[0]; // next ~9 months
+  const apiKey = process.env.FINNHUB_API_KEY;
+  const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${symbol}&token=${apiKey}`;
+  require('https').get(url, (res) => {
+    let data = '';
+    res.on('data', d => data += d);
+    res.on('end', () => {
+      try {
+        const parsed = JSON.parse(data);
+        const list = (parsed.earningsCalendar || [])
+          .sort((a, b) => new Date(a.date) - new Date(b.date))
+          .slice(0, 3)
+          .map(e => ({
+            date: e.date,
+            quarter: e.quarter,
+            year: e.year,
+            hour: e.hour === 'bmo' ? 'Before Market Open' : e.hour === 'amc' ? 'After Market Close' : 'Time TBD',
+            epsEstimate: e.epsEstimate,
+            revenueEstimate: e.revenueEstimate,
+          }));
+        resolve(list);
+      } catch (e) { resolve([]); }
+    });
+  }).on('error', () => resolve([]));
+});
+
 const getClaudeNewsAnalysis = async (symbol, companyName) => {
   const cacheKey = 'news_' + symbol.toUpperCase();
   const cached = fromNewsCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
   try {
-    const [articles, ratings] = await Promise.all([
+    const [articles, ratings, upcomingEarnings] = await Promise.all([
       fetchFinnhubNews(symbol),
       fetchAnalystRatings(symbol),
+      fetchUpcomingEarnings(symbol),
     ]);
 
     let analystSummary = 'No analyst rating data available.';
@@ -137,15 +170,17 @@ const getClaudeNewsAnalysis = async (symbol, companyName) => {
       ? articles.map((a, i) => `${i + 1}. [${a.source || 'Unknown'}, ${a.datetime ? new Date(a.datetime * 1000).toLocaleDateString() : 'recent'}] ${a.headline}${a.summary ? ' — ' + a.summary.slice(0, 200) : ''}`).join('\n')
       : 'No recent news articles found in the last 7 days.';
 
+    const earningsText = upcomingEarnings.length
+      ? upcomingEarnings.map(e => `${e.date} (${e.quarter} ${e.year}, ${e.hour})${e.epsEstimate ? ' - EPS est: ' + e.epsEstimate : ''}`).join('\n')
+      : 'No confirmed upcoming earnings date found in the calendar.';
     const userMessage = `Stock: ${symbol}${companyName ? ' (' + companyName + ')' : ''}
-
 RECENT HEADLINES (last 7 days):
 ${headlinesText}
-
 ANALYST CONSENSUS:
 ${analystSummary}
-
-Analyze this and respond with the JSON format specified.`;
+CONFIRMED UPCOMING EARNINGS DATES (real calendar data \u2014 use these EXACT dates, do not estimate or guess other dates):
+${earningsText}
+Analyze this and respond with the JSON format specified. If you mention earnings as a catalyst, cite the EXACT date(s) given above.`;
 
     const raw = await callClaude(SYSTEM_PROMPT, userMessage);
     const cleaned = raw.replace(/```json|```/g, '').trim();
@@ -158,6 +193,8 @@ Analyze this and respond with the JSON format specified.`;
       catalysts: Array.isArray(parsed.catalysts) ? parsed.catalysts.slice(0, 5) : [],
       risks: Array.isArray(parsed.risks) ? parsed.risks.slice(0, 5) : [],
       articleCount: articles.length,
+      holdingPeriod: parsed.holdingPeriod || '',
+      upcomingEarnings: upcomingEarnings,
       analystSummary,
       fromCache: false,
     };

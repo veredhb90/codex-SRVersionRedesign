@@ -2,6 +2,8 @@ const express    = require('express');
 const router     = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { getEngineRecommendation } = require('../services/yahooFinance');
+const { getProTechnicalScore } = require('../services/proEngine');
+const { getClaudeNewsAnalysis } = require('../services/claudeNewsAnalysis');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
 
@@ -142,17 +144,15 @@ router.post('/', protect, async (req, res) => {
     const { message, history = [], stockContext, sessionId, imageBase64, imageMimeType } = req.body;
     if (!message && !imageBase64) return res.status(400).json({ message: 'Message required' });
 
-    // ── Check chat limit ─────────────────────────────────────────
+    // ── Chat is Pro-only ───────────────────────────────────────
     const User = require('../models/User');
     const user = await User.findById(req.user._id);
-    if (user.plan !== 'pro' && (user.chatUsed || 0) >= 2) {
+    const isPro = typeof user.isPro === 'function' ? user.isPro() : (user.plan === 'pro' && user.subscriptionEnd && new Date(user.subscriptionEnd) > new Date());
+    if (!isPro) {
       return res.status(403).json({
-        message: 'You have used your 2 free AI chat messages. Subscribe to SwingRush Pro for unlimited AI!',
+        message: 'AI Chat is a SwingRush Pro feature. Upgrade to Pro for unlimited access to the AI analyst.',
         requireSubscription: true,
       });
-    }
-    if (user.plan !== 'pro') {
-      await User.findByIdAndUpdate(req.user._id, { $inc: { chatUsed: 1 } });
     }
 
     // ── Session management ───────────────────────────────────────
@@ -177,41 +177,134 @@ router.post('/', protect, async (req, res) => {
 
     // ── Run engine on mentioned stocks ───────────────────────────
     // Always run when a stock symbol is mentioned — regardless of wording
-    const symbols = extractSymbols(message || '');
+    let symbols = extractSymbols(message || '');
+    // Sticky memory: if this message has no ticker, reuse the most recently
+    // discussed symbol(s) from earlier in THIS session, so follow-up
+    // questions ("what's the news score?") keep working without forcing
+    // the user to repeat the ticker every time.
+    if (symbols.length === 0 && session.messages && session.messages.length > 0) {
+      for (let i = session.messages.length - 1; i >= 0; i--) {
+        const m = session.messages[i];
+        if (m.role === 'user') {
+          const prevSyms = extractSymbols(m.content || '');
+          if (prevSyms.length > 0) { symbols = prevSyms; console.log('Chat: sticky symbol memory reused', symbols); break; }
+        }
+      }
+    }
     let engineResults = '';
     const needsEngine = symbols.length > 0;
     let engineRunResults = []; // kept in outer scope for chart building later
     if (needsEngine) {
-      console.log('Chat: running engine for', symbols);
-      engineRunResults = await Promise.allSettled(symbols.map(sym => getEngineRecommendation(sym)));
+      console.log('Chat: running PRO engine for', symbols);
+      const proResults = await Promise.allSettled(symbols.map(async (sym) => {
+        const [tech, newsA] = await Promise.all([
+          getProTechnicalScore(sym),
+          getClaudeNewsAnalysis(sym),
+        ]);
+        if (tech.insufficientData) return null;
+        const combinedScore = tech.score + newsA.score;
+        const absScore = Math.abs(combinedScore);
+        const MIN_SCORE = 4;
+        const hasSignal = absScore >= MIN_SCORE;
+        const direction = !hasSignal ? 'NEUTRAL' : (combinedScore > 0 ? 'BUY' : 'SELL');
+        let confidence = 'Insufficient';
+        if (hasSignal) {
+          if (absScore >= 17) confidence = 'Very High';
+          else if (absScore >= 12) confidence = 'High';
+          else if (absScore >= 8) confidence = 'Medium';
+          else confidence = 'Low';
+        }
+        const tpMult = absScore >= 12 ? 4.5 : absScore >= 8 ? 3.5 : absScore >= 5 ? 2.5 : 2.0;
+        const slMult = 1.5;
+        const realAtr = tech.realAtr || (tech.price * 0.02);
+        let takeProfit = null, stopLoss = null, riskReward = null;
+        if (direction !== 'NEUTRAL') {
+          takeProfit = direction === 'BUY' ? +(tech.price + realAtr * tpMult).toFixed(2) : +(tech.price - realAtr * tpMult).toFixed(2);
+          stopLoss   = direction === 'BUY' ? +(tech.price - realAtr * slMult).toFixed(2) : +(tech.price + realAtr * slMult).toFixed(2);
+          riskReward = +((Math.abs(takeProfit - tech.price) / Math.abs(stopLoss - tech.price)).toFixed(2));
+        }
+        return {
+          symbol: sym, price: tech.price, changePct: tech.changePct,
+          direction, score: combinedScore, confidence,
+          takeProfit, stopLoss, riskReward,
+          technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
+          newsScore: newsA.score, newsLabel: newsA.label, newsSummary: newsA.summary,
+          catalysts: newsA.catalysts || [], risks: newsA.risks || [],
+          analystSummary: newsA.analystSummary || '',
+          holdingPeriod: newsA.holdingPeriod || '',
+          upcomingEarnings: newsA.upcomingEarnings || [],
+          news: [],
+        };
+      }));
+
+      engineRunResults = proResults.map(r => {
+        if (r.status === 'fulfilled' && r.value) return { status: 'fulfilled', value: r.value };
+        return { status: 'rejected' };
+      });
+
       engineRunResults.forEach((r, idx) => {
         if (r.status === 'fulfilled') {
           const e = r.value;
           const sym = symbols[idx];
-          let newsSection = `News: ${e.newsLabel || 'N/A'}`;
-          if (e.news && e.news.length > 0) {
-            newsSection += '\nLinks:\n' + e.news.slice(0,3).map((n, i) =>
-              `  ${i+1}. ${n.headline} — ${n.url}`
-            ).join('\n');
-          }
+          const breakdownText = (e.technicalBreakdown || []).map(b => `  ${b.indicator}: ${b.points > 0 ? '+' : ''}${b.points} (${b.note})`).join('\n');
+          const catalystsText = (e.catalysts || []).length ? e.catalysts.map(c => `  \u2022 ${c}`).join('\n') : '  None identified';
+          const risksText = (e.risks || []).length ? e.risks.map(r2 => `  \u2022 ${r2}`).join('\n') : '  None identified';
           engineResults += `
-╔══════════════════════════════════════╗
-  SWINGRUSH ENGINE: ${sym}
-╚══════════════════════════════════════╝
+\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
+  SWINGRUSH PRO ENGINE: ${sym}
+\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d
 Price: $${e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}%
-SIGNAL: ${e.direction} | Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
-Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}
-Trend: ${e.trend} | 52W position: ${e.rangePct}%
-Market: ${e.regime === 'bull' ? '✅ Bull' : '⚠️ Bear'}
-
-INDICATORS:
-${(e.signals || []).join('\n')}
-
-${e.analystLabel ? 'ANALYSTS: ' + e.analystLabel : ''}
-${newsSection}
+SIGNAL: ${e.direction} | Combined Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
+${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}` : 'No trade setup \u2014 score below conviction threshold'}
+TECHNICAL BREAKDOWN (${e.technicalScore} pts):
+${breakdownText}
+AI NEWS ANALYSIS (${e.newsScore > 0 ? '+' : ''}${e.newsScore} pts) \u2014 ${e.newsLabel}:
+${e.newsSummary}
+CATALYSTS:
+${catalystsText}
+RISKS:
+${risksText}
+${e.analystSummary ? 'ANALYST CONSENSUS: ' + e.analystSummary : ''}
+${e.holdingPeriod ? 'RECOMMENDED HOLDING PERIOD: ' + e.holdingPeriod : ''}
+${e.upcomingEarnings && e.upcomingEarnings.length ? 'UPCOMING EARNINGS (confirmed dates - cite these exactly, never guess other dates): ' + e.upcomingEarnings.map(x => x.date + ' (Q' + x.quarter + ' FY' + x.year + ', ' + x.hour + ')').join('; ') : 'No confirmed upcoming earnings date in the calendar.'}
 `;
         }
       });
+    }
+    // ── Community sentiment: what SwingRush traders are doing (open calls only) ──
+    let communityContext = '';
+    if (needsEngine && symbols.length > 0) {
+      try {
+        const mongoose = require('mongoose');
+        const Recommendation = mongoose.models.Recommendation || require('../models/Recommendation');
+        const sentimentParts = [];
+        for (const sym of symbols) {
+          const [buyCount, sellCount] = await Promise.all([
+            Recommendation.countDocuments({ symbol: sym, isOpen: true, direction: 'BUY', profileOnly: { $ne: true } }),
+            Recommendation.countDocuments({ symbol: sym, isOpen: true, direction: 'SELL', profileOnly: { $ne: true } }),
+          ]);
+          const total = buyCount + sellCount;
+          if (total === 0) {
+            sentimentParts.push(`${sym}: No open community calls yet.`);
+            continue;
+          }
+          const buyPct = Math.round((buyCount / total) * 100);
+          const sellPct = 100 - buyPct;
+          let line = `${sym}: ${buyCount} open BUY (${buyPct}%) vs ${sellCount} open SELL (${sellPct}%) — ${total} total open calls on SwingRush.`;
+          if (total >= 5 && (buyPct >= 90 || sellPct >= 90)) {
+            line += ` ⚠️ LOPSIDED: ${Math.max(buyPct, sellPct)}% of open calls are on one side — this can indicate a crowded trade. You MUST mention this explicitly and neutrally in your answer as a contrarian consideration, without telling the user what to do about it.`;
+          }
+          sentimentParts.push(line);
+        }
+        if (sentimentParts.length) {
+          communityContext = `
+╔══════════════════════════════════════╗
+  SWINGRUSH COMMUNITY SENTIMENT (open calls only, live)
+╚══════════════════════════════════════╝
+${sentimentParts.join('\n')}
+`;
+        }
+      } catch (e) { console.log('Community sentiment error:', e.message); }
     }
 
     // ── Full scanner data ────────────────────────────────────────
@@ -272,6 +365,8 @@ TRADER PROFILE (personalize ALL advice for this user):
 
 CRITICAL RULES — NEVER BREAK THESE:
 0. GOLDEN RULE — EVERY answer MUST combine BOTH sources: (a) YOUR OWN deep knowledge — macro trends, Fed policy, rates, earnings seasons, sector rotation, company fundamentals, market history — AND (b) engine/scanner data when available. NEVER answer from engine or scanner numbers alone. Example: "is the market bullish or bearish?" REQUIRES your own macro analysis (economy, rates, sentiment, catalysts, seasonality) layered ON TOP of scanner statistics. The scanner tells WHAT is moving — YOUR knowledge explains WHY and what it means for the trader. An answer that only recites engine/scanner data is a FAILED answer.
+0.5. DATA PRIORITY — NEVER MIX SCORING SYSTEMS: If a symbol has a LIVE ENGINE ANALYSIS block above, that block is the ONLY authoritative score/direction/confidence for that symbol — it is the Pro Engine's fresh, real-time combined score (technical + AI news). The FULL SCANNER block below uses a DIFFERENT scoring system (the free Signal Engine scanning 682 stocks) and may show a DIFFERENT number for the same symbol — this is expected and NOT an error. If a symbol appears in both, ALWAYS use the LIVE ENGINE ANALYSIS number and NEVER mention or compare it to the scanner's number for that same symbol unless the user explicitly asks about the difference. Use the FULL SCANNER data only for stocks that do NOT have their own LIVE ENGINE ANALYSIS block (e.g. general \"best stocks today\" questions).
+0.6. ALWAYS SHOW THE SCORE BREAKDOWN: Whenever a LIVE ENGINE ANALYSIS block is present for a symbol, your FIRST response about that symbol MUST explicitly state, in this exact order: (1) Technical score, (2) News/AI score, (3) Combined total score, (4) Confidence level. Never bury or omit this breakdown, and never make the user ask for it separately — show it automatically every time, formatted clearly (e.g. a small table or bolded line). This applies to every analysis response, not just when explicitly asked.
 1. You have FULL access to ALL your knowledge — use it without any restrictions
 2. NEVER say "I don't have access", "I cannot browse", "I don't know" — you have vast knowledge, USE IT
 3. NEVER say you cannot provide information — always give the best answer possible
@@ -307,7 +402,7 @@ YOUR KNOWLEDGE INCLUDES (use freely):
 
 SWINGHRUSH ENGINE (real-time data below):
 - Live prices, signals, scores for mentioned stocks
-- 12 technical indicators + news sentiment + analyst ratings
+- Pro Engine: 8 technical indicators (up to 14 pts) + AI-powered news analysis by Claude (up to 10 pts) = combined score up to ±24
 - Score range: -24 to +24
 
 SCORING:
@@ -319,6 +414,7 @@ SCORING:
 
 ${stockContext ? `STOCK USER IS VIEWING:\n${stockContext}\n` : ''}
 ${engineResults ? `\nLIVE ENGINE ANALYSIS:\n${engineResults}` : ''}
+${communityContext}
 ${scannerContext}
 ${profileContext}
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}

@@ -1098,6 +1098,9 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
       '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;">' + d.direction + '</span>' +
       '<span style="font-size:13px;color:#475569;">Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</span></div>' +
+      '<div style="display:flex;gap:14px;font-size:12px;color:#64748b;margin-bottom:12px;padding:8px 10px;background:#F8FAFF;border-radius:8px;"><span>Technical: <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>News (AI): <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>Total: <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      (d.holdingPeriod ? '<div style="font-size:11px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ Suggested holding period: ' + d.holdingPeriod + '</div>' : '') +
+      (d.upcomingEarnings && d.upcomingEarnings.length ? '<div style="font-size:11px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 Next earnings:</strong> ' + d.upcomingEarnings.map(function(x){return x.date;}).join(' · ') + '</div>' : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">' +
         '<div style="background:#F8FAFF;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry</div><div style="font-weight:700;font-size:13px;">$' + d.price + '</div></div>' +
@@ -1117,6 +1120,7 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
 
       '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles analyzed' + (d.newsFromCache ? ' · cached' : '') + '</div>' +
       '</div>';
+    if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
   } catch (err) {
     container.innerHTML = '<p style="color:#C62828;font-size:13px;">AI Pro Analysis failed to load.</p>';
   }
@@ -1220,7 +1224,10 @@ window.runProEngineModal = async function() {
       '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
       '</div>' +
 
-      '<div style="font-size:13px;color:#475569;margin-bottom:14px;">Combined Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</div>' +
+      '<div style="font-size:13px;color:#475569;margin-bottom:6px;">Combined Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</div>' +
+      '<div style="display:flex;gap:14px;font-size:12.5px;color:#64748b;margin-bottom:14px;padding:9px 12px;background:#F8FAFF;border-radius:8px;"><span>Technical: <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>News (AI): <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>Total: <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      (d.holdingPeriod ? '<div style="font-size:12px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ Suggested holding period: ' + d.holdingPeriod + '</div>' : '') +
+      (d.upcomingEarnings && d.upcomingEarnings.length ? '<div style="font-size:12px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 Next earnings:</strong> ' + d.upcomingEarnings.map(function(x){return x.date;}).join(' · ') + '</div>' : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
         '<div style="background:#F8FAFF;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry</div><div style="font-weight:700;font-size:14px;">$' + d.price + '</div></div>' +
@@ -1240,7 +1247,30 @@ window.runProEngineModal = async function() {
 
       '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles analyzed' + (d.newsFromCache ? ' · cached' : '') + '</div>' +
       '</div>';
+    if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
   } catch (err) {
     resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">Analysis failed to load.</p>';
   }
 };
+
+
+// ── Mobile floating AI Pro Engine button (sidebar-right is hidden ≤ 1080px) ──
+(function() {
+  function boot() {
+    if (document.getElementById('sr-mobile-pro-btn')) return;
+    var style = document.createElement('style');
+    style.textContent = '#sr-mobile-pro-btn{display:none;}@media(max-width:1080px){#sr-mobile-pro-btn{display:flex;}}';
+    document.head.appendChild(style);
+
+    var btn = document.createElement('div');
+    btn.id = 'sr-mobile-pro-btn';
+    btn.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:9000;background:#0D2244;color:#fff;align-items:center;gap:8px;padding:11px 16px;border-radius:24px;box-shadow:0 4px 16px rgba(0,0,0,0.25);cursor:pointer;font-size:13px;font-weight:700;';
+    btn.innerHTML = '🧠 AI Pro Engine';
+    btn.addEventListener('click', function() {
+      if (window.openProEngineModal) window.openProEngineModal();
+    });
+    document.body.appendChild(btn);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
