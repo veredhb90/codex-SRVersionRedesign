@@ -473,7 +473,7 @@ function buildProfileCard(r, isOwn) {
   const commentCount = r.comments?.length || 0;
 
   return `
-  <div class="rec-card" id="rec-${r._id}" data-recid="${r._id}" data-symbol="${r.symbol}" data-entry="${r.entryPrice}" data-direction="${r.direction}" data-isopen="${r.isOpen?'true':'false'}" style="margin-bottom:12px;">
+  <div class="rec-card ${r.direction==='BUY'?'buy':'sell'}" id="rec-${r._id}" data-recid="${r._id}" data-symbol="${r.symbol}" data-entry="${r.entryPrice}" data-direction="${r.direction}" data-isopen="${r.isOpen?'true':'false'}" style="margin-bottom:12px;">
     <div class="rec-header">
       <div>
         <div class="rec-symbol">${r.symbol}</div>
