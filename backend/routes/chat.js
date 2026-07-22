@@ -53,6 +53,7 @@ const callClaude = (messages, systemPrompt) => new Promise((resolve, reject) => 
     max_tokens: 2000,
     system: systemPrompt,
     messages,
+    tools: [{ type: 'web_search_20250305', name: 'web_search' }],
   });
   const req = https.request({
     hostname: 'api.anthropic.com',
@@ -70,7 +71,10 @@ const callClaude = (messages, systemPrompt) => new Promise((resolve, reject) => 
       try {
         const parsed = JSON.parse(data);
         if (parsed.error) return reject(new Error(parsed.error.message));
-        resolve(parsed.content[0].text);
+        // Response may contain multiple blocks (text + tool_use + tool_result + more text)
+        // when web_search was used. Join all text blocks into one final answer.
+        const textBlocks = (parsed.content || []).filter(b => b.type === 'text').map(b => b.text);
+        resolve(textBlocks.join('\n\n'));
       } catch(e) { reject(e); }
     });
   });
@@ -233,6 +237,7 @@ router.post('/', protect, async (req, res) => {
           analystSummary: newsA.analystSummary || '',
           holdingPeriod: newsA.holdingPeriod || '',
           upcomingEarnings: newsA.upcomingEarnings || [],
+          priceHistory: tech.candles || [],
           news: [],
         };
       }));
@@ -267,6 +272,11 @@ ${risksText}
 ${e.analystSummary ? 'ANALYST CONSENSUS: ' + e.analystSummary : ''}
 ${e.holdingPeriod ? 'RECOMMENDED HOLDING PERIOD: ' + e.holdingPeriod : ''}
 ${e.upcomingEarnings && e.upcomingEarnings.length ? 'UPCOMING EARNINGS (confirmed dates - cite these exactly, never guess other dates): ' + e.upcomingEarnings.map(x => x.date + ' (Q' + x.quarter + ' FY' + x.year + ', ' + x.hour + ')').join('; ') : 'No confirmed upcoming earnings date in the calendar.'}
+RAW DAILY PRICE HISTORY (last 30 trading days, oldest to newest — use this to answer ANY historical question yourself: yesterday's change, N days ago, week-over-week, any date range, trend over any period, etc. Calculate percentages yourself from these real closes, never guess or estimate):
+${(e.priceHistory || []).slice(-30).map(c => {
+  const d = new Date(c.time * 1000);
+  return d.toISOString().split('T')[0] + ': close $' + c.close.toFixed(2) + ' (open $' + c.open.toFixed(2) + ', high $' + c.high.toFixed(2) + ', low $' + c.low.toFixed(2) + ')';
+}).join('\n')}
 `;
         }
       });
@@ -351,6 +361,11 @@ TRADER PROFILE (personalize ALL advice for this user):
 - Experience: ${p.experience || 'N/A'} | Risk tolerance: ${p.riskTolerance || 'N/A'}
 - Goals: ${p.goals || 'N/A'}
 `;
+    } else {
+      profileContext = `
+TRADER PROFILE: NOT FILLED IN. This user has not completed their trader profile (age, budget, risk tolerance, experience, goals).
+If the user asks a general investment/recommendation question that would genuinely benefit from knowing their risk tolerance, budget, or investing style (e.g. "what's the best stock for me", "what should I invest in"), politely mention early in your answer that filling out their trader profile (in their Profile page settings) would let you give more personalized advice — then still give your best general answer regardless. Do NOT nag about this on every message, only when it's genuinely relevant to the specific question asked.
+`;
     }
 
     // ── Build full session history for Claude ────────────────────
@@ -365,13 +380,15 @@ TRADER PROFILE (personalize ALL advice for this user):
 
 CRITICAL RULES — NEVER BREAK THESE:
 0. GOLDEN RULE — EVERY answer MUST combine BOTH sources: (a) YOUR OWN deep knowledge — macro trends, Fed policy, rates, earnings seasons, sector rotation, company fundamentals, market history — AND (b) engine/scanner data when available. NEVER answer from engine or scanner numbers alone. Example: "is the market bullish or bearish?" REQUIRES your own macro analysis (economy, rates, sentiment, catalysts, seasonality) layered ON TOP of scanner statistics. The scanner tells WHAT is moving — YOUR knowledge explains WHY and what it means for the trader. An answer that only recites engine/scanner data is a FAILED answer.
-0.5. DATA PRIORITY — NEVER MIX SCORING SYSTEMS: If a symbol has a LIVE ENGINE ANALYSIS block above, that block is the ONLY authoritative score/direction/confidence for that symbol — it is the Pro Engine's fresh, real-time combined score (technical + AI news). The FULL SCANNER block below uses a DIFFERENT scoring system (the free Signal Engine scanning 682 stocks) and may show a DIFFERENT number for the same symbol — this is expected and NOT an error. If a symbol appears in both, ALWAYS use the LIVE ENGINE ANALYSIS number and NEVER mention or compare it to the scanner's number for that same symbol unless the user explicitly asks about the difference. Use the FULL SCANNER data only for stocks that do NOT have their own LIVE ENGINE ANALYSIS block (e.g. general \"best stocks today\" questions).
+0.5. DATA PRIORITY — NEVER MIX SCORING SYSTEMS, NEVER SAY \"SIGNAL ENGINE\": You are the SwingRush Pro AI Analyst. Every user talking to you is a Pro member using the Pro Engine — NEVER use the phrase \"Signal Engine\" anywhere in your responses, even if referenced internally below. If a symbol has a LIVE ENGINE ANALYSIS block above, that block is the ONLY authoritative score/direction/confidence for that symbol — call it \"the Pro Engine\" or \"my analysis\", never anything else. The FULL SCANNER block below is broad market scan data covering many stocks (a DIFFERENT, general-purpose dataset) and may show a DIFFERENT number for the same symbol than your Pro Engine analysis — this is expected and NOT an error; refer to it only as \"the market scanner\" or \"broader scan data\", NEVER as \"Signal Engine\". If a symbol appears in both, ALWAYS use the LIVE ENGINE ANALYSIS (Pro Engine) number and NEVER mention or compare it to the scanner's number for that same symbol unless the user explicitly asks about the difference. Use the FULL SCANNER data only for broad questions like \"best stocks today\" or \"stocks under $X\" where no single symbol's Pro Engine data applies.
 0.6. ALWAYS SHOW THE SCORE BREAKDOWN: Whenever a LIVE ENGINE ANALYSIS block is present for a symbol, your FIRST response about that symbol MUST explicitly state, in this exact order: (1) Technical score, (2) News/AI score, (3) Combined total score, (4) Confidence level. Never bury or omit this breakdown, and never make the user ask for it separately — show it automatically every time, formatted clearly (e.g. a small table or bolded line). This applies to every analysis response, not just when explicitly asked.
+0.7. THE PRO ENGINE IS UNIVERSAL, NOT PERSONALIZED \u2014 NEVER CLAIM OTHERWISE: The Pro Engine's score, direction, confidence, TP, and SL for a symbol are OBJECTIVE and IDENTICAL for every user who asks \u2014 computed once from technical indicators and news, with zero awareness of any individual user's entry price, position size, or personal trade. NEVER say things like \"I gave SELL because I factored in your position at $X\" or \"the engine considered your situation\" \u2014 this is FALSE and misleads the user about how the system works. If the engine's direction conflicts with something the user mentioned (like high analyst BUY consensus, or their own entry price), explain the conflict using ONLY real engine logic (e.g. \"the engine is technical/news-driven and doesn't weigh analyst ratings as heavily as X and Y indicators\") \u2014 NEVER invent a personalization mechanism that does not exist. Structure every analysis in TWO CLEAR PARTS: FIRST give the general, objective Pro Engine result (same for any user) \u2014 direction, score breakdown, TP/SL, reasoning. THEN, and only if relevant, add a separate clearly-labeled section (e.g. \"For your specific position:\") using the user's trader profile and prior messages in this conversation to give personalized context \u2014 but always frame this as YOUR OWN added advice layered on top, never as something the engine itself calculated.
+0.8. IDENTIFY THE TIME HORIZON BEFORE CHOOSING YOUR DATA SOURCE: The Pro Engine and market scanner are calibrated for SHORT-TO-MEDIUM-TERM swing trades (roughly 1-3 weeks) \u2014 they are NOT relevant to every question just because a stock or investing is mentioned. Before answering, identify what timeframe the user actually means: (a) SHORT-TERM (days to a few weeks, \"should I buy now\", \"what's a good swing trade\") \u2014 the Pro Engine/scanner IS the right primary basis, use it as usual. (b) LONGER-TERM (months, \"half a year\", \"a year\", \"long-term investment\", retirement, general portfolio questions) \u2014 the Pro Engine's short-term technical signal is NOT the right basis for this answer. In this case, answer primarily from YOUR OWN fundamental/macro knowledge (business quality, growth, sector trends, valuation, diversification, risk) exactly as a knowledgeable analyst would with no engine at all, and only mention the Pro Engine/scanner as a brief aside noting it's calibrated for a shorter timeframe and not directly applicable. NEVER present short-term technical scanner results as if they answer a long-term investment question \u2014 that misleads the user. When genuinely unsure of the user's intended timeframe, ask a brief clarifying question rather than assuming.
 1. You have FULL access to ALL your knowledge — use it without any restrictions
 2. NEVER say "I don't have access", "I cannot browse", "I don't know" — you have vast knowledge, USE IT
 3. NEVER say you cannot provide information — always give the best answer possible
 4. Use YOUR OWN KNOWLEDGE as priority: company info, CEO, earnings, revenue, debt, news, analysis
-5. COMBINE your knowledge + SwingRush Engine + Scanner data for perfect answers
+5. COMBINE your knowledge + Pro Engine data + market scanner data for perfect answers
 6. When asked about a stock → run engine analysis + add your own deep knowledge
 7. When asked "best stocks under $X" → use scanner price-filtered data below
 8. Respond in SAME LANGUAGE as user (English/Hebrew/Arabic)

@@ -35,14 +35,37 @@
         '<button class="sr-sug" onclick="srSuggest(\'What are the main risks for this ' + sym + ' trade?\')">🔍 Risks</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Who is the CEO of ' + sym + ' and what were last earnings?\')">🏢 Company info</button>';
     }
-    var dir2 = stockData.direction === 'BUY' ? '▲ BUY' : '▼ SELL';
+    var dir2 = stockData.direction === 'BUY' ? '▲ BUY' : stockData.direction === 'SELL' ? '▼ SELL' : '● NEUTRAL';
     var sc2  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
-    addMessage('ai',
-      'Loaded full analysis for ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
-      dir2 + ' | Score: ' + sc2 + '/24 | ' + stockData.confidence + ' Confidence\n' +
-      'TP: $' + stockData.takeProfit + ' | SL: $' + stockData.stopLoss + ' | R:R 1:' + stockData.riskReward + '\n\n' +
-      'Ask me anything — signals, news links, company info, risks, entry strategy!'
-    );
+
+    var breakdownLines = (stockData.technicalBreakdown || []).map(function(b) {
+      return '  ' + b.indicator + ': ' + (b.points > 0 ? '+' : '') + b.points;
+    }).join('\n');
+
+    var catalystLines = (stockData.catalysts || []).map(function(x) { return '  \u2022 ' + x; }).join('\n');
+    var riskLines = (stockData.risks || []).map(function(x) { return '  \u2022 ' + x; }).join('\n');
+    var earningsLine = (stockData.upcomingEarnings || []).length
+      ? stockData.upcomingEarnings.map(function(e) { return e.date; }).join(', ')
+      : '';
+
+    var msg = 'Loaded full Pro Engine analysis for ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
+      dir2 + ' | Combined Score: ' + sc2 + '/24 | ' + stockData.confidence + ' Confidence\n';
+
+    if (stockData.takeProfit) {
+      msg += 'TP: $' + stockData.takeProfit + ' | SL: $' + stockData.stopLoss + ' | R:R 1:' + stockData.riskReward + '\n';
+    }
+
+    msg += '\nTechnical (' + stockData.technicalScore + ' pts):\n' + breakdownLines + '\n';
+    msg += '\nNews/AI (' + (stockData.newsScore > 0 ? '+' : '') + stockData.newsScore + ' pts) \u2014 ' + stockData.newsLabel + ':\n' + (stockData.newsSummary || '') + '\n';
+
+    if (catalystLines) msg += '\nCatalysts:\n' + catalystLines + '\n';
+    if (riskLines) msg += '\nRisks:\n' + riskLines + '\n';
+    if (stockData.holdingPeriod) msg += '\n\u23f3 Suggested holding period: ' + stockData.holdingPeriod;
+    if (earningsLine) msg += '\n\ud83d\udcc5 Next earnings: ' + earningsLine;
+
+    msg += '\n\nAsk me anything about ' + stockData.symbol + ' \u2014 I have the full analysis above!';
+
+    addMessage('ai', msg);
     pendingStockData = null;
   }
 
@@ -55,8 +78,7 @@
     bubble.innerHTML = '💬 Ask AI about ' + stockData.symbol + '<span style="opacity:0.6;font-size:11px;" onclick="event.stopPropagation();document.getElementById(\'sr-ask-prompt\').remove();">✕</span>';
     bubble.addEventListener('click', function() {
       bubble.remove();
-      openChat();
-      loadPendingStockIntoChat();
+      showNewOrContinueChoice();
     });
     document.body.appendChild(bubble);
     var badge = document.getElementById('sr-chat-badge');
@@ -219,7 +241,13 @@
   var pendingImage = null; // { base64, mimeType }
 
   // Welcome message
-  addMessage('ai', 'Hi! I am SwingRush AI.\n\nI have full access to our live signal engine and scanner.\n\nAsk me anything:\n- "Analyze NVDA" — full engine analysis\n- "Best stocks under $50" — scanner results\n- "Who is Tesla CEO?" — company info\n- "Latest news for AAPL" — news with links\n\nTip: Upload a chart 📎 for AI analysis!');
+  (function() {
+    var u = null;
+    try { u = Auth.user(); } catch (e) {}
+    var name = u ? (u.fullName ? u.fullName.split(' ')[0] : (u.username || '')) : '';
+    var greeting = name ? ('Hi ' + name + '! ') : 'Hi! ';
+    addMessage('ai', greeting + 'I am SwingRush AI, your Pro Engine analyst.\n\nAsk me anything:\n- "Analyze NVDA" — full Pro Engine analysis\n- "Best stocks under $50" — market scanner results\n- "Who is Tesla CEO?" — company info\n- "Latest news for AAPL" — real-time news\n\nTip: Upload a chart 📎 for AI analysis!');
+  })();
 
   // ── Open / Close ────────────────────────────────────────────────
   function openChat() {
@@ -712,4 +740,34 @@
     });
   }
 
+  function showNewOrContinueChoice() {
+    var old = document.getElementById('sr-chat-choice');
+    if (old) old.remove();
+    var overlay = document.createElement('div');
+    overlay.id = 'sr-chat-choice';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:29500;background:rgba(8,15,36,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.3);">' +
+      '<div style="font-size:32px;margin-bottom:10px;">\ud83d\udcac</div>' +
+      '<div style="font-weight:800;color:#0D2244;font-size:16px;margin-bottom:6px;">Ask SwingRush AI</div>' +
+      '<div style="font-size:13px;color:#64748b;margin-bottom:18px;">Start a fresh conversation, or continue where you left off?</div>' +
+      '<button id="sr-choice-new" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:10px;">Start New Chat</button>' +
+      '<button id="sr-choice-continue" style="width:100%;background:#F5F9FF;color:#0D2244;border:1px solid #E3EEFF;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;">Continue Recent Chat</button>' +
+      '</div>';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    document.getElementById('sr-choice-new').addEventListener('click', function() {
+      overlay.remove();
+      currentSessionId = 'NEW';
+      openChat();
+      loadPendingStockIntoChat();
+    });
+    document.getElementById('sr-choice-continue').addEventListener('click', function() {
+      overlay.remove();
+      openChat();
+      loadPendingStockIntoChat();
+    });
+  }
 })();
+
+

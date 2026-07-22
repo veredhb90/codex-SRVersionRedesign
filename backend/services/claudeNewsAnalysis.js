@@ -145,16 +145,38 @@ const fetchUpcomingEarnings = (symbol) => new Promise((resolve) => {
   }).on('error', () => resolve([]));
 });
 
+// ── Fetch past earnings history (last 4 quarters, actual vs estimate) ─────
+const fetchEarningsHistory = (symbol) => new Promise((resolve) => {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${apiKey}`;
+  require('https').get(url, (res) => {
+    let data = '';
+    res.on('data', d => data += d);
+    res.on('end', () => {
+      try {
+        const parsed = JSON.parse(data);
+        const list = Array.isArray(parsed) ? parsed.slice(0, 4).map(e => ({
+          period: e.period, quarter: e.quarter, year: e.year,
+          epsActual: e.actual, epsEstimate: e.estimate,
+          surprisePercent: e.surprisePercent,
+        })) : [];
+        resolve(list);
+      } catch (e) { resolve([]); }
+    });
+  }).on('error', () => resolve([]));
+});
+
 const getClaudeNewsAnalysis = async (symbol, companyName) => {
   const cacheKey = 'news_' + symbol.toUpperCase();
   const cached = fromNewsCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
   try {
-    const [articles, ratings, upcomingEarnings] = await Promise.all([
+    const [articles, ratings, upcomingEarnings, earningsHistory] = await Promise.all([
       fetchFinnhubNews(symbol),
       fetchAnalystRatings(symbol),
       fetchUpcomingEarnings(symbol),
+      fetchEarningsHistory(symbol),
     ]);
 
     let analystSummary = 'No analyst rating data available.';
@@ -195,6 +217,7 @@ Analyze this and respond with the JSON format specified. If you mention earnings
       articleCount: articles.length,
       holdingPeriod: parsed.holdingPeriod || '',
       upcomingEarnings: upcomingEarnings,
+      earningsHistory: earningsHistory,
       analystSummary,
       fromCache: false,
     };
