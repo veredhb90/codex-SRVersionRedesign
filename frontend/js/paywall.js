@@ -19,10 +19,10 @@ const Paywall = {
         <div style="background:#F0F4FF;border-radius:16px;padding:16px;margin-bottom:24px;text-align:left;">
           <div style="font-size:13px;color:#0D47A1;font-weight:700;margin-bottom:10px;">✅ FREE account includes:</div>
           <div style="font-size:13px;color:#475569;line-height:2;">
-            📊 1 free stock analysis<br>
-            💬 2 AI chat messages<br>
-            📰 Latest news & analyst ratings<br>
-            🏆 View Top 5 Scanner results
+            📊 1 free Signal Engine analysis<br>
+            🏆 Full scanner - all 682 stocks ranked<br>
+            🌐 Full social feed - share calls and follow top traders<br>
+            📊 Win rate and performance tracking
           </div>
         </div>
         <a href="/index.html#register" onclick="document.getElementById('sr-paywall-modal').remove();document.getElementById('sr-chat-box').style.display='none'"
