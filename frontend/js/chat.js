@@ -16,7 +16,7 @@
     showAskAiPrompt(stockData);
   };
 
-  function loadPendingStockIntoChat() {
+  async function loadPendingStockIntoChat() {
     if (!pendingStockData) return;
     var stockData = pendingStockData;
     currentStock = stockData;
@@ -67,6 +67,12 @@
 
     addMessage('ai', msg);
     pendingStockData = null;
+    // Persist this system-generated summary to the actual session in the DB,
+    // so it's still there if the user reopens this chat later without typing anything.
+    try {
+      var saveResult = await API.saveChatMessage({ sessionId: currentSessionId, content: msg });
+      if (saveResult && saveResult.sessionId) { currentSessionId = saveResult.sessionId; }
+    } catch (e) { console.log('Failed to persist Pro Engine summary:', e.message); }
   }
 
   function showAskAiPrompt(stockData) {

@@ -1103,7 +1103,7 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       (d.upcomingEarnings && d.upcomingEarnings.length ? '<div style="font-size:11px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 Next earnings:</strong> ' + d.upcomingEarnings.map(function(x){return x.date;}).join(' · ') + '</div>' : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">' +
-        '<div style="background:#F8FAFF;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry</div><div style="font-weight:700;font-size:13px;">$' + d.price + '</div></div>' +
+        '<div style="background:#F8FAFF;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry' + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:13px;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:9.5px;color:#94a3b8;margin-top:2px;">Close: $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
         '<div style="background:#E3F8EC;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#00893E;">TP</div><div style="font-weight:700;font-size:13px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
         '<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#C62828;">SL</div><div style="font-weight:700;font-size:13px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
         '</div>' : '') +
@@ -1218,11 +1218,13 @@ window.runProEngineModal = async function() {
 
     resultEl.innerHTML =
       '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:20px;">' +
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">' +
       '<strong style="font-size:20px;color:#0D2244;">' + d.symbol + '</strong>' +
       '<span style="font-size:14px;color:#475569;">$' + d.price + '</span>' +
+      (d.marketState && d.marketState !== 'Regular Session' ? '<span style="font-size:10.5px;color:#F59E0B;font-weight:700;background:#FEF3D7;padding:2px 8px;border-radius:6px;">' + d.marketState + '</span>' : '') +
       '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
       '</div>' +
+      (d.marketState && d.marketState !== 'Regular Session' ? '<div style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">Regular Session Close: $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
 
       '<div style="font-size:13px;color:#475569;margin-bottom:6px;">Combined Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</div>' +
       '<div style="display:flex;gap:14px;font-size:12.5px;color:#64748b;margin-bottom:14px;padding:9px 12px;background:#F8FAFF;border-radius:8px;"><span>Technical: <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>News (AI): <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>Total: <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
@@ -1230,7 +1232,7 @@ window.runProEngineModal = async function() {
       (d.upcomingEarnings && d.upcomingEarnings.length ? '<div style="font-size:12px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 Next earnings:</strong> ' + d.upcomingEarnings.map(function(x){return x.date;}).join(' · ') + '</div>' : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
-        '<div style="background:#F8FAFF;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry</div><div style="font-weight:700;font-size:14px;">$' + d.price + '</div></div>' +
+        '<div style="background:#F8FAFF;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry' + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:14px;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">Close: $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
         '<div style="background:#E3F8EC;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#00893E;">Take Profit</div><div style="font-weight:700;font-size:14px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
         '<div style="background:#FFEBEE;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#C62828;">Stop Loss</div><div style="font-weight:700;font-size:14px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
         '</div>' : '<p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">No clear directional signal — score too low for a trade setup.</p>') +

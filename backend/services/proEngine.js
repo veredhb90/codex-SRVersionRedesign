@@ -41,23 +41,93 @@ const fetchJSON = (url, retries = 3) => new Promise((resolve, reject) => {
 
 const resolveSymbol = (symbol) => symbol.toUpperCase().trim();
 
+// Instant local check (no API call) - is it currently pre-market or after-hours
+// for US markets? Only in THOSE windows do we need the heavier intraday fetch;
+// during regular hours or fully-closed periods the light daily fetch is already correct.
+// Are we CURRENTLY inside regular NYSE trading hours (9:30am-4:00pm ET, weekdays)?
+// This is the ONLY state where a single live price is sufficient (Google-Finance-style).
+// Every other state (pre-market, after-hours, or the dead overnight/weekend period)
+// needs the dual-price treatment: freshest last-traded price + the regular close.
+const isRegularSessionNow = () => {
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false, weekday: 'short' });
+  const parts = fmt.formatToParts(new Date());
+  const get = (type) => parts.find(p => p.type === type).value;
+  const weekday = get('weekday');
+  if (weekday === 'Sat' || weekday === 'Sun') return false;
+  const hour = parseInt(get('hour'), 10);
+  const minute = parseInt(get('minute'), 10);
+  const mins = hour * 60 + minute;
+  const regularStart = 9 * 60 + 30, regularEnd = 16 * 60;
+  return mins >= regularStart && mins < regularEnd;
+};
+
 const getQuote = async (symbol) => {
   const resolved = resolveSymbol(symbol);
   const cached = fromProCache('quote_' + resolved);
   if (cached) return cached;
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=1d&range=5d`;
-  const json = await fetchJSON(url);
-  const result = json.chart.result[0];
-  const meta = result.meta;
-  const closes = result.indicators.quote[0].close.filter(c => c != null);
-  const price = meta.regularMarketPrice;
-  const prevClose = meta.chartPreviousClose || closes[closes.length - 2] || price;
-  const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
-  const quote = {
-    symbol: resolved, price, changePct,
-    shortName: meta.shortName || meta.symbol,
-    high52: meta.fiftyTwoWeekHigh, low52: meta.fiftyTwoWeekLow,
-  };
+
+  const regular = isRegularSessionNow();
+  let quote;
+
+  if (!regular) {
+    // Anytime we're NOT in regular trading hours (pre-market, after-hours, or
+    // the dead overnight/weekend period) - Google-Finance style: always show
+    // BOTH the freshest last-traded price AND the official regular-session close.
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=1m&range=1d&includePrePost=true`;
+    const json = await fetchJSON(url);
+    const result = json.chart.result[0];
+    const meta = result.meta;
+    const ts = result.timestamp || [];
+    const intradayCloses = (result.indicators.quote[0].close || []);
+
+    let freshPrice = meta.regularMarketPrice;
+    let priceTime = meta.regularMarketTime;
+    for (let i = intradayCloses.length - 1; i >= 0; i--) {
+      if (intradayCloses[i] != null) { freshPrice = intradayCloses[i]; priceTime = ts[i]; break; }
+    }
+
+    const regularSessionPrice = meta.regularMarketPrice;
+    const prevClose = meta.chartPreviousClose || meta.previousClose || regularSessionPrice;
+    const changePct = prevClose ? ((freshPrice - prevClose) / prevClose) * 100 : 0;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const ctp = meta.currentTradingPeriod || {};
+    // Only the narrow pre-market window gets that specific label; everything
+    // else outside regular hours (post-close, dead of night, weekend) is
+    // labeled After-Hours, matching how Google persists that label overnight.
+    const marketState = (ctp.pre && nowSec < ctp.pre.end) ? 'Pre-Market' : 'After-Hours';
+
+    quote = {
+      symbol: resolved,
+      price: freshPrice,
+      regularSessionPrice,
+      changePct, marketState, priceTime,
+      shortName: meta.shortName || meta.symbol,
+      high52: meta.fiftyTwoWeekHigh, low52: meta.fiftyTwoWeekLow,
+    };
+  } else {
+    // Regular trading hours right now - a single live price is correct and sufficient.
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=1d&range=5d`;
+    const json = await fetchJSON(url);
+    const result = json.chart.result[0];
+    const meta = result.meta;
+    const closes = result.indicators.quote[0].close.filter(c => c != null);
+    const price = meta.regularMarketPrice;
+    const prevClose = meta.chartPreviousClose || closes[closes.length - 2] || price;
+    const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
+
+    quote = {
+      symbol: resolved,
+      price,
+      regularSessionPrice: price,
+      changePct,
+      marketState: 'Regular Session',
+      priceTime: meta.regularMarketTime,
+      shortName: meta.shortName || meta.symbol,
+      high52: meta.fiftyTwoWeekHigh, low52: meta.fiftyTwoWeekLow,
+    };
+  }
+
   toProCache('quote_' + resolved, quote);
   return quote;
 };
@@ -179,7 +249,7 @@ const adx = (highs, lows, closes, period = 14) => {
 // ── MAIN: Technical-only scoring (NO news — Claude handles that separately) ──
 const getProTechnicalScore = async (symbol) => {
   const quote = await getQuote(symbol);
-  const { price, changePct } = quote;
+  const { price, changePct, regularSessionPrice, marketState } = quote;
   const candles = await getCandles(symbol, 120);
 
   if (!candles || candles.c.length < 20) {
@@ -286,7 +356,7 @@ const getProTechnicalScore = async (symbol) => {
   const direction = score > 0 ? 'BUY' : score < 0 ? 'SELL' : 'NEUTRAL';
 
   return {
-    symbol: quote.symbol, name: quote.shortName, price, changePct,
+    symbol: quote.symbol, name: quote.shortName, price, changePct, regularSessionPrice, marketState,
     breakdown,
     score, signals, direction, realAtr,
   };

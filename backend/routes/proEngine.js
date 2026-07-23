@@ -67,7 +67,9 @@ router.get('/:symbol', protect, requirePro, async (req, res) => {
       symbol,
       name: technical.name,
       price: technical.price,
+      regularSessionPrice: technical.regularSessionPrice || technical.price,
       changePct: technical.changePct,
+      marketState: technical.marketState || 'Regular Session',
 
       // Combined result
       score: combinedScore,

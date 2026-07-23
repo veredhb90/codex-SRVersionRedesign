@@ -228,7 +228,7 @@ router.post('/', protect, async (req, res) => {
           riskReward = +((Math.abs(takeProfit - tech.price) / Math.abs(stopLoss - tech.price)).toFixed(2));
         }
         return {
-          symbol: sym, price: tech.price, changePct: tech.changePct,
+          symbol: sym, price: tech.price, regularSessionPrice: tech.regularSessionPrice || tech.price, changePct: tech.changePct, marketState: tech.marketState || 'Regular Session',
           direction, score: combinedScore, confidence,
           takeProfit, stopLoss, riskReward,
           technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
@@ -258,7 +258,7 @@ router.post('/', protect, async (req, res) => {
 \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
   SWINGRUSH PRO ENGINE: ${sym}
 \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d
-Price: $${e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}%
+${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}%
 SIGNAL: ${e.direction} | Combined Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
 ${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}` : 'No trade setup \u2014 score below conviction threshold'}
 TECHNICAL BREAKDOWN (${e.technicalScore} pts):
@@ -499,6 +499,41 @@ CRITICAL: always use this exact date/time above as "now" — never guess, never 
 
   } catch(err) {
     console.error('Chat error:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Save a system-generated AI message directly to a session ──────
+// Used when the frontend injects a Pro Engine analysis summary into the
+// chat window without an actual Claude round-trip, so it still persists.
+router.post('/save-message', protect, async (req, res) => {
+  try {
+    const { sessionId, content } = req.body;
+    if (!content) return res.status(400).json({ message: 'content required' });
+
+    let session;
+    if (sessionId && sessionId !== 'NEW') {
+      try { session = await ChatSession.findOne({ _id: sessionId, user: req.user._id }); } catch (e) {}
+    }
+    if (!session && sessionId !== 'NEW') {
+      session = await ChatSession.findOne({
+        user: req.user._id,
+        updatedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+      }).sort({ updatedAt: -1 });
+    }
+    if (!session) {
+      session = await ChatSession.create({ user: req.user._id, title: 'New Chat', messages: [] });
+    }
+
+    session.messages.push({ role: 'ai', content });
+    if (session.messages.length === 1) {
+      session.title = content.length > 45 ? content.substring(0, 45) + '...' : content;
+    }
+    await session.save();
+
+    res.json({ sessionId: session._id });
+  } catch (err) {
+    console.error('save-message error:', err.message);
     res.status(500).json({ message: err.message });
   }
 });

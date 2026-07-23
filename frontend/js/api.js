@@ -46,6 +46,7 @@ const API = {
   scanTop5:            (refresh) => API._req('/scanner/top5'+(refresh?'?refresh=true':'')),
   leaderboard:         ()        => API._req('/leaderboard'),
   getChatSessions:     ()        => API._req('/chat/sessions'),
+  saveChatMessage:     (b)       => API._req('/chat/save-message', { method:'POST', body:JSON.stringify(b) }),
   getChatSession:      (id)      => API._req('/chat/sessions/' + id),
   newChatSession:      ()        => API._req('/chat/sessions', { method:'POST' }),
   deleteChatSession:   (id)      => API._req('/chat/sessions/' + id, { method:'DELETE' }),
