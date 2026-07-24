@@ -449,7 +449,8 @@ OVER $100:  ${buys.filter(r => r.price >= 100).map(r => `${r.symbol}:+${r.score}
 
     // ── Trader profile ───────────────────────────────────────────
     const firstName = (user.fullName || '').split(' ')[0] || '';
-    const nameContext = firstName ? '\nThe user\'s first name is ' + firstName + '. Address them by name naturally sometimes (not every message) \u2014 the way a person who knows them would, not forced or repetitive.\n' : '';
+    console.log('[NAME DEBUG] user.fullName:', JSON.stringify(user.fullName), '| computed firstName:', JSON.stringify(firstName));
+    const nameContext = firstName ? '\nThe user\'s first name is ' + firstName + '. Use their name whenever you judge it fits naturally \u2014 greetings, acknowledging a point they made, wrapping up a recommendation, etc. Use your own judgment on frequency, but don\'t go silent on it either.\n' : '';
     let profileContext = '';
     if (user.traderProfile && user.traderProfile.onboardingDone) {
       const p = user.traderProfile;
