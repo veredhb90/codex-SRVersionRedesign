@@ -352,7 +352,7 @@ router.post('/:id/comment', protect, async (req, res) => {
     if (String(rec.user._id) !== String(req.user._id)) {
       io.notifyUser && io.notifyUser(String(rec.user._id), 'notification', {
         type:'comment', title:`💬 @${req.user.username||req.user.fullName} commented on your $${rec.symbol} call`,
-        body:text.trim().slice(0,60), recId:rec._id, time:new Date(),
+        body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), time:new Date(),
       });
     }
     // Notify mentioned users (@username replies)
@@ -365,7 +365,7 @@ router.post('/:id/comment', protect, async (req, res) => {
           if (String(mu._id) === String(rec.user._id)) return;
           io.notifyUser && io.notifyUser(String(mu._id), 'notification', {
             type:'comment', title:`↩ @${req.user.username||req.user.fullName} replied to you on $${rec.symbol}`,
-            body:text.trim().slice(0,60), recId:rec._id, fromUser:String(rec.user._id), time:new Date(),
+            body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), time:new Date(),
           });
         });
       }

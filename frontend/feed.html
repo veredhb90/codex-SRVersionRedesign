@@ -339,7 +339,7 @@
       const icons = { new_rec:'📡', win:'🏆', loss:'💸', like:'❤️', comment:'💬', repost:'↩', instrument:'🔔', follow:'👤' };
       const goRec  = n.recId ? String(n.recId) : '';
       const goUser = n.fromUser ? String(n.fromUser) : '';
-      return `<div class="notif-item" data-rec="${goRec}" data-user="${goUser}" onclick="notifClick(this)" style="${(goRec||goUser)?'cursor:pointer;':''}">
+      return `<div class="notif-item" data-rec="${goRec}" data-user="${goUser}" data-type="${n.type}" onclick="notifClick(this)" style="${(goRec||goUser)?'cursor:pointer;':''}">
         <div class="notif-icon">${icons[n.type]||'🔔'}</div>
         <div class="notif-body">
           <div class="notif-title">${n.title}</div>
@@ -352,9 +352,12 @@
 
   window.notifClick = async function(el) {
     closeNotif();
-    var u = el.dataset.user, r = el.dataset.rec;
-    if (u && r) { location.href = '/profile.html?id=' + u + '&rec=' + r; return; }
-    if (u) { location.href = '/profile.html?id=' + u; return; }
+    var u = el.dataset.user, r = el.dataset.rec, t = el.dataset.type;
+    // For like/comment notifications, always go to the CALL itself (its owner's
+    // profile, highlighted), never to the liker/commenter's own profile.
+    var goToCallDirectly = (t === 'like' || t === 'comment') && r;
+    if (!goToCallDirectly && u && r) { location.href = '/profile.html?id=' + u + '&rec=' + r; return; }
+    if (!goToCallDirectly && u) { location.href = '/profile.html?id=' + u; return; }
     if (r) {
       try {
         var res = await fetch('/api/recommendations/' + r + '/owner', { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') } });
