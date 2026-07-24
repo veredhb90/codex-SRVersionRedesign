@@ -80,6 +80,7 @@ io.notifyUser = async (userId, event, data) => {
       title: data.title || '',
       body:  data.body  || '',
       recId: data.recId || null,
+      fromUser: data.fromUser || null,
     });
   } catch(e) { console.log('Notification save error:', e.message); }
 

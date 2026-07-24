@@ -3,7 +3,7 @@ const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const Recommendation = require('../models/Recommendation');
 const yf   = require('../services/yahooFinance');
-const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert } = require('../services/emailService');
+const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert } = require('../services/emailService');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 
@@ -28,12 +28,6 @@ const checkOutcome = async (rec, io) => {
       const author = await User.findById(rec.user).select('fullName username email');
 
       // ── Notify & email the REC OWNER ─────────────────────────────
-      await Notification.create({
-        user: rec.user, type:'win',
-        title:`🏆 Your $${rec.symbol} call hit Take Profit!`,
-        body:`+${rec.returnPct}% return · Great call!`,
-        recId: rec._id,
-      }).catch(()=>{});
       io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
         type:'win', title:`🏆 Your $${rec.symbol} call hit Take Profit!`,
         body:`+${rec.returnPct}% return · Great call!`, recId:rec._id, time:new Date(),
@@ -46,12 +40,16 @@ const checkOutcome = async (rec, io) => {
       // ── Notify followers ──────────────────────────────────────────
       const followers = await User.find({ following:rec.user }).select('_id email');
       followers.forEach(f => {
-        io.notifyUser && io.notifyUser(String(f._id), 'notification', {
-          type:'win', title:`🏆 @${author?.username||author?.fullName}'s $${rec.symbol} hit Take Profit!`,
-          body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
-        });
-        sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
-          .catch(()=>{});
+        try {
+          io.notifyUser && io.notifyUser(String(f._id), 'notification', {
+            type:'win', title:`🏆 @${author?.username||author?.fullName}'s $${rec.symbol} hit Take Profit!`,
+            body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
+          });
+          if (f.email) {
+            sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
+              .catch(e => console.log('Follower win email failed for', f.email, ':', e.message));
+          }
+        } catch (e) { console.log('Follower win notification failed for', f._id, ':', e.message); }
       });
 
       // ── Notify instrument watchers ────────────────────────────────
@@ -75,12 +73,6 @@ const checkOutcome = async (rec, io) => {
       const author = await User.findById(rec.user).select('fullName username email');
 
       // ── Notify & email the REC OWNER on LOSS ─────────────────────
-      await Notification.create({
-        user: rec.user, type:'loss',
-        title:`💸 Your $${rec.symbol} call hit Stop Loss`,
-        body:`${rec.returnPct}% · Review your analysis`,
-        recId: rec._id,
-      }).catch(()=>{});
       io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
         type:'loss', title:`💸 Your $${rec.symbol} call hit Stop Loss`,
         body:`${rec.returnPct}% · Review your analysis`, recId:rec._id, time:new Date(),
@@ -93,14 +85,16 @@ const checkOutcome = async (rec, io) => {
       // ── Notify followers on LOSS ────────────────────────
       const followers = await User.find({ following:rec.user }).select('_id email');
       followers.forEach(f => {
-        io.notifyUser && io.notifyUser(String(f._id), 'notification', {
-          type:'loss', title:`💸 @${author?.username||author?.fullName}'s $${rec.symbol} hit Stop Loss`,
-          body:`${rec.returnPct}%`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
-        });
-        if (f.email) {
-          sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
-            .catch(()=>{});
-        }
+        try {
+          io.notifyUser && io.notifyUser(String(f._id), 'notification', {
+            type:'loss', title:`💸 @${author?.username||author?.fullName}'s $${rec.symbol} hit Stop Loss`,
+            body:`${rec.returnPct}%`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
+          });
+          if (f.email) {
+            sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
+              .catch(e => console.log('Follower loss email failed for', f.email, ':', e.message));
+          }
+        } catch (e) { console.log('Follower loss notification failed for', f._id, ':', e.message); }
       });
 
     } else { await rec.save(); }
