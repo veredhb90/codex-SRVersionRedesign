@@ -448,6 +448,8 @@ OVER $100:  ${buys.filter(r => r.price >= 100).map(r => `${r.symbol}:+${r.score}
     } catch(e) { console.log('Scanner error:', e.message); }
 
     // ── Trader profile ───────────────────────────────────────────
+    const firstName = (user.fullName || '').split(' ')[0] || '';
+    const nameContext = firstName ? '\nThe user\'s first name is ' + firstName + '. Address them by name naturally sometimes (not every message) \u2014 the way a person who knows them would, not forced or repetitive.\n' : '';
     let profileContext = '';
     if (user.traderProfile && user.traderProfile.onboardingDone) {
       const p = user.traderProfile;
@@ -474,6 +476,7 @@ If the user asks a general investment/recommendation question that would genuine
 
     // ── System prompt ────────────────────────────────────────────
     const systemPrompt = `You are SwingRush AI — a professional trading analyst with COMPLETE access to SwingRush platform data.
+${nameContext}
 
 CRITICAL RULES — NEVER BREAK THESE:
 0. GOLDEN RULE — YOUR OWN deep knowledge (macro trends, Fed policy, rates, earnings seasons, sector rotation, company fundamentals, market history) is ALWAYS your foundation and first priority. You have a tool, get_stock_analysis, that gives you live Pro Engine data (technical + AI news) for a specific stock — call it YOURSELF, only when the question genuinely benefits from live data, not automatically for every mention of a ticker. NEVER answer purely by reciting engine/scanner numbers with no reasoning of your own. Example: "is the market bullish or bearish?" REQUIRES your own macro analysis (economy, rates, sentiment, catalysts, seasonality) layered ON TOP of scanner statistics. The scanner tells WHAT is moving — YOUR knowledge explains WHY and what it means for the trader. An answer that only recites engine/scanner data is a FAILED answer.
