@@ -132,19 +132,25 @@ const getQuote = async (symbol) => {
   return quote;
 };
 
-const getCandles = async (symbol, days = 120) => {
+const getCandles = async (symbol, days = 120, interval = '1d') => {
   const resolved = resolveSymbol(symbol);
   const now = Math.floor(Date.now() / 1000);
   const from = now - days * 86400;
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=1d&period1=${from}&period2=${now}`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=${interval}&period1=${from}&period2=${now}`;
   const json = await fetchJSON(url);
   const result = json.chart.result[0];
   const q = result.indicators.quote[0];
-  const closes = q.close.filter(c => c != null);
-  const highs  = q.high.filter(c => c != null);
-  const lows   = q.low.filter(c => c != null);
-  const vols   = (q.volume || []).filter(c => c != null);
-  return { c: closes, h: highs, l: lows, v: vols };
+  const ts = result.timestamp || [];
+  // Filter to indices where close is valid, keeping all fields aligned to the same indices
+  const validIdx = [];
+  for (let i = 0; i < q.close.length; i++) { if (q.close[i] != null) validIdx.push(i); }
+  const closes = validIdx.map(i => q.close[i]);
+  const highs  = validIdx.map(i => q.high[i]);
+  const lows   = validIdx.map(i => q.low[i]);
+  const opens  = validIdx.map(i => q.open[i]);
+  const times  = validIdx.map(i => ts[i]);
+  const vols   = validIdx.map(i => (q.volume || [])[i] || 0);
+  return { c: closes, h: highs, l: lows, v: vols, o: opens, t: times };
 };
 
 // ── Technical indicator math (standard formulas) ────────────────────
@@ -355,11 +361,16 @@ const getProTechnicalScore = async (symbol) => {
   const realAtr = atr(highs, lows, closes) || (price * 0.02);
   const direction = score > 0 ? 'BUY' : score < 0 ? 'SELL' : 'NEUTRAL';
 
+  const rowCandles = closes.map((close, i) => ({
+    time: candles.t[i], open: candles.o[i], high: highs[i], low: lows[i], close,
+  }));
+
   return {
     symbol: quote.symbol, name: quote.shortName, price, changePct, regularSessionPrice, marketState,
     breakdown,
     score, signals, direction, realAtr,
+    candles: rowCandles,
   };
 };
 
-module.exports = { getProTechnicalScore, getQuote };
+module.exports = { getProTechnicalScore, getQuote, getCandles };

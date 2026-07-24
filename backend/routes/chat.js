@@ -2,7 +2,7 @@ const express    = require('express');
 const router     = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { getEngineRecommendation } = require('../services/yahooFinance');
-const { getProTechnicalScore } = require('../services/proEngine');
+const { getProTechnicalScore, getCandles } = require('../services/proEngine');
 const { getClaudeNewsAnalysis } = require('../services/claudeNewsAnalysis');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
@@ -35,6 +35,17 @@ const extractSymbols = (text) => {
     'ME','MY','SO','IF','IS','IT','AT','ON','IN','TO','OF','OR','AN','AS',
     'BE','BY','DO','GO','HE','WE','UP','US','AM','PM','OK','NO','YES','ANY',
     'GRAPH','CHART','CHARTS','TREND','STOCKS','SCORE','GRAPHS',
+    'SHE','WAS','HER','HIS','HIM','WHO','OUR','OUT','OFF','OVER',
+    'INTO','HERE','WANT','NEED','TAKE','MAKE','LIKE','JUST','KNOW',
+    'LOOK','FIND','KEEP','COME','LET','SAY','SAYS','TRY','HELP',
+    'SOME','SUCH','MUCH','MANY','ONLY','VERY','EVEN','ALSO','BOTH',
+    'MUST','COULD','ASKED','ASK','TELLS','FEEL','FEELS','SEEM','SEEMS',
+    'LOOKS','MAYBE','STILL','EVER','NEVER','ALWAYS','OFTEN','SOON',
+    'LATER','THEN','WHOM','WHILE','DURING','AFTER','BEFORE','SINCE',
+    'UNTIL','THUS','MOVE','MOVES','HOLD','HOLDS','WAIT','WAITS',
+    'WORK','WORKS','PLAN','PLANS','PLAY','PLAYS','LIVE','LIVES',
+    'REAL','TRUE','FACT','FACTS','CASE','CASES','PART','PARTS',
+    'SIDE','SIDES','WAYS','WAY','LINE','LINES','HALF','ROSE','FELL',
   ]);
   const found = [];
   for (const w of words) {
@@ -47,13 +58,85 @@ const extractSymbols = (text) => {
 };
 
 // ── Call Claude ────────────────────────────────────────────────────
-const callClaude = (messages, systemPrompt) => new Promise((resolve, reject) => {
+// ── Run the Pro Engine (technical + AI news) for one symbol ─────────
+// Returns null if there's insufficient data. Used by the get_stock_analysis tool.
+const runProEngineFor = async (sym) => {
+  const [tech, newsA] = await Promise.all([
+    getProTechnicalScore(sym),
+    getClaudeNewsAnalysis(sym),
+  ]);
+  if (tech.insufficientData) return null;
+  const combinedScore = tech.score + newsA.score;
+  const absScore = Math.abs(combinedScore);
+  const MIN_SCORE = 4;
+  const hasSignal = absScore >= MIN_SCORE;
+  const direction = !hasSignal ? 'NEUTRAL' : (combinedScore > 0 ? 'BUY' : 'SELL');
+  let confidence = 'Insufficient';
+  if (hasSignal) {
+    if (absScore >= 17) confidence = 'Very High';
+    else if (absScore >= 12) confidence = 'High';
+    else if (absScore >= 8) confidence = 'Medium';
+    else confidence = 'Low';
+  }
+  const tpMult = absScore >= 12 ? 4.5 : absScore >= 8 ? 3.5 : absScore >= 5 ? 2.5 : 2.0;
+  const slMult = 1.5;
+  const realAtr = tech.realAtr || (tech.price * 0.02);
+  let takeProfit = null, stopLoss = null, riskReward = null;
+  if (direction !== 'NEUTRAL') {
+    takeProfit = direction === 'BUY' ? +(tech.price + realAtr * tpMult).toFixed(2) : +(tech.price - realAtr * tpMult).toFixed(2);
+    stopLoss   = direction === 'BUY' ? +(tech.price - realAtr * slMult).toFixed(2) : +(tech.price + realAtr * slMult).toFixed(2);
+    riskReward = +((Math.abs(takeProfit - tech.price) / Math.abs(stopLoss - tech.price)).toFixed(2));
+  }
+  return {
+    symbol: sym, price: tech.price, regularSessionPrice: tech.regularSessionPrice || tech.price, changePct: tech.changePct, marketState: tech.marketState || 'Regular Session',
+    direction, score: combinedScore, confidence,
+    takeProfit, stopLoss, riskReward,
+    technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
+    newsScore: newsA.score, newsLabel: newsA.label, newsSummary: newsA.summary,
+    catalysts: newsA.catalysts || [], risks: newsA.risks || [],
+    analystSummary: newsA.analystSummary || '',
+    holdingPeriod: newsA.holdingPeriod || '',
+    upcomingEarnings: newsA.upcomingEarnings || [],
+    priceHistory: tech.candles || [],
+    news: [],
+  };
+};
+
+// ── Format a Pro Engine result into readable text for Claude ────────
+const formatProEngineText = (e, sym) => {
+  const breakdownText = (e.technicalBreakdown || []).map(b => `  ${b.indicator}: ${b.points > 0 ? '+' : ''}${b.points} (${b.note})`).join('\n');
+  const catalystsText = (e.catalysts || []).length ? e.catalysts.map(c => `  \u2022 ${c}`).join('\n') : '  None identified';
+  const risksText = (e.risks || []).length ? e.risks.map(r2 => `  \u2022 ${r2}`).join('\n') : '  None identified';
+  return `SWINGRUSH PRO ENGINE: ${sym}
+${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}%
+SIGNAL: ${e.direction} | Combined Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
+${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}` : 'No trade setup \u2014 score below conviction threshold'}
+TECHNICAL BREAKDOWN (${e.technicalScore} pts):
+${breakdownText}
+AI NEWS ANALYSIS (${e.newsScore > 0 ? '+' : ''}${e.newsScore} pts) \u2014 ${e.newsLabel}:
+${e.newsSummary}
+CATALYSTS:
+${catalystsText}
+RISKS:
+${risksText}
+${e.analystSummary ? 'ANALYST CONSENSUS: ' + e.analystSummary : ''}
+${e.holdingPeriod ? 'RECOMMENDED HOLDING PERIOD: ' + e.holdingPeriod : ''}
+${e.upcomingEarnings && e.upcomingEarnings.length ? 'UPCOMING EARNINGS (confirmed dates - cite these exactly, never guess other dates): ' + e.upcomingEarnings.map(x => x.date + ' (Q' + x.quarter + ' FY' + x.year + ', ' + x.hour + ')').join('; ') : 'No confirmed upcoming earnings date in the calendar.'}
+RAW DAILY PRICE HISTORY (last 30 trading days, oldest to newest \u2014 use this to answer ANY historical question yourself):
+${(e.priceHistory || []).slice(-30).map(c => {
+  const d = new Date(c.time * 1000);
+  return d.toISOString().split('T')[0] + ': close $' + c.close.toFixed(2) + ' (open $' + c.open.toFixed(2) + ', high $' + c.high.toFixed(2) + ', low $' + c.low.toFixed(2) + ')';
+}).join('\n')}`;
+};
+
+// ── Raw single API call to Claude, returns the full parsed response ──
+const callClaudeRaw = (messages, systemPrompt, tools) => new Promise((resolve, reject) => {
   const body = JSON.stringify({
     model: 'claude-sonnet-4-6',
     max_tokens: 2000,
     system: systemPrompt,
     messages,
-    tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+    tools,
   });
   const req = https.request({
     hostname: 'api.anthropic.com',
@@ -71,10 +154,7 @@ const callClaude = (messages, systemPrompt) => new Promise((resolve, reject) => 
       try {
         const parsed = JSON.parse(data);
         if (parsed.error) return reject(new Error(parsed.error.message));
-        // Response may contain multiple blocks (text + tool_use + tool_result + more text)
-        // when web_search was used. Join all text blocks into one final answer.
-        const textBlocks = (parsed.content || []).filter(b => b.type === 'text').map(b => b.text);
-        resolve(textBlocks.join('\n\n'));
+        resolve(parsed);
       } catch(e) { reject(e); }
     });
   });
@@ -82,6 +162,108 @@ const callClaude = (messages, systemPrompt) => new Promise((resolve, reject) => 
   req.write(body);
   req.end();
 });
+
+// ── Tool definitions - Claude decides for himself when to use these ──
+const CLAUDE_TOOLS = [
+  { type: 'web_search_20250305', name: 'web_search' },
+  {
+    name: 'get_stock_analysis',
+    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators (RSI, EMA, MACD, ADX, etc), AI-powered news analysis with real catalysts and risks, upcoming earnings dates, suggested holding period, and current price (including pre-market/after-hours if applicable). Call this ONLY when the user is asking about a specific stock in a way that genuinely benefits from live technical/news data (e.g. "should I buy X", "what\'s the signal on X", "analyze X") \u2014 do NOT call this for general knowledge questions about a company (like "who is the CEO"), for questions your own knowledge already answers well, or just because a ticker is mentioned in passing.',
+    input_schema: {
+      type: 'object',
+      properties: { symbol: { type: 'string', description: 'The stock ticker symbol, e.g. NVDA, AAPL, TSLA' } },
+      required: ['symbol'],
+    },
+  },
+  {
+    name: 'show_chart',
+    description: 'Display a candlestick price chart for a specific stock to the user. Call this when the user explicitly asks to see a chart or graph, OR whenever you judge that a visual chart would genuinely help illustrate your point (e.g. discussing a specific price pattern, support/resistance levels, or a trend that\'s easier to see than describe). Use your own judgment \u2014 you don\'t need an explicit request every time, but don\'t show a chart for every single stock mention either; only when it adds real value.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string', description: 'The stock ticker symbol to chart, e.g. NVDA' },
+        timeframe: { type: 'string', enum: ['1d', '1h'], description: 'Candle timeframe: \'1d\' for daily candles (default, good for swing-trade overviews), \'1h\' for hourly candles (better for intraday/short-term detail). Use \'1h\' if the user asks for hourly, intraday, or short-term detail; otherwise default to \'1d\'.' },
+      },
+      required: ['symbol'],
+    },
+  },
+];
+
+// ── Execute a tool call server-side and return its result text ──────
+const executeTool = async (toolName, toolInput, chartRequests) => {
+  if (toolName === 'get_stock_analysis') {
+    const sym = (toolInput.symbol || '').toUpperCase().trim();
+    try {
+      const result = await runProEngineFor(sym);
+      if (!result) return `No sufficient price history available for ${sym}.`;
+      return formatProEngineText(result, sym);
+    } catch (e) {
+      return `Failed to fetch analysis for ${sym}: ${e.message}`;
+    }
+  }
+  if (toolName === 'show_chart') {
+    const sym = (toolInput.symbol || '').toUpperCase().trim();
+    const timeframe = toolInput.timeframe === '1h' ? '1h' : '1d';
+    try {
+      // Charts only need price/candle data (pure Yahoo Finance) — deliberately
+      // avoid the full Pro Engine (which also calls Finnhub for news) so a chart
+      // request can NEVER fail due to Finnhub rate limits. Fetch candles directly
+      // at the requested timeframe (daily or hourly).
+      const days = timeframe === '1h' ? 10 : 120;
+      const raw = await getCandles(sym, days, timeframe);
+      const rowCandles = (raw.c || []).map((close, i) => ({
+        time: raw.t[i], open: raw.o[i], high: raw.h[i], low: raw.l[i], close,
+      }));
+      if (!rowCandles.length) {
+        return `No chart data available for ${sym} at ${timeframe} timeframe.`;
+      }
+      const lastClose = rowCandles[rowCandles.length - 1].close;
+      chartRequests.push({
+        symbol: sym, price: lastClose, direction: 'NEUTRAL',
+        score: 0, confidence: '', takeProfit: null, stopLoss: null, riskReward: null,
+        candles: rowCandles, timeframe, news: [],
+      });
+      return `Chart for ${sym} (${timeframe} candles) is now displayed to the user.`;
+    } catch (e) {
+      console.log('[SHOW_CHART ERROR]', sym, '|', e.message, '|', e.stack);
+      return `Failed to load chart for ${sym}: ${e.message}`;
+    }
+  }
+  return `Unknown tool: ${toolName}`;
+};
+
+// ── Full tool-use loop: Claude decides if/when to call tools, we execute
+// them server-side, feed results back, and repeat until he gives a final answer.
+const callClaude = async (messages, systemPrompt) => {
+  const chartRequests = [];
+  let convo = [...messages];
+  const MAX_ROUNDS = 5;
+
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const parsed = await callClaudeRaw(convo, systemPrompt, CLAUDE_TOOLS);
+    console.log('[TOOL LOOP] round', round, '| stop_reason:', parsed.stop_reason, '| blocks:', (parsed.content || []).map(b => b.type + (b.type === 'tool_use' ? ':' + b.name + '(' + JSON.stringify(b.input) + ')' : '')).join(', '));
+
+    if (parsed.stop_reason === 'tool_use') {
+      const toolUseBlocks = (parsed.content || []).filter(b => b.type === 'tool_use');
+      const textSoFar = (parsed.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n\n');
+
+      convo.push({ role: 'assistant', content: parsed.content });
+
+      const toolResults = [];
+      for (const block of toolUseBlocks) {
+        const resultText = await executeTool(block.name, block.input || {}, chartRequests);
+        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultText });
+      }
+      convo.push({ role: 'user', content: toolResults });
+      continue;
+    }
+
+    const textBlocks = (parsed.content || []).filter(b => b.type === 'text').map(b => b.text);
+    return { text: textBlocks.join('\n\n'), charts: chartRequests };
+  }
+
+  return { text: 'I had trouble completing that analysis \u2014 please try again.', charts: chartRequests };
+};
 
 // ── Fetch candles for chart display ────────────────────────────────
 const fetchCandles = (symbol) => new Promise((resolve) => {
@@ -195,92 +377,7 @@ router.post('/', protect, async (req, res) => {
         }
       }
     }
-    let engineResults = '';
-    const needsEngine = symbols.length > 0;
-    let engineRunResults = []; // kept in outer scope for chart building later
-    if (needsEngine) {
-      console.log('Chat: running PRO engine for', symbols);
-      const proResults = await Promise.allSettled(symbols.map(async (sym) => {
-        const [tech, newsA] = await Promise.all([
-          getProTechnicalScore(sym),
-          getClaudeNewsAnalysis(sym),
-        ]);
-        if (tech.insufficientData) return null;
-        const combinedScore = tech.score + newsA.score;
-        const absScore = Math.abs(combinedScore);
-        const MIN_SCORE = 4;
-        const hasSignal = absScore >= MIN_SCORE;
-        const direction = !hasSignal ? 'NEUTRAL' : (combinedScore > 0 ? 'BUY' : 'SELL');
-        let confidence = 'Insufficient';
-        if (hasSignal) {
-          if (absScore >= 17) confidence = 'Very High';
-          else if (absScore >= 12) confidence = 'High';
-          else if (absScore >= 8) confidence = 'Medium';
-          else confidence = 'Low';
-        }
-        const tpMult = absScore >= 12 ? 4.5 : absScore >= 8 ? 3.5 : absScore >= 5 ? 2.5 : 2.0;
-        const slMult = 1.5;
-        const realAtr = tech.realAtr || (tech.price * 0.02);
-        let takeProfit = null, stopLoss = null, riskReward = null;
-        if (direction !== 'NEUTRAL') {
-          takeProfit = direction === 'BUY' ? +(tech.price + realAtr * tpMult).toFixed(2) : +(tech.price - realAtr * tpMult).toFixed(2);
-          stopLoss   = direction === 'BUY' ? +(tech.price - realAtr * slMult).toFixed(2) : +(tech.price + realAtr * slMult).toFixed(2);
-          riskReward = +((Math.abs(takeProfit - tech.price) / Math.abs(stopLoss - tech.price)).toFixed(2));
-        }
-        return {
-          symbol: sym, price: tech.price, regularSessionPrice: tech.regularSessionPrice || tech.price, changePct: tech.changePct, marketState: tech.marketState || 'Regular Session',
-          direction, score: combinedScore, confidence,
-          takeProfit, stopLoss, riskReward,
-          technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
-          newsScore: newsA.score, newsLabel: newsA.label, newsSummary: newsA.summary,
-          catalysts: newsA.catalysts || [], risks: newsA.risks || [],
-          analystSummary: newsA.analystSummary || '',
-          holdingPeriod: newsA.holdingPeriod || '',
-          upcomingEarnings: newsA.upcomingEarnings || [],
-          priceHistory: tech.candles || [],
-          news: [],
-        };
-      }));
-
-      engineRunResults = proResults.map(r => {
-        if (r.status === 'fulfilled' && r.value) return { status: 'fulfilled', value: r.value };
-        return { status: 'rejected' };
-      });
-
-      engineRunResults.forEach((r, idx) => {
-        if (r.status === 'fulfilled') {
-          const e = r.value;
-          const sym = symbols[idx];
-          const breakdownText = (e.technicalBreakdown || []).map(b => `  ${b.indicator}: ${b.points > 0 ? '+' : ''}${b.points} (${b.note})`).join('\n');
-          const catalystsText = (e.catalysts || []).length ? e.catalysts.map(c => `  \u2022 ${c}`).join('\n') : '  None identified';
-          const risksText = (e.risks || []).length ? e.risks.map(r2 => `  \u2022 ${r2}`).join('\n') : '  None identified';
-          engineResults += `
-\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
-  SWINGRUSH PRO ENGINE: ${sym}
-\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d
-${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}%
-SIGNAL: ${e.direction} | Combined Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
-${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}` : 'No trade setup \u2014 score below conviction threshold'}
-TECHNICAL BREAKDOWN (${e.technicalScore} pts):
-${breakdownText}
-AI NEWS ANALYSIS (${e.newsScore > 0 ? '+' : ''}${e.newsScore} pts) \u2014 ${e.newsLabel}:
-${e.newsSummary}
-CATALYSTS:
-${catalystsText}
-RISKS:
-${risksText}
-${e.analystSummary ? 'ANALYST CONSENSUS: ' + e.analystSummary : ''}
-${e.holdingPeriod ? 'RECOMMENDED HOLDING PERIOD: ' + e.holdingPeriod : ''}
-${e.upcomingEarnings && e.upcomingEarnings.length ? 'UPCOMING EARNINGS (confirmed dates - cite these exactly, never guess other dates): ' + e.upcomingEarnings.map(x => x.date + ' (Q' + x.quarter + ' FY' + x.year + ', ' + x.hour + ')').join('; ') : 'No confirmed upcoming earnings date in the calendar.'}
-RAW DAILY PRICE HISTORY (last 30 trading days, oldest to newest — use this to answer ANY historical question yourself: yesterday's change, N days ago, week-over-week, any date range, trend over any period, etc. Calculate percentages yourself from these real closes, never guess or estimate):
-${(e.priceHistory || []).slice(-30).map(c => {
-  const d = new Date(c.time * 1000);
-  return d.toISOString().split('T')[0] + ': close $' + c.close.toFixed(2) + ' (open $' + c.open.toFixed(2) + ', high $' + c.high.toFixed(2) + ', low $' + c.low.toFixed(2) + ')';
-}).join('\n')}
-`;
-        }
-      });
-    }
+    const needsEngine = symbols.length > 0; // used by community sentiment context below; actual engine data now comes via Claude's own tool calls
     // ── Community sentiment: what SwingRush traders are doing (open calls only) ──
     let communityContext = '';
     if (needsEngine && symbols.length > 0) {
@@ -379,9 +476,9 @@ If the user asks a general investment/recommendation question that would genuine
     const systemPrompt = `You are SwingRush AI — a professional trading analyst with COMPLETE access to SwingRush platform data.
 
 CRITICAL RULES — NEVER BREAK THESE:
-0. GOLDEN RULE — EVERY answer MUST combine BOTH sources: (a) YOUR OWN deep knowledge — macro trends, Fed policy, rates, earnings seasons, sector rotation, company fundamentals, market history — AND (b) engine/scanner data when available. NEVER answer from engine or scanner numbers alone. Example: "is the market bullish or bearish?" REQUIRES your own macro analysis (economy, rates, sentiment, catalysts, seasonality) layered ON TOP of scanner statistics. The scanner tells WHAT is moving — YOUR knowledge explains WHY and what it means for the trader. An answer that only recites engine/scanner data is a FAILED answer.
-0.5. DATA PRIORITY — NEVER MIX SCORING SYSTEMS, NEVER SAY \"SIGNAL ENGINE\": You are the SwingRush Pro AI Analyst. Every user talking to you is a Pro member using the Pro Engine — NEVER use the phrase \"Signal Engine\" anywhere in your responses, even if referenced internally below. If a symbol has a LIVE ENGINE ANALYSIS block above, that block is the ONLY authoritative score/direction/confidence for that symbol — call it \"the Pro Engine\" or \"my analysis\", never anything else. The FULL SCANNER block below is broad market scan data covering many stocks (a DIFFERENT, general-purpose dataset) and may show a DIFFERENT number for the same symbol than your Pro Engine analysis — this is expected and NOT an error; refer to it only as \"the market scanner\" or \"broader scan data\", NEVER as \"Signal Engine\". If a symbol appears in both, ALWAYS use the LIVE ENGINE ANALYSIS (Pro Engine) number and NEVER mention or compare it to the scanner's number for that same symbol unless the user explicitly asks about the difference. Use the FULL SCANNER data only for broad questions like \"best stocks today\" or \"stocks under $X\" where no single symbol's Pro Engine data applies.
-0.6. ALWAYS SHOW THE SCORE BREAKDOWN: Whenever a LIVE ENGINE ANALYSIS block is present for a symbol, your FIRST response about that symbol MUST explicitly state, in this exact order: (1) Technical score, (2) News/AI score, (3) Combined total score, (4) Confidence level. Never bury or omit this breakdown, and never make the user ask for it separately — show it automatically every time, formatted clearly (e.g. a small table or bolded line). This applies to every analysis response, not just when explicitly asked.
+0. GOLDEN RULE — YOUR OWN deep knowledge (macro trends, Fed policy, rates, earnings seasons, sector rotation, company fundamentals, market history) is ALWAYS your foundation and first priority. You have a tool, get_stock_analysis, that gives you live Pro Engine data (technical + AI news) for a specific stock — call it YOURSELF, only when the question genuinely benefits from live data, not automatically for every mention of a ticker. NEVER answer purely by reciting engine/scanner numbers with no reasoning of your own. Example: "is the market bullish or bearish?" REQUIRES your own macro analysis (economy, rates, sentiment, catalysts, seasonality) layered ON TOP of scanner statistics. The scanner tells WHAT is moving — YOUR knowledge explains WHY and what it means for the trader. An answer that only recites engine/scanner data is a FAILED answer.
+0.5. DATA PRIORITY — NEVER MIX SCORING SYSTEMS, NEVER SAY \"SIGNAL ENGINE\": You are the SwingRush Pro AI Analyst. Every user talking to you is a Pro member — NEVER use the phrase \"Signal Engine\" anywhere in your responses. If you called get_stock_analysis for a symbol, that result is the ONLY authoritative score/direction/confidence for that symbol — call it \"the Pro Engine\" or \"my analysis\", never anything else. The FULL SCANNER block below is separate broad market scan data covering many stocks and may show a DIFFERENT number for the same symbol than a fresh Pro Engine call — this is expected and NOT an error; refer to it only as \"the market scanner\", NEVER as \"Signal Engine\". Use the FULL SCANNER data only for broad questions like \"best stocks today\" or \"stocks under $X\" where calling get_stock_analysis on every stock wouldn't make sense.
+0.6. ALWAYS SHOW THE SCORE BREAKDOWN: Whenever you call get_stock_analysis and receive a result, your response MUST explicitly state, in this exact order: (1) Technical score, (2) News/AI score, (3) Combined total score, (4) Confidence level. Never bury or omit this breakdown — show it clearly (e.g. a small table or bolded line) any time you present Pro Engine results, whether or not the user explicitly asked for the breakdown.
 0.7. THE PRO ENGINE IS UNIVERSAL, NOT PERSONALIZED \u2014 NEVER CLAIM OTHERWISE: The Pro Engine's score, direction, confidence, TP, and SL for a symbol are OBJECTIVE and IDENTICAL for every user who asks \u2014 computed once from technical indicators and news, with zero awareness of any individual user's entry price, position size, or personal trade. NEVER say things like \"I gave SELL because I factored in your position at $X\" or \"the engine considered your situation\" \u2014 this is FALSE and misleads the user about how the system works. If the engine's direction conflicts with something the user mentioned (like high analyst BUY consensus, or their own entry price), explain the conflict using ONLY real engine logic (e.g. \"the engine is technical/news-driven and doesn't weigh analyst ratings as heavily as X and Y indicators\") \u2014 NEVER invent a personalization mechanism that does not exist. Structure every analysis in TWO CLEAR PARTS: FIRST give the general, objective Pro Engine result (same for any user) \u2014 direction, score breakdown, TP/SL, reasoning. THEN, and only if relevant, add a separate clearly-labeled section (e.g. \"For your specific position:\") using the user's trader profile and prior messages in this conversation to give personalized context \u2014 but always frame this as YOUR OWN added advice layered on top, never as something the engine itself calculated.
 0.8. IDENTIFY THE TIME HORIZON BEFORE CHOOSING YOUR DATA SOURCE: The Pro Engine and market scanner are calibrated for SHORT-TO-MEDIUM-TERM swing trades (roughly 1-3 weeks) \u2014 they are NOT relevant to every question just because a stock or investing is mentioned. Before answering, identify what timeframe the user actually means: (a) SHORT-TERM (days to a few weeks, \"should I buy now\", \"what's a good swing trade\") \u2014 the Pro Engine/scanner IS the right primary basis, use it as usual. (b) LONGER-TERM (months, \"half a year\", \"a year\", \"long-term investment\", retirement, general portfolio questions) \u2014 the Pro Engine's short-term technical signal is NOT the right basis for this answer. In this case, answer primarily from YOUR OWN fundamental/macro knowledge (business quality, growth, sector trends, valuation, diversification, risk) exactly as a knowledgeable analyst would with no engine at all, and only mention the Pro Engine/scanner as a brief aside noting it's calibrated for a shorter timeframe and not directly applicable. NEVER present short-term technical scanner results as if they answer a long-term investment question \u2014 that misleads the user. When genuinely unsure of the user's intended timeframe, ask a brief clarifying question rather than assuming.
 1. You have FULL access to ALL your knowledge — use it without any restrictions
@@ -430,7 +527,7 @@ SCORING:
 - 0-3: No clear signal
 
 ${stockContext ? `STOCK USER IS VIEWING:\n${stockContext}\n` : ''}
-${engineResults ? `\nLIVE ENGINE ANALYSIS:\n${engineResults}` : ''}
+
 ${communityContext}
 ${scannerContext}
 ${profileContext}
@@ -459,43 +556,20 @@ CRITICAL: always use this exact date/time above as "now" — never guess, never 
       ];
     }
 
-    const response = await callClaude(claudeMessages, systemPrompt);
-
-    // ── Save to session ──────────────────────────────────────────
+    const claudeResult = await callClaude(claudeMessages, systemPrompt);
+    const responseText = claudeResult.text;
+    const stockDataList = claudeResult.charts || [];
+    // ── Save to session ───────────────────────────
     session.messages.push({ role: 'user', content: message || 'Image uploaded' });
-    session.messages.push({ role: 'ai', content: response });
+    session.messages.push({ role: 'ai', content: responseText });
     if (session.messages.length <= 2) {
-      session.title = (message || 'Image analysis').length > 45 
-        ? (message || 'Image analysis').substring(0, 45) + '...' 
+      session.title = (message || 'Image analysis').length > 45
+        ? (message || 'Image analysis').substring(0, 45) + '...'
         : (message || 'Image analysis');
     }
     await session.save();
-
-    // Build chart data for frontend — supports multiple stocks (comparisons)
-    let stockDataList = [];
-    if (needsEngine && symbols.length > 0) {
-      for (let i = 0; i < symbols.length; i++) {
-        const sym = symbols[i];
-        const engineResult = engineRunResults[i] && engineRunResults[i].status === 'fulfilled' ? engineRunResults[i].value : null;
-        if (!engineResult) continue;
-        const candles = await fetchCandles(sym);
-        if (candles && candles.length > 10) {
-          stockDataList.push({
-            symbol:     sym,
-            price:      engineResult.price,
-            direction:  engineResult.direction,
-            score:      engineResult.score,
-            confidence: engineResult.confidence,
-            takeProfit: engineResult.takeProfit,
-            stopLoss:   engineResult.stopLoss,
-            news:       (engineResult.news || []).slice(0, 3),
-            candles:    candles,
-          });
-        }
-      }
-    }
-
-    res.json({ response, symbols, sessionId: session._id, stockData: stockDataList[0] || null, stockDataList });
+    console.log('[STOCKDATA] count:', stockDataList.length, '| symbols:', stockDataList.map(d => d.symbol + ' (' + (d.candles ? d.candles.length : 0) + ' candles)').join(', '));
+    res.json({ response: responseText, symbols, sessionId: session._id, stockData: stockDataList[0] || null, stockDataList });
 
   } catch(err) {
     console.error('Chat error:', err.message);

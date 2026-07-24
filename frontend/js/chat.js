@@ -31,6 +31,7 @@
       suggestEl.innerHTML =
         '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' signal right now?\')">'+  (isBuy?'▲':'▼') + ' Why ' + dir + '?</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Explain each indicator for ' + sym + ' and why score is ' + sc + '\')">📊 Explain score</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Show me the chart for ' + sym + '\')">📈 Show Chart</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Show me latest news with links for ' + sym + '\')">📰 News links</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'What are the main risks for this ' + sym + ' trade?\')">🔍 Risks</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Who is the CEO of ' + sym + ' and what were last earnings?\')">🏢 Company info</button>';
