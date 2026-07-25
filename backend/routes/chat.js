@@ -192,6 +192,11 @@ const CLAUDE_TOOLS = [
     description: 'Get broad technical-only scan results across the full 682-stock universe \u2014 all current BUY/SELL signals with price, TP, SL, confidence, grouped by price range. This is technical scanning only (no AI news analysis, no per-symbol depth) \u2014 use it ONLY for breadth questions like \'what are the best stocks today\', \'any good stocks under $50\', \'show me strong sell signals\'. Do NOT use this for a question about one specific stock \u2014 use get_stock_analysis instead, which is higher quality (real AI news analysis) and always takes priority over this scan for that symbol.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
+  {
+    name: 'get_my_calls',
+    description: 'Get the trade calls that THIS specific user (the one you are chatting with right now) has personally posted \u2014 their own open and closed positions, with entry price, TP/SL, and outcome (WIN/LOSS/OPEN). Use this when it would genuinely help to know the user\'s own trading history or current positions \u2014 for example if they ask how they are doing, ask for advice that should consider what they already hold, or reference \'my calls\'/\'my trades\'. This is different from get_market_scan or general community sentiment \u2014 it is specifically about this one user\'s own activity.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
 ];
 
 // ── Execute a tool call server-side and return its result text ──────
@@ -224,7 +229,7 @@ OVER \$100:  ${buys.filter(r => r.price >= 100).map(r => `${r.symbol}:+${r.score
   }
 };
 
-const executeTool = async (toolName, toolInput, chartRequests) => {
+const executeTool = async (toolName, toolInput, chartRequests, userId) => {
   if (toolName === 'get_stock_analysis') {
     const sym = (toolInput.symbol || '').toUpperCase().trim();
     try {
@@ -268,12 +273,28 @@ const executeTool = async (toolName, toolInput, chartRequests) => {
     if (!data) return 'No scan data available yet \u2014 the scanner may not have completed its first run.';
     return data;
   }
+  if (toolName === 'get_my_calls') {
+    try {
+      const mongoose = require('mongoose');
+      const Recommendation = mongoose.models.Recommendation || require('../models/Recommendation');
+      const recs = await Recommendation.find({ user: userId }).sort({ createdAt: -1 }).limit(20);
+      if (!recs.length) return 'This user has not posted any trade calls yet.';
+      const lines2 = recs.map(r => {
+        const status = r.isOpen ? 'OPEN' : (r.outcome === 'WIN' ? 'WIN' : r.outcome === 'LOSS' ? 'LOSS' : 'CLOSED');
+        const ret = !r.isOpen && r.returnPct ? ` (${r.returnPct > 0 ? '+' : ''}${r.returnPct}%)` : '';
+        return `${r.symbol} | ${r.direction} | Entry: $${r.entryPrice} | TP: $${r.takeProfit}${r.stopLoss ? ' | SL: $' + r.stopLoss : ''} | ${status}${ret} | Posted: ${r.createdAt.toISOString().split('T')[0]}`;
+      });
+      return `This user's own posted trade calls (most recent first):\n${lines2.join('\n')}`;
+    } catch (e) {
+      return `Failed to fetch user's calls: ${e.message}`;
+    }
+  }
   return `Unknown tool: ${toolName}`;
 };
 
 // ── Full tool-use loop: Claude decides if/when to call tools, we execute
 // them server-side, feed results back, and repeat until he gives a final answer.
-const callClaude = async (messages, systemPrompt) => {
+const callClaude = async (messages, systemPrompt, userId) => {
   const chartRequests = [];
   let convo = [...messages];
   const MAX_ROUNDS = 5;
@@ -290,7 +311,7 @@ const callClaude = async (messages, systemPrompt) => {
 
       const toolResults = [];
       for (const block of toolUseBlocks) {
-        const resultText = await executeTool(block.name, block.input || {}, chartRequests);
+        const resultText = await executeTool(block.name, block.input || {}, chartRequests, userId);
         toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultText });
       }
       convo.push({ role: 'user', content: toolResults });
@@ -566,7 +587,7 @@ CRITICAL: always use this exact date/time above as "now" — never guess, never 
       ];
     }
 
-    const claudeResult = await callClaude(claudeMessages, systemPrompt);
+    const claudeResult = await callClaude(claudeMessages, systemPrompt, req.user._id);
     const responseText = claudeResult.text;
     const stockDataList = claudeResult.charts || [];
     // ── Save to session ───────────────────────────
