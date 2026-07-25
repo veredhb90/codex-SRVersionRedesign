@@ -187,9 +187,43 @@ const CLAUDE_TOOLS = [
       required: ['symbol'],
     },
   },
+  {
+    name: 'get_market_scan',
+    description: 'Get broad technical-only scan results across the full 682-stock universe \u2014 all current BUY/SELL signals with price, TP, SL, confidence, grouped by price range. This is technical scanning only (no AI news analysis, no per-symbol depth) \u2014 use it ONLY for breadth questions like \'what are the best stocks today\', \'any good stocks under $50\', \'show me strong sell signals\'. Do NOT use this for a question about one specific stock \u2014 use get_stock_analysis instead, which is higher quality (real AI news analysis) and always takes priority over this scan for that symbol.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
 ];
 
 // ── Execute a tool call server-side and return its result text ──────
+// ── Fetch the full market scanner data (682 stocks), formatted for Claude ──
+// Returns null if no scan data is available yet.
+const fetchScannerData = async () => {
+  try {
+    const mongoose = require('mongoose');
+    const ScanResult = mongoose.models.ScanResult ||
+      mongoose.model('ScanResult', new mongoose.Schema({ results: Array, top5: Array, scannedCount: Number }, { strict: false }));
+    const doc = await ScanResult.findOne({ key: 'latest' });
+    if (!doc || !doc.results || !doc.results.length) return null;
+    const all = [...doc.results].sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+    const buys  = all.filter(r => r.direction === 'BUY');
+    const sells = all.filter(r => r.direction === 'SELL');
+    return `SWINGRUSH MARKET SCANNER (${doc.scannedCount} stocks scanned, last updated: ${new Date(doc.scannedAt).toLocaleString()})
+This is broad technical-only market scan data \u2014 NOT the same as a Pro Engine analysis for one symbol. If a symbol here also has a Pro Engine result, the Pro Engine number is authoritative, not this one.
+ALL BUY SIGNALS (${buys.length} stocks):
+${buys.map((r, i) => `${i+1}. ${r.symbol}: +${r.score} | \$${r.price} | TP:\$${r.takeProfit} | SL:\$${r.stopLoss} | ${r.confidence}`).join('\n')}
+ALL SELL SIGNALS (${sells.length} stocks):
+${sells.map((r, i) => `${i+1}. ${r.symbol}: ${r.score} | \$${r.price} | TP:\$${r.takeProfit} | SL:\$${r.stopLoss} | ${r.confidence}`).join('\n')}
+BY PRICE (BUY signals):
+UNDER \$20:  ${buys.filter(r => r.price < 20).map(r => `${r.symbol}:+${r.score}(\$${r.price})`).join(', ') || 'None'}
+\$20-\$50:    ${buys.filter(r => r.price >= 20 && r.price < 50).map(r => `${r.symbol}:+${r.score}(\$${r.price})`).join(', ') || 'None'}
+\$50-\$100:   ${buys.filter(r => r.price >= 50 && r.price < 100).map(r => `${r.symbol}:+${r.score}(\$${r.price})`).join(', ') || 'None'}
+OVER \$100:  ${buys.filter(r => r.price >= 100).map(r => `${r.symbol}:+${r.score}(\$${r.price})`).join(', ') || 'None'}`;
+  } catch (e) {
+    console.log('Scanner fetch error:', e.message);
+    return null;
+  }
+};
+
 const executeTool = async (toolName, toolInput, chartRequests) => {
   if (toolName === 'get_stock_analysis') {
     const sym = (toolInput.symbol || '').toUpperCase().trim();
@@ -228,6 +262,11 @@ const executeTool = async (toolName, toolInput, chartRequests) => {
       console.log('[SHOW_CHART ERROR]', sym, '|', e.message, '|', e.stack);
       return `Failed to load chart for ${sym}: ${e.message}`;
     }
+  }
+  if (toolName === 'get_market_scan') {
+    const data = await fetchScannerData();
+    if (!data) return 'No scan data available yet \u2014 the scanner may not have completed its first run.';
+    return data;
   }
   return `Unknown tool: ${toolName}`;
 };
@@ -414,38 +453,6 @@ ${sentimentParts.join('\n')}
       } catch (e) { console.log('Community sentiment error:', e.message); }
     }
 
-    // ── Full scanner data ────────────────────────────────────────
-    let scannerContext = '';
-    try {
-      const mongoose = require('mongoose');
-      const ScanResult = mongoose.models.ScanResult ||
-        mongoose.model('ScanResult', new mongoose.Schema({ results: Array, top5: Array, scannedCount: Number }, { strict: false }));
-      const doc = await ScanResult.findOne({ key: 'latest' });
-      if (doc && doc.results && doc.results.length > 0) {
-        const all = [...doc.results].sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
-        const buys  = all.filter(r => r.direction === 'BUY');
-        const sells = all.filter(r => r.direction === 'SELL');
-
-        scannerContext = `
-╔══════════════════════════════════════╗
-  SWINGRUSH FULL SCANNER (${doc.scannedCount} stocks scanned)
-  Last updated: ${new Date(doc.scannedAt).toLocaleString()}
-╚══════════════════════════════════════╝
-
-ALL BUY SIGNALS (${buys.length} stocks):
-${buys.map((r, i) => `${i+1}. ${r.symbol}: +${r.score} | $${r.price} | TP:$${r.takeProfit} | SL:$${r.stopLoss} | ${r.confidence}`).join('\n')}
-
-ALL SELL SIGNALS (${sells.length} stocks):
-${sells.map((r, i) => `${i+1}. ${r.symbol}: ${r.score} | $${r.price} | TP:$${r.takeProfit} | SL:$${r.stopLoss} | ${r.confidence}`).join('\n')}
-
-BY PRICE (BUY signals):
-UNDER $20:  ${buys.filter(r => r.price < 20).map(r => `${r.symbol}:+${r.score}($${r.price})`).join(', ') || 'None'}
-$20-$50:    ${buys.filter(r => r.price >= 20 && r.price < 50).map(r => `${r.symbol}:+${r.score}($${r.price})`).join(', ') || 'None'}
-$50-$100:   ${buys.filter(r => r.price >= 50 && r.price < 100).map(r => `${r.symbol}:+${r.score}($${r.price})`).join(', ') || 'None'}
-OVER $100:  ${buys.filter(r => r.price >= 100).map(r => `${r.symbol}:+${r.score}($${r.price})`).join(', ') || 'None'}
-`;
-      }
-    } catch(e) { console.log('Scanner error:', e.message); }
 
     // ── Trader profile ───────────────────────────────────────────
     const firstName = (user.fullName || '').split(' ')[0] || '';
@@ -480,8 +487,8 @@ If the user asks a general investment/recommendation question that would genuine
 ${nameContext}
 
 CRITICAL RULES — NEVER BREAK THESE:
-0. GOLDEN RULE — YOUR OWN deep knowledge (macro trends, Fed policy, rates, earnings seasons, sector rotation, company fundamentals, market history) is ALWAYS your foundation and first priority. You have a tool, get_stock_analysis, that gives you live Pro Engine data (technical + AI news) for a specific stock — call it YOURSELF, only when the question genuinely benefits from live data, not automatically for every mention of a ticker. NEVER answer purely by reciting engine/scanner numbers with no reasoning of your own. Example: "is the market bullish or bearish?" REQUIRES your own macro analysis (economy, rates, sentiment, catalysts, seasonality) layered ON TOP of scanner statistics. The scanner tells WHAT is moving — YOUR knowledge explains WHY and what it means for the trader. An answer that only recites engine/scanner data is a FAILED answer.
-0.5. DATA PRIORITY — NEVER MIX SCORING SYSTEMS, NEVER SAY \"SIGNAL ENGINE\": You are the SwingRush Pro AI Analyst. Every user talking to you is a Pro member — NEVER use the phrase \"Signal Engine\" anywhere in your responses. If you called get_stock_analysis for a symbol, that result is the ONLY authoritative score/direction/confidence for that symbol — call it \"the Pro Engine\" or \"my analysis\", never anything else. The FULL SCANNER block below is separate broad market scan data covering many stocks and may show a DIFFERENT number for the same symbol than a fresh Pro Engine call — this is expected and NOT an error; refer to it only as \"the market scanner\", NEVER as \"Signal Engine\". Use the FULL SCANNER data only for broad questions like \"best stocks today\" or \"stocks under $X\" where calling get_stock_analysis on every stock wouldn't make sense.
+0. GOLDEN RULE — PRIORITY ORDER, ALWAYS: (1) YOUR OWN knowledge and reasoning (macro trends, Fed policy, rates, earnings, sector rotation, fundamentals, market history) is your foundation, always applied. (2) get_stock_analysis (Pro Engine) — call it YOURSELF for a specific stock when live data genuinely helps; this uses REAL Claude AI analysis of raw news (not keyword matching), so it is the highest-quality live source. (3) get_market_scan (Scanner) — call it ONLY for broad/breadth questions across many stocks; it uses the same raw Yahoo/Finnhub data as the Pro Engine but scores news via fast keyword-matching, not real AI understanding, so it is lower quality per-symbol. If a symbol appears in both a Pro Engine result and a Scanner result, the Pro Engine number ALWAYS wins — never present scanner data as if it were Pro Engine analysis for that symbol. NEVER answer purely by reciting tool output with no reasoning of your own — layer your own knowledge on top always. Example: "is the market bullish or bearish?" REQUIRES your own macro analysis layered on top of any scan statistics you pull.
+0.5. NAMING — NEVER SAY \"SIGNAL ENGINE\": You are the SwingRush Pro AI Analyst; every user is a Pro member — never use the phrase \"Signal Engine\". Call get_stock_analysis results \"the Pro Engine\" or \"my analysis\". Call get_market_scan results \"the market scanner\" — it is expected and NOT an error for the scanner to show a different number than a fresh Pro Engine call for the same symbol (see rule 0 on which one wins).
 0.6. ALWAYS SHOW THE SCORE BREAKDOWN: Whenever you call get_stock_analysis and receive a result, your response MUST explicitly state, in this exact order: (1) Technical score, (2) News/AI score, (3) Combined total score, (4) Confidence level. Never bury or omit this breakdown — show it clearly (e.g. a small table or bolded line) any time you present Pro Engine results, whether or not the user explicitly asked for the breakdown.
 0.7. THE PRO ENGINE IS UNIVERSAL, NOT PERSONALIZED \u2014 NEVER CLAIM OTHERWISE: The Pro Engine's score, direction, confidence, TP, and SL for a symbol are OBJECTIVE and IDENTICAL for every user who asks \u2014 computed once from technical indicators and news, with zero awareness of any individual user's entry price, position size, or personal trade. NEVER say things like \"I gave SELL because I factored in your position at $X\" or \"the engine considered your situation\" \u2014 this is FALSE and misleads the user about how the system works. If the engine's direction conflicts with something the user mentioned (like high analyst BUY consensus, or their own entry price), explain the conflict using ONLY real engine logic (e.g. \"the engine is technical/news-driven and doesn't weigh analyst ratings as heavily as X and Y indicators\") \u2014 NEVER invent a personalization mechanism that does not exist. Structure every analysis in TWO CLEAR PARTS: FIRST give the general, objective Pro Engine result (same for any user) \u2014 direction, score breakdown, TP/SL, reasoning. THEN, and only if relevant, add a separate clearly-labeled section (e.g. \"For your specific position:\") using the user's trader profile and prior messages in this conversation to give personalized context \u2014 but always frame this as YOUR OWN added advice layered on top, never as something the engine itself calculated.
 0.8. IDENTIFY THE TIME HORIZON BEFORE CHOOSING YOUR DATA SOURCE: The Pro Engine and market scanner are calibrated for SHORT-TO-MEDIUM-TERM swing trades (roughly 1-3 weeks) \u2014 they are NOT relevant to every question just because a stock or investing is mentioned. Before answering, identify what timeframe the user actually means: (a) SHORT-TERM (days to a few weeks, \"should I buy now\", \"what's a good swing trade\") \u2014 the Pro Engine/scanner IS the right primary basis, use it as usual. (b) LONGER-TERM (months, \"half a year\", \"a year\", \"long-term investment\", retirement, general portfolio questions) \u2014 the Pro Engine's short-term technical signal is NOT the right basis for this answer. In this case, answer primarily from YOUR OWN fundamental/macro knowledge (business quality, growth, sector trends, valuation, diversification, risk) exactly as a knowledgeable analyst would with no engine at all, and only mention the Pro Engine/scanner as a brief aside noting it's calibrated for a shorter timeframe and not directly applicable. NEVER present short-term technical scanner results as if they answer a long-term investment question \u2014 that misleads the user. When genuinely unsure of the user's intended timeframe, ask a brief clarifying question rather than assuming.
@@ -533,7 +540,6 @@ SCORING:
 ${stockContext ? `STOCK USER IS VIEWING:\n${stockContext}\n` : ''}
 
 ${communityContext}
-${scannerContext}
 ${profileContext}
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
 Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true })} (server time)
