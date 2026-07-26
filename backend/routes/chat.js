@@ -242,27 +242,21 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
   }
   if (toolName === 'show_chart') {
     const sym = (toolInput.symbol || '').toUpperCase().trim();
-    const timeframe = toolInput.timeframe === '1h' ? '1h' : '1d';
     try {
-      // Charts only need price/candle data (pure Yahoo Finance) — deliberately
-      // avoid the full Pro Engine (which also calls Finnhub for news) so a chart
-      // request can NEVER fail due to Finnhub rate limits. Fetch candles directly
-      // at the requested timeframe (daily or hourly).
-      const days = timeframe === '1h' ? 10 : 120;
-      const raw = await getCandles(sym, days, timeframe);
-      const rowCandles = (raw.c || []).map((close, i) => ({
-        time: raw.t[i], open: raw.o[i], high: raw.h[i], low: raw.l[i], close,
-      }));
-      if (!rowCandles.length) {
-        return `No chart data available for ${sym} at ${timeframe} timeframe.`;
+      // Uses the exact same function as get_stock_analysis, so the chart's
+      // score/direction ALWAYS matches the Pro Engine result exactly — no
+      // separate recalculation, no possibility of the two numbers disagreeing.
+      const result = await runProEngineFor(sym);
+      if (!result || !result.priceHistory || !result.priceHistory.length) {
+        return `No chart data available for ${sym}.`;
       }
-      const lastClose = rowCandles[rowCandles.length - 1].close;
       chartRequests.push({
-        symbol: sym, price: lastClose, direction: 'NEUTRAL',
-        score: 0, confidence: '', takeProfit: null, stopLoss: null, riskReward: null,
-        candles: rowCandles, timeframe, news: [],
+        symbol: sym, price: result.price, direction: result.direction,
+        score: result.score, confidence: result.confidence,
+        takeProfit: result.takeProfit, stopLoss: result.stopLoss,
+        riskReward: result.riskReward, candles: result.priceHistory, news: [],
       });
-      return `Chart for ${sym} (${timeframe} candles) is now displayed to the user.`;
+      return `Chart for ${sym} is now displayed to the user. Score: ${result.score > 0 ? '+' : ''}${result.score}, direction: ${result.direction}.`;
     } catch (e) {
       console.log('[SHOW_CHART ERROR]', sym, '|', e.message, '|', e.stack);
       return `Failed to load chart for ${sym}: ${e.message}`;

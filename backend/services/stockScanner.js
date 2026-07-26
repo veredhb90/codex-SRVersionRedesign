@@ -266,7 +266,7 @@ const getTop5 = async (forceRefresh = false) => {
   const age       = Date.now() - new Date(doc.scannedAt).getTime();
   const day       = new Date().getUTCDay();
   const isWeekend = [0,6].includes(day);
-  const maxAge    = isWeekend ? 48*60*60*1000 : 2*60*60*1000;
+  const maxAge    = isWeekend ? 48*60*60*1000 : 6*60*60*1000;
   if (age > maxAge && !doc.running && !isScanning) {
     console.log('🔄 Stale scan, refreshing...');
     runFullScan().catch(console.error);
@@ -291,7 +291,7 @@ setTimeout(() => {
       runFullScan().catch(console.error);
     } else {
       const age = Date.now() - new Date(doc.scannedAt).getTime();
-      if (age > 2*60*60*1000) {
+      if (age > 6*60*60*1000) {
         console.log('🔄 Scan stale, refreshing...');
         runFullScan().catch(console.error);
       } else {
@@ -309,6 +309,6 @@ setInterval(() => {
     console.log('⏰ Scheduled scan...');
     runFullScan().catch(console.error);
   }
-}, 2*60*60*1000);
+}, 6*60*60*1000);
 
 module.exports = { getTop5, runFullScan, UNIVERSE };
