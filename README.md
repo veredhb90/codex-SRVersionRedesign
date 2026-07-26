@@ -6,7 +6,7 @@
 ![Claude API](https://img.shields.io/badge/AI-Claude%20API-D97757)
 ![Railway](https://img.shields.io/badge/Deployed%20on-Railway-0B0D0E?logo=railway&logoColor=white)
 
-A social trading network built around a live feed of real trade calls — traders post their BUY/SELL positions, follow each other, like and comment on calls, and build a public track record as their picks hit take-profit or stop-loss. Every call is backed by a three-tier AI-powered analysis engine and a Claude-based agentic assistant, giving the community real data behind every post.
+SwingRush is a full **free social network** for traders — post trade calls, like and comment on others' picks, follow traders you trust, and spot market trends together with the community, all at no cost to anyone. On top of that social core, the platform runs **three separate stock-analysis engines** with real market data behind every call, and an AI chat assistant — some parts free for everyone, some reserved for Pro subscribers.
 
 **Live site:** [swing-rush.com](https://swing-rush.com)
 
@@ -16,7 +16,19 @@ A social trading network built around a live feed of real trade calls — trader
 
 At its core, SwingRush is a social platform: users post trade calls to a public feed, follow other traders, like and comment on calls, and build a visible track record as their picks close as wins or losses — all with real-time notifications keeping the community connected.
 
-Behind every call sits a three-tier AI-powered analysis engine (a free technical engine, a Pro engine powered by real Claude AI news analysis, and a background market scanner covering 682 stocks), plus an AI chat assistant ("SwingRush AI") built on Claude's **Tool Use** architecture: instead of forcing live data into every response, Claude decides for itself — based on the question — whether to pull a live stock analysis, show a chart, or scan the broader market, always starting from its own financial knowledge first. The community's own open calls also feed back into the assistant as live sentiment context, so Claude can factor in what traders on the platform are actually positioned on for a given stock.
+In addition to the free social network, SwingRush runs **three tiers of stock analysis**: a **free technical engine** available to every user, a **Pro engine** that adds real Claude AI news analysis and is reserved for paying Pro subscribers, and a **background market scanner** covering 682 stocks that refreshes automatically and is browsable by anyone. The **AI chat assistant** ("SwingRush AI") is itself a **Pro-only feature** — free users can try one analysis via the free engine, but full unlimited AI chat, live Pro Engine analysis, and chart access require a Pro subscription. The chat is built on Claude's **Tool Use** architecture: instead of forcing live data into every response, Claude decides for itself — based on the question — whether to pull a live stock analysis, show a chart, scan the broader market, or check the user's own trade history, always starting from its own financial knowledge first. The community's own open calls also feed back into the assistant as live sentiment context, so Claude can factor in what traders on the platform are actually positioned on for a given stock.
+
+### Free vs. Pro — what each tier gets
+
+| | Free | Pro |
+|---|---|---|
+| Social feed — post, like, comment, follow | ✅ | ✅ |
+| Win/loss tracking & notifications | ✅ | ✅ |
+| Market Scanner (682 stocks) — view results | ✅ | ✅ |
+| Free Signal Engine analysis | 1 (one-time) | Unlimited |
+| Pro Engine (real AI news analysis, live pricing) | ❌ | ✅ Unlimited |
+| AI Chat ("SwingRush AI") | ❌ | ✅ Unlimited |
+| Earnings dates & priority support | ❌ | ✅ |
 
 ---
 
@@ -97,13 +109,14 @@ frontend/
 
 ## How the AI Chat Works
 
-The chat assistant is given three tools and decides on its own when (if ever) to use them:
+The chat assistant is given four tools and decides on its own when (if ever) to use them:
 
 | Tool | Purpose |
 |---|---|
 | `get_stock_analysis` | Runs the Pro Engine on one symbol — technical score + real AI news analysis |
 | `show_chart` | Displays a candlestick chart (daily or hourly) inline in the chat |
 | `get_market_scan` | Returns the latest cached results from the 682-stock background scan |
+| `get_my_calls` | Returns the current user's own open and closed trade calls, for personalized advice |
 
 **Priority order, enforced in the system prompt:** Claude's own financial knowledge always comes first → the Pro Engine (highest-quality live data, real AI news analysis) → the market scanner (broad, technical-only, used for market-wide questions). When the same symbol appears in both a Pro Engine result and a scan result, the Pro Engine number always wins.
 
