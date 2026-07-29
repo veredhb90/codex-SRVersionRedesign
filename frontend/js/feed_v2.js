@@ -31,6 +31,7 @@
     if (currentTab !== 'all') return;
     feedEl.insertAdjacentHTML('afterbegin', buildCard(rec));
     pulseCard(feedEl.querySelector(`[data-recid="${rec._id}"]`));
+    setTimeout(refreshLivePrices, 0);
     toast(`📡 @${rec.user?.username||rec.user?.fullName||'trader'} posted ${rec.direction} on $${rec.symbol}`, 'info', 4000);
     updatePopular();
   });
@@ -73,12 +74,13 @@
     loading = true;
     if (page === 1) feedEl.innerHTML = '<div class="spinner"></div>';
     try {
-      const recs = currentTab === 'all' ? await API.feedAll(page) : await API.feedFollowing();
+      const recs = (currentTab === 'all' ? await API.feedAll(page) : await API.feedFollowing())
+        .sort((a, b) => new Date(b.openedAt || b.createdAt) - new Date(a.openedAt || a.createdAt));
       if (page === 1) feedEl.innerHTML = '';
       if (!recs.length && page === 1) {
         feedEl.innerHTML = `<div style="text-align:center;color:var(--muted);padding:60px 20px;">
           <div style="font-size:40px;margin-bottom:12px;">📭</div>
-          <p>${currentTab==='following'?'Follow traders to see their calls here.':'No recommendations yet.'}</p>
+          <p>${currentTab==='following'?'Follow traders to see their trades here.':'No trades yet.'}</p>
         </div>`;
         loadMoreBtn && (loadMoreBtn.style.display = 'none'); return;
       }
@@ -90,6 +92,8 @@
           if (card) card.style.animation = 'cardEntrance 0.4s ease forwards';
         }, i * 60);
       });
+      // Quotes must refresh after cards exist; an earlier refresh would find no cards.
+      setTimeout(refreshLivePrices, 0);
       loadMoreBtn && (loadMoreBtn.style.display = recs.length < 20 ? 'none' : 'flex');
       page++;
     } catch (err) {
@@ -132,7 +136,9 @@
           if (tog) tog.click();
         }
         setTimeout(() => {
+          input.dataset.replyTo = replyBtn.dataset.commentId || '';
           input.value = '@' + replyBtn.dataset.username + ' ';
+          input.placeholder = 'Replying to @' + replyBtn.dataset.username + '…';
           input.focus();
           input.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }, 120);
@@ -150,13 +156,17 @@
     // Like
     const likeBtn = e.target.closest('.like-btn');
     if (likeBtn) {
+      if (likeBtn.disabled) return;
+      likeBtn.disabled = true;
       try {
         const res = await API.likeRec(likeBtn.dataset.id);
         likeBtn.querySelector('.like-count').textContent = res.likes;
-        likeBtn.classList.toggle('liked');
+        likeBtn.classList.toggle('liked', res.liked);
+        likeBtn.setAttribute('aria-pressed', String(res.liked));
         likeBtn.style.animation = 'heartPop 0.3s ease';
         setTimeout(() => likeBtn.style.animation = '', 300);
       } catch (err) { toast(err.message, 'error'); }
+      finally { likeBtn.disabled = false; }
       return;
     }
 
@@ -180,13 +190,17 @@
       const text    = input?.value?.trim();
       if (!text) return;
       try {
-        const comment = await API.postComment(recId, text);
+        commentSubmit.disabled = true;
+        const comment = await API.postComment(recId, text, input.dataset.replyTo);
         const section = document.getElementById('comments-' + recId);
         appendComment(section, comment, recId);
         input.value = '';
+        delete input.dataset.replyTo;
+        input.placeholder = 'Add a comment… (recommend, analyze, discuss)';
         const count = document.querySelector(`[data-recid="${recId}"] .comment-count`);
         if (count) count.textContent = parseInt(count.textContent||0) + 1;
       } catch (err) { toast(err.message, 'error'); }
+      finally { commentSubmit.disabled = false; }
       return;
     }
 
@@ -247,7 +261,7 @@
         return `<div class="popular-item" onclick="openSymbolModal('${item._id}')" style="cursor:pointer;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <span class="popular-sym">${item._id}</span>
-            <span style="font-size:12px;color:var(--muted);">${item.count} calls</span>
+            <span style="font-size:12px;color:var(--muted);">${item.count} trades</span>
           </div>
           <div class="sentiment-bar">
             <div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct>15?buyPct+'%':''}</div>
@@ -258,7 +272,7 @@
             <span style="color:var(--red);">▼ ${item.sells} SELL</span>
           </div>
         </div>`;
-      }).join('') || '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No calls today yet</p>';
+      }).join('') || '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No trades today yet</p>';
     } catch (_) {}
   }
   updatePopular();
@@ -281,7 +295,7 @@
       el.innerHTML = results.map((r,i) => {
         if (r.status !== 'fulfilled') return '';
         const q = r.value; const up = (q.changePct||0) >= 0;
-        return `<div class="mkt-row" onclick="openSymbolModal('${syms[i]}')" style="cursor:pointer;" title="View all ${syms[i]} calls">
+        return `<div class="mkt-row" onclick="openSymbolModal('${syms[i]}')" style="cursor:pointer;" title="View all ${syms[i]} trades">
           <span class="mkt-sym">${q.symbol}</span>
           <span class="mkt-px">$${(q.price||0).toFixed(2)}</span>
           <span class="mkt-chg" style="color:${up?'var(--green)':'var(--red)'};">${up?'▲':'▼'}${Math.abs(q.changePct||0).toFixed(2)}%</span>
@@ -302,10 +316,9 @@
         symMap[c.dataset.symbol].push(c);
       }
     });
-    for (const [sym, els] of Object.entries(symMap)) {
-      try {
-        const q = await API.quote(sym);
-        els.forEach(card => {
+    const quoteEntries = Object.entries(symMap);
+    const updateCards = function(els, q) {
+      els.forEach(card => {
           // Update live price
           const liveEl = card.querySelector('.live-price');
           if (liveEl) {
@@ -341,8 +354,16 @@
               retEl.style.fontWeight = '700';
             }
           }
-        });
-      } catch (_) {}
+      });
+    };
+
+    // Keep live cards responsive without sending every symbol at once.
+    for (let i = 0; i < quoteEntries.length; i += 4) {
+      const batch = quoteEntries.slice(i, i + 4);
+      const results = await Promise.allSettled(batch.map(([sym]) => API.quote(sym)));
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') updateCards(batch[index][1], result.value);
+      });
     }
   }
   refreshLivePrices(); // run immediately on load
@@ -401,7 +422,7 @@ async function openSymbolModal(symbol) {
 
     document.getElementById('modal-stats').innerHTML = `
       <div class="modal-stat-grid">
-        <div class="modal-stat"><div class="ms-val">${stats.total}</div><div class="ms-lbl">Total Calls</div></div>
+        <div class="modal-stat"><div class="ms-val">${stats.total}</div><div class="ms-lbl">Total Trades</div></div>
         <div class="modal-stat"><div class="ms-val c-green">${stats.buys}</div><div class="ms-lbl">BUY</div></div>
         <div class="modal-stat"><div class="ms-val c-red">${stats.sells}</div><div class="ms-lbl">SELL</div></div>
         <div class="modal-stat"><div class="ms-val">${stats.winRate}%</div><div class="ms-lbl">Win Rate</div></div>
@@ -489,13 +510,14 @@ function closeSymbolModal() {
 function threadComments(comments) {
   const items = (comments || []).map(c => {
     const m = String(c.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
-    return { c: c, mention: m ? m[1].toLowerCase() : null, children: [], depth: 0 };
+    return { c: c, id: String(c._id || ''), parentId: String(c.parentCommentId || ''), mention: m ? m[1].toLowerCase() : null, children: [], depth: 0 };
   });
   const authorOf = it => String(it.c.user?.username || it.c.user?.fullName || '').toLowerCase();
+  const byId = new Map(items.filter(it => it.id).map(it => [it.id, it]));
   const roots = [];
   items.forEach((it, idx) => {
-    let parent = null;
-    if (it.mention) {
+    let parent = it.parentId ? byId.get(it.parentId) : null;
+    if (!parent && it.mention) {
       for (let j = idx - 1; j >= 0; j--) {
         if (authorOf(items[j]) === it.mention) { parent = items[j]; break; }
       }
@@ -515,12 +537,13 @@ function renderCommentHtml(c, recId, depth) {
   const text   = String(c.text || '');
   const m      = text.match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
   const ind    = 22 * Math.min(Math.max(depth || (m ? 1 : 0), m ? 1 : 0), 2);
-  const replyBtn = `<button class="comment-reply-btn" data-username="${dataU}" data-rec="${recId}" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;margin-left:8px;font-weight:700;">↩ Reply</button>`;
+  const commentId = String(c._id || '');
+  const replyBtn = `<button class="comment-reply-btn" data-username="${dataU}" data-rec="${recId}" data-comment-id="${commentId}" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;margin-left:8px;font-weight:700;">↩ Reply</button>`;
   const userLink = c.user?._id
     ? `<a href="/profile.html?id=${c.user._id}" style="color:var(--accent2);font-weight:700;font-size:13px;text-decoration:none;">${uname}</a>`
     : `<strong style="color:var(--accent2);font-size:13px;">${uname}</strong>`;
   if (m) {
-    return `<div class="comment-item comment-reply" data-author="${dataU.toLowerCase()}" style="margin-left:${ind}px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;margin-top:4px;">
+    return `<div id="comment-${commentId}" class="comment-item comment-reply" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin-left:${ind}px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;margin-top:4px;">
       <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">↩ Reply to <span style="color:var(--accent2);font-weight:700;">@${m[1]}</span></div>
       ${userLink}
       <span style="font-size:13px;color:var(--text2);margin-left:8px;">${m[2]}</span>
@@ -528,7 +551,7 @@ function renderCommentHtml(c, recId, depth) {
       ${replyBtn}
     </div>`;
   }
-  return `<div class="comment-item" data-author="${dataU.toLowerCase()}">
+  return `<div id="comment-${commentId}" class="comment-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}">
       ${userLink}
       <span style="font-size:13px;color:var(--text2);margin-left:8px;">${text}</span>
       <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
@@ -539,12 +562,17 @@ function renderCommentHtml(c, recId, depth) {
 function appendComment(section, comment, recId) {
   const list = section.querySelector('.comment-list');
   if (!list) return;
+  const commentId = String(comment._id || '');
+  if (commentId && document.getElementById('comment-' + commentId)) return;
   const wrap = document.createElement('div');
   wrap.innerHTML = renderCommentHtml(comment, recId);
   const div = wrap.firstElementChild;
+  const parentId = String(comment.parentCommentId || '');
   const mm = String(comment.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s/);
   let placed = false;
-  if (mm) {
+  const parent = parentId && document.getElementById('comment-' + parentId);
+  if (parent) { parent.insertAdjacentElement('afterend', div); placed = true; }
+  else if (mm) {
     const kin = list.querySelectorAll('[data-author="' + mm[1].toLowerCase() + '"]');
     if (kin.length) { kin[kin.length - 1].insertAdjacentElement('afterend', div); placed = true; }
   }
@@ -603,7 +631,7 @@ function showRepostModal(recId, btn) {
       <p style="color:var(--muted);font-size:13px;margin-bottom:18px;">
         Add your comment or analysis on this recommendation. It will appear on your profile for others to see.
       </p>
-      <textarea id="repost-comment" placeholder="Share your thoughts on this call… (optional)"
+      <textarea id="repost-comment" placeholder="Share your thoughts on this trade… (optional)"
         style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:9px;
                font-family:var(--font-body);font-size:14px;resize:vertical;min-height:90px;
                outline:none;transition:border-color .2s;background:var(--bg2);"
@@ -710,10 +738,23 @@ function buildCard(r) {
   const isClosed = !r.isOpen;
   const isWin    = r.outcome === 'WIN';
   const isLoss   = r.outcome === 'LOSS';
-  const retColor = (r.returnPct||0) >= 0 ? 'var(--green)' : 'var(--red)';
+  const currentPrice = Number(r.currentPrice || r.entryPrice);
+  const openReturn = r.isOpen && r.entryPrice
+    ? (isBuy ? ((currentPrice - r.entryPrice) / r.entryPrice * 100) : ((r.entryPrice - currentPrice) / r.entryPrice * 100))
+    : Number(r.returnPct || 0);
+  const retColor = openReturn >= 0 ? 'var(--green)' : 'var(--red)';
+  const marketLabel = window.SRLang ? SRLang.t('feed.market_move', 'Market') : 'Market';
+  const callLabel = window.SRLang ? SRLang.t('feed.call_return', 'Trade P/L') : 'Trade P/L';
+  const openedDate = new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar' : 'en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  }).format(new Date(r.openedAt || r.createdAt));
+  const liveLabel = window.SRLang ? SRLang.t('feed.live', 'Live') : 'Live';
   const outcomeBadge = isClosed
     ? (isWin ? '<span class="outcome-badge badge-win">🏆 WIN</span>' : '<span class="outcome-badge badge-loss">💸 LOSS</span>')
     : '<span class="outcome-badge badge-open">● OPEN</span>';
+  const viewer = Auth.user();
+  const viewerId = String(viewer?._id || viewer?.id || '');
+  const likedByViewer = (r.likes || []).some(like => String(like?._id || like) === viewerId);
 
   const commentsHtml = threadComments(r.comments||[]).map(t => renderCommentHtml(t.c, r._id, t.depth)).join('');
 
@@ -725,7 +766,7 @@ function buildCard(r) {
        data-isopen="${r.isOpen?'true':'false'}">
     <div class="rec-header">
       <div>
-        <div class="rec-symbol rec-symbol-link" data-symbol="${r.symbol}" style="cursor:pointer;" title="View all ${r.symbol} calls">${r.symbol}</div>
+        <div class="rec-symbol rec-symbol-link" data-symbol="${r.symbol}" style="cursor:pointer;" title="View all ${r.symbol} trades">${r.symbol}</div>
         ${r.companyName?`<div class="rec-company">${r.companyName}</div>`:''}
       </div>
       ${assetTag(r.symbol)}
@@ -733,7 +774,7 @@ function buildCard(r) {
       ${outcomeBadge}
       ${r.source === 'engine' ? '<span style="font-size:10px;background:#e8f0fe;color:#1565c0;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">⚡ ENGINE</span>' : ''}
       ${r.source === 'repost' ? '<span style="font-size:10px;background:#f3e5f5;color:#7b1fa2;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">↩ REPOST</span>' : ''}
-      <div class="rec-time">${timeAgo(r.createdAt)}</div>
+      <div class="rec-time rec-opened-date" title="Trade opened date">Opened · ${openedDate}</div>
     </div>
     <div class="rec-user" style="margin-bottom:12px;">
       by <strong><a href="/profile.html?id=${r.user?._id || r.user}" style="color:var(--accent2);text-decoration:none;">@${r.user?.username || r.user?.fullName || 'trader'}</a></strong>
@@ -753,13 +794,15 @@ function buildCard(r) {
       </div>
     </div>
     <div class="rec-footer">
-      ${r.isOpen ? `<span class="live-price-tag">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
-        <span class="live-change" style="font-size:11px;color:var(--muted);margin-left:4px;"></span>
-      </span>` : `<span class="live-price-tag">${r.outcome==='WIN'?'🎯 Hit TP':'🛑 Hit SL'} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice))}</span>
+      ${r.isOpen ? `<span class="live-price-tag">${liveLabel}: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(currentPrice)}</span></span>
+        <div class="rec-live-metrics">
+          <span class="rec-live-metric"><span>${marketLabel}</span><strong class="live-change">—</strong></span>
+          <span class="rec-live-metric"><span>${callLabel}</span><strong class="live-return" style="color:${retColor};">${openReturn >= 0 ? '+' : ''}${openReturn.toFixed(2)}%</strong></span>
+        </div>` : `<span class="live-price-tag">${r.manualClose?'✓ Closed manually':(r.outcome==='WIN'?'🎯 Hit TP':'🛑 Hit SL')} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.closePrice || (r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice)))}</span>
         <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
       </span>`}
-      <span class="live-return" style="color:${retColor};font-family:var(--font-mono);font-size:13px;font-weight:700;">${r.isOpen?(r.returnPct?fmtPct(r.returnPct):'—'):(r.returnPct?fmtPct(r.returnPct):'—')}</span>
-      <button class="btn btn-sm btn-outline like-btn" data-id="${r._id}" style="margin-left:auto;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;">${r.likes?.length||0}</span></button>
+      ${r.isOpen ? '' : `<span class="live-return" style="color:${retColor};font-family:var(--font-mono);font-size:13px;font-weight:700;">${openReturn >= 0 ? '+' : ''}${openReturn.toFixed(2)}%</span>`}
+      <button class="btn btn-sm btn-outline like-btn ${likedByViewer ? 'liked' : ''}" data-id="${r._id}" aria-pressed="${likedByViewer}" style="margin-left:auto;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;">${r.likes?.length||0}</span></button>
       <button class="btn btn-sm btn-ghost comment-toggle" data-id="${r._id}">💬 <span class="comment-count">${r.comments?.length||0}</span></button>
       <button class="share-rec-btn">↗ Share</button>
       ${(() => {
@@ -805,18 +848,18 @@ setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
     rail.innerHTML = '<style>' +
       '@keyframes srActIn{from{opacity:0;transform:translateX(-14px);}to{opacity:1;transform:translateX(0);}}' +
       '@keyframes srPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,230,118,0.5);}50%{box-shadow:0 0 0 5px rgba(0,230,118,0);}}' +
-      '.sr-rail-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(13,71,161,0.07);max-height:300px;}' +
-      '.sr-rail-head{background:#0D2244;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;}' +
+      '.sr-rail-card{background:var(--surface);border:1px solid var(--border2);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow-sm);max-height:300px;color:var(--text);}' +
+      '.sr-rail-head{background:#10251f;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;border-bottom:1px solid rgba(126,226,176,.16);}' +
       '.sr-rail-body{overflow-y:auto;flex:1;}' +
-      '.sr-act-item{display:flex;gap:9px;align-items:flex-start;padding:9px 12px;border-bottom:1px solid #F0F5FC;cursor:pointer;font-size:12px;line-height:1.45;color:#1A2540;}' +
-      '.sr-act-item:hover{background:#F5F9FF;}' +
-      '.sr-act-item.fresh{animation:srActIn .45s ease;background:#F0FFF6;}' +
+      '.sr-act-item{display:flex;gap:9px;align-items:flex-start;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;line-height:1.45;color:var(--text);}' +
+      '.sr-act-item:hover{background:var(--surface2);}' +
+      '.sr-act-item.fresh{animation:srActIn .45s ease;background:rgba(37,208,111,.10);}' +
       '.sr-act-ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}' +
-      '.sr-act-time{font-size:10px;color:#94A3B8;margin-top:1px;}' +
-      '.sr-news-item{display:block;padding:9px 12px;border-bottom:1px solid #F0F5FC;cursor:pointer;text-decoration:none;}' +
-      '.sr-news-item:hover{background:#F5F9FF;}' +
-      '.sr-news-h{font-size:12px;color:#1A2540;font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}' +
-      '.sr-news-m{font-size:10px;color:#94A3B8;margin-top:3px;}' +
+      '.sr-act-time{font-size:10px;color:var(--muted);margin-top:1px;}' +
+      '.sr-news-item{display:block;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;text-decoration:none;background:var(--surface);}' +
+      '.sr-news-item:hover{background:var(--surface2);}' +
+      '.sr-news-h{font-size:12px;color:var(--text);font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}' +
+      '.sr-news-m{font-size:10px;color:var(--muted);margin-top:3px;}' +
       '</style>' +
       '<div class="sr-rail-card">' +
         '<div class="sr-rail-head"><span style="width:8px;height:8px;border-radius:50%;background:#00E676;animation:srPulse 1.6s infinite;"></span>' +
@@ -824,7 +867,7 @@ setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
         '<span style="margin-left:auto;font-size:9px;color:#00E676;font-weight:700;letter-spacing:1px;">LIVE</span></div>' +
         '<div class="sr-rail-body" id="sr-activity-list"></div></div>' +
       '<div class="sr-rail-card">' +
-        '<div class="sr-rail-head" style="background:#123a2b;"><span style="font-size:12px;">\ud83d\udcf0</span>' +
+        '<div class="sr-rail-head" style="background:#17231b;"><span style="font-size:12px;">\ud83d\udcf0</span>' +
         '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">MARKET NEWS</span>' +
         '<span style="margin-left:auto;font-size:9px;color:#7EE2B0;font-weight:700;letter-spacing:1px;">US</span></div>' +
         '<div class="sr-rail-body" id="sr-news-list"></div></div>';
@@ -860,7 +903,7 @@ setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
           return '<div class="sr-act-item'+(fresh?' fresh':'')+'" onclick="location.href=\'/profile.html?id='+a.userId+'&rec='+a.recId+'\'">'+
             '<span class="sr-act-ic" style="background:'+icBg(a.kind)+';">'+aIcon(a.kind)+'</span>'+
             '<span style="flex:1;">'+aLabel(a)+
-            (a.text?'<div style="color:#64748b;font-size:11px;font-style:italic;">&quot;'+a.text.replace(/</g,'&lt;')+'&quot;</div>':'')+
+            (a.text?'<div style="color:var(--text2);font-size:11px;font-style:italic;">&quot;'+a.text.replace(/</g,'&lt;')+'&quot;</div>':'')+
             '<div class="sr-act-time">'+(a.at?ago(a.at):'')+'</div></span></div>';
         }).join('')||'<div style="color:var(--muted);font-size:12px;padding:14px;">Nothing yet</div>';
         firstLoad=false;
@@ -925,7 +968,7 @@ window.openSymbolModal = async function(symbol) {
     var sellPct = openTotalCt > 0 ? 100 - buyPct : 0;
     document.getElementById('modal-stats').innerHTML =
       '<div class="modal-stat-grid">' +
-      '<div class="modal-stat"><div class="ms-val">' + stats.total + '</div><div class="ms-lbl">Total Calls</div></div>' +
+      '<div class="modal-stat"><div class="ms-val">' + stats.total + '</div><div class="ms-lbl">Total Trades</div></div>' +
       '<div class="modal-stat"><div class="ms-val c-green">' + stats.buys + '</div><div class="ms-lbl">BUY</div></div>' +
       '<div class="modal-stat"><div class="ms-val c-red">' + stats.sells + '</div><div class="ms-lbl">SELL</div></div>' +
       '<div class="modal-stat"><div class="ms-val">' + stats.winRate + '%</div><div class="ms-lbl">Win Rate</div></div></div>' +
@@ -970,16 +1013,16 @@ window.renderModalRecs = function(filter) {
   });
   list.innerHTML =
     '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">' +
-    (filter==='all'?'All':filter==='open'?'Open':'Closed') + ' Calls (' + rows.length + ')</div>' +
+    (filter==='all'?'All':filter==='open'?'Open':'Closed') + ' Trades (' + rows.length + ')</div>' +
     (rows.slice(0,15).map(function(r) {
       return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bg3);flex-wrap:wrap;">' +
         '<span class="' + (r.direction==='BUY'?'badge-buy':'badge-sell') + '">' + (r.direction==='BUY'?'\u25b2':'\u25bc') + ' ' + r.direction + '</span>' +
         '<span style="font-size:13px;">Entry: <strong>' + fmtPrice(r.entryPrice) + '</strong></span>' +
         '<span style="font-size:13px;">TP: <strong class="flash-green">' + fmtPrice(r.takeProfit) + '</strong></span>' +
-        '<span style="margin-left:auto;font-size:12px;color:var(--muted);"><a href="/profile.html?id=' + (r.user && (r.user._id || r.user)) + '" style="color:var(--accent2);text-decoration:none;font-weight:600;">' + (r.user&&r.user.username?'@'+r.user.username:((r.user&&r.user.fullName)||'Trader')) + '</a> \u00b7 ' + timeAgo(r.createdAt) + '</span>' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);"><a href="/profile.html?id=' + (r.user && (r.user._id || r.user)) + '" style="color:var(--accent2);text-decoration:none;font-weight:600;">' + (r.user&&r.user.username?'@'+r.user.username:((r.user&&r.user.fullName)||'Trader')) + '</a> · Opened ' + new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar' : 'en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(r.openedAt||r.createdAt)) + '</span>' +
         (r.outcome!=='OPEN'?'<span class="' + (r.outcome==='WIN'?'badge-win':'badge-loss') + '">' + (r.outcome==='WIN'?'\ud83c\udfc6':'\ud83d\udcb8') + ' ' + r.outcome + '</span>':'') +
         '</div>';
-    }).join('')||'<div style="color:var(--muted);font-size:13px;padding:12px 0;">No calls in this view</div>');
+    }).join('')||'<div style="color:var(--muted);font-size:13px;padding:12px 0;">No trades in this view</div>');
 };
 
 

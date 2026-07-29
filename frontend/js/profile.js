@@ -6,6 +6,8 @@
   const targetId = params.get('id');
   const me       = Auth.user();
   const isOwn    = !targetId || targetId === me?.id;
+  let profileTradeFilter = 'all';
+  let manualTrades = [];
 
   document.querySelectorAll('.nav-username').forEach(el => el.textContent = me?.username ? '@'+me.username : (me?.fullName||''));
 
@@ -17,6 +19,7 @@
       renderAllRecs(data.recommendations || []);
     } catch (err) { toast(err.message, 'error'); }
   }
+  window.reloadSwingRushProfile = loadProfile;
 
   // ── Header ───────────────────────────────────────────────────
   function renderHeader({ user, isFollowing }) {
@@ -36,6 +39,12 @@
         planBadge.style.cssText += 'display:inline-block;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.75);border:1px solid rgba(255,255,255,0.25);';
       }
     }
+    const context = document.getElementById('prof-context');
+    if (context) context.textContent = isOwn
+      ? SRLang.t('profile.your_workspace', 'YOUR TRADING WORKSPACE')
+      : SRLang.t('profile.trader_workspace', 'TRADER WORKSPACE');
+    const accountStatus = document.getElementById('profile-snapshot-status');
+    if (accountStatus) accountStatus.textContent = user.plan === 'pro' ? 'PRO' : 'FREE';
     document.getElementById('prof-avatar').textContent = initials(user.fullName);
     if (isOwn) document.getElementById('prof-email').textContent = user.email || '';
     // Show @username under name
@@ -89,7 +98,7 @@
   }
 
   function setFollowBtn(btn, isFollowing, userId, theyFollowMe) {
-    btn.textContent = isFollowing ? '✓ Following' : (theyFollowMe ? '↩ Follow Back' : '+ Follow');
+    btn.textContent = isFollowing ? '✓ ' + SRLang.t('profile.following_action', 'Following') : (theyFollowMe ? '↩ ' + SRLang.t('profile.follow_back', 'Follow Back') : '+ ' + SRLang.t('profile.follow', 'Follow'));
     btn.className   = `btn ${isFollowing ? 'btn-outline' : 'btn-primary'}`;
     btn.onclick = async () => {
       try {
@@ -103,10 +112,25 @@
   // ── Stats ─────────────────────────────────────────────────────
   function renderStats(s) {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const setReturn = (id, value) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = (value >= 0 ? '+' : '') + value + '%';
+      el.style.color = value >= 0 ? 'var(--green)' : 'var(--red)';
+    };
     set('stat-total',   s.total);
     set('stat-winrate', s.winRate + '%');
-    set('stat-return',  (s.totalReturn >= 0 ? '+' : '') + s.totalReturn + '%');
+    setReturn('stat-return', s.totalReturn);
+    setReturn('stat-open-return', s.openReturn || 0);
+    setReturn('stat-closed-return', s.closedReturn || 0);
     set('stat-open',    s.open);
+    set('profile-snapshot-calls', s.total);
+    const snapshotReturn = document.getElementById('profile-snapshot-return');
+    if (snapshotReturn) {
+      snapshotReturn.textContent = (s.totalReturn >= 0 ? '+' : '') + s.totalReturn + '%';
+      snapshotReturn.classList.toggle('is-positive', s.totalReturn >= 0);
+      snapshotReturn.classList.toggle('is-negative', s.totalReturn < 0);
+    }
     const wr  = document.getElementById('stat-winrate');
     if (wr)  wr.style.color  = s.winRate >= 55 ? 'var(--green)' : s.winRate >= 40 ? 'var(--gold)' : 'var(--red)';
     const ret = document.getElementById('stat-return');
@@ -115,41 +139,63 @@
 
   // ── Render 3 boxes ─────────────────────────────────────────────
   function renderAllRecs(recs) {
-    const myRecs     = recs.filter(r => !r.source || r.source === 'manual');
+    recs = [...recs].sort((a, b) => new Date(b.openedAt || b.createdAt) - new Date(a.openedAt || a.createdAt));
+    manualTrades     = recs.filter(r => !r.source || r.source === 'manual');
     const reposts    = recs.filter(r => r.source === 'repost');
     const engineRecs = recs.filter(r => r.source === 'engine');
 
-    const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n + ' calls'; };
-    setCount('count-my',      myRecs.length);
+    const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n + ' trades'; };
     setCount('count-reposts', reposts.length);
     setCount('count-engine',  engineRecs.length);
 
-    renderBox('profile-recs',       myRecs,     'No recommendations yet. Click "Share a Call" to post your first.');
-    renderBox('profile-reposts',    reposts,    'No reposts yet.');
-    renderBox('profile-engine-recs',engineRecs, 'No engine signals saved yet.');
+    renderProfileTrades();
+    renderBox('profile-reposts',    reposts,    'No reposts yet.', isOwn);
+    renderBox('profile-engine-recs',engineRecs, 'No engine signals saved yet.', isOwn);
   }
 
-  function renderBox(elId, recs, emptyMsg) {
+  function renderProfileTrades() {
+    const filtered = profileTradeFilter === 'open'
+      ? manualTrades.filter(r => r.isOpen)
+      : profileTradeFilter === 'closed'
+        ? manualTrades.filter(r => !r.isOpen)
+        : manualTrades;
+    const count = document.getElementById('count-my');
+    if (count) count.textContent = profileTradeFilter === 'all'
+      ? manualTrades.length + ' trades'
+      : filtered.length + ' of ' + manualTrades.length + ' trades';
+    document.querySelectorAll('.profile-trade-filter').forEach(button => {
+      button.classList.toggle('active', button.dataset.tradeFilter === profileTradeFilter);
+    });
+    const empty = profileTradeFilter === 'open'
+      ? 'No open trades.'
+      : profileTradeFilter === 'closed'
+        ? 'No closed trades yet.'
+        : 'No trades yet. Share your first trade when you are ready.';
+    renderBox('profile-recs', filtered, empty, isOwn);
+  }
+
+  function renderBox(elId, recs, emptyMsg, ownerViewing) {
     const el = document.getElementById(elId);
     if (!el) return;
     if (!recs.length) {
       el.innerHTML = `<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px;">${emptyMsg}</p>`;
       return;
     }
-    el.innerHTML = recs.map(r => buildProfileCard(r)).join('');
+    el.innerHTML = recs.map(r => buildProfileCard(r, ownerViewing)).join('');
   }
 
   // ── Reply-aware comment renderer ───────────────────────────────
   window.threadProfileComments = function(comments) {
     const items = (comments || []).map(c => {
       const m = String(c.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
-      return { c: c, mention: m ? m[1].toLowerCase() : null, children: [], depth: 0 };
+      return { c: c, id: String(c._id || ''), parentId: String(c.parentCommentId || ''), mention: m ? m[1].toLowerCase() : null, children: [], depth: 0 };
     });
     const authorOf = it => String(it.c.user?.username || it.c.user?.fullName || '').toLowerCase();
+    const byId = new Map(items.filter(it => it.id).map(it => [it.id, it]));
     const roots = [];
     items.forEach((it, idx) => {
-      let parent = null;
-      if (it.mention) {
+      let parent = it.parentId ? byId.get(it.parentId) : null;
+      if (!parent && it.mention) {
         for (let j = idx - 1; j >= 0; j--) {
           if (authorOf(items[j]) === it.mention) { parent = items[j]; break; }
         }
@@ -172,12 +218,13 @@
     const initial  = (dataU || '?').charAt(0).toUpperCase();
     const isReply  = !!m;
     const bodyText = m ? m[2] : text;
-    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" style="margin-left:auto;background:#F0F5FE;border:1px solid #D6E4F5;border-radius:12px;color:var(--accent2);font-size:10.5px;cursor:pointer;font-weight:700;padding:3px 10px;flex-shrink:0;">↩ Reply</button>`;
+    const commentId = String(c._id || '');
+    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" data-comment-id="${commentId}" style="margin-left:auto;background:#F0F5FE;border:1px solid #D6E4F5;border-radius:12px;color:var(--accent2);font-size:10.5px;cursor:pointer;font-weight:700;padding:3px 10px;flex-shrink:0;">↩ Reply</button>`;
     const nameLink = c.user?._id
       ? `<a href="/profile.html?id=${c.user._id}" style="text-decoration:none;color:var(--accent2);font-weight:800;font-size:12.5px;">${uname}</a>`
       : `<strong style="color:var(--accent2);font-size:12.5px;">${uname}</strong>`;
     const replyChip = isReply ? `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#64748b;background:#EEF4FF;border-radius:8px;padding:2px 8px;margin-bottom:5px;">↩ Reply to <b style="color:var(--accent2);">@${m[1]}</b></div>` : '';
-    return `<div class="pc-item" data-author="${dataU.toLowerCase()}" style="margin:6px 0 6px ${ind}px;${isReply?'border-left:2.5px solid #90CAF9;':''}padding:9px 11px;background:${isReply?'rgba(21,101,192,0.045)':'#fff'};border:1px solid #E3EEFF;border-radius:${isReply?'0 12px 12px 12px':'12px'};">
+    return `<div id="profile-comment-${commentId}" class="pc-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin:6px 0 6px ${ind}px;${isReply?'border-left:2.5px solid #90CAF9;':''}padding:9px 11px;background:${isReply?'rgba(21,101,192,0.045)':'#fff'};border:1px solid #E3EEFF;border-radius:${isReply?'0 12px 12px 12px':'12px'};">
       ${replyChip}
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${initial}</span>
@@ -191,6 +238,29 @@
 
   // ── Event delegation for comments ──────────────────────────────
   document.addEventListener('click', async (e) => {
+    const filterButton = e.target.closest('.profile-trade-filter');
+    if (filterButton) {
+      profileTradeFilter = filterButton.dataset.tradeFilter || 'all';
+      renderProfileTrades();
+      return;
+    }
+    const unsaveBtn = e.target.closest('[data-action="unsave-engine"]');
+    if (unsaveBtn) {
+      const recId = unsaveBtn.dataset.recid;
+      unsaveBtn.disabled = true;
+      unsaveBtn.textContent = 'Removing…';
+      try {
+        await API.unsaveEngine(recId);
+        toast('Saved engine trade removed', 'success');
+        window.reloadSwingRushProfile && window.reloadSwingRushProfile();
+      } catch (err) {
+        toast(err.message, 'error');
+        unsaveBtn.disabled = false;
+        unsaveBtn.textContent = 'Unsave Signal';
+      }
+      return;
+    }
+
     // Undo repost
     const undoBtn = e.target.closest('[data-action="undo-repost"]');
     if (undoBtn) {
@@ -199,8 +269,8 @@
       undoBtn.textContent = 'Removing…';
       try {
         await API.undoRepost(recId);
-        undoBtn.closest('.rec-card').remove();
         toast('Repost removed', 'success');
+        window.reloadSwingRushProfile && window.reloadSwingRushProfile();
       } catch (err) {
         toast(err.message, 'error');
         undoBtn.disabled = false;
@@ -231,26 +301,27 @@
       if (!text) return;
       submitBtn.disabled = true;
       try {
-        const comment = await API.postComment(recId, text);
+        const comment = await API.postComment(recId, text, inp.dataset.replyTo);
         inp.value = '';
         const list = document.getElementById('pcl-' + recId);
         if (list) {
-          const _me = Auth.user();
+          const commentId = String(comment._id || '');
+          if (commentId && document.getElementById('profile-comment-' + commentId)) return;
           const wrap = document.createElement('div');
-          wrap.innerHTML = renderProfileComment({
-            user: { _id: _me?.id, username: _me?.username, fullName: _me?.fullName },
-            text: comment.text,
-            createdAt: new Date(),
-          }, recId);
+          wrap.innerHTML = renderProfileComment(comment, recId);
           const el2 = wrap.firstElementChild;
+          const parent = comment.parentCommentId && document.getElementById('profile-comment-' + comment.parentCommentId);
           const mm = String(comment.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s/);
           let placed = false;
-          if (mm) {
+          if (parent) { parent.insertAdjacentElement('afterend', el2); placed = true; }
+          else if (mm) {
             const kin = list.querySelectorAll('[data-author="' + mm[1].toLowerCase() + '"]');
             if (kin.length) { kin[kin.length - 1].insertAdjacentElement('afterend', el2); placed = true; }
           }
           if (!placed) list.appendChild(el2);
         }
+        delete inp.dataset.replyTo;
+        inp.placeholder = 'Add a comment… (Enter to post)';
         // Update count
         const tb = document.querySelector(`[data-action="toggle-comments"][data-recid="${recId}"]`);
         if (tb) {
@@ -277,7 +348,9 @@
           if (tog) tog.click();
         }
         setTimeout(function() {
+          realInput.dataset.replyTo = pcReply.dataset.commentId || '';
           realInput.value = '@' + pcReply.dataset.username + ' ';
+          realInput.placeholder = 'Replying to @' + pcReply.dataset.username + '…';
           realInput.focus();
           realInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }, 120);
@@ -304,6 +377,7 @@
   // ── Share Form ─────────────────────────────────────────────────
   const symInput  = document.getElementById('share-symbol');
   const priceDisp = document.getElementById('share-price-disp');
+  const entryInput = document.getElementById('share-entry');
   const tpInput   = document.getElementById('share-tp');
   const slInput   = document.getElementById('share-sl');
   let livePrice   = null;
@@ -335,6 +409,7 @@
     e.preventDefault();
     const sym  = symInput.value.trim().toUpperCase();
     const dir  = document.querySelector('input[name="direction"]:checked')?.value || 'BUY';
+    const entry = entryInput?.value ? parseFloat(entryInput.value) : livePrice;
     const tp   = parseFloat(tpInput.value);
     const sl   = slInput.value ? parseFloat(slInput.value) : null;
     const note = document.getElementById('share-note')?.value?.trim();
@@ -343,16 +418,17 @@
 
     if (!sym)       return errEl && (errEl.textContent = 'Enter a symbol');
     if (!livePrice) return errEl && (errEl.textContent = 'Fetch a valid symbol first');
+    if (!Number.isFinite(entry) || entry <= 0) return errEl && (errEl.textContent = 'Enter a valid entry price');
     if (isNaN(tp))  return errEl && (errEl.textContent = 'Enter a take profit level');
-    if (dir==='BUY'  && tp<=livePrice) return errEl && (errEl.textContent = 'TP must be above current price');
-    if (dir==='SELL' && tp>=livePrice) return errEl && (errEl.textContent = 'TP must be below current price');
-    if (sl&&dir==='BUY'  &&sl>=livePrice) return errEl && (errEl.textContent = 'SL must be below entry for BUY');
-    if (sl&&dir==='SELL' &&sl<=livePrice) return errEl && (errEl.textContent = 'SL must be above entry for SELL');
+    if (dir==='BUY'  && tp<=entry) return errEl && (errEl.textContent = 'TP must be above entry for BUY');
+    if (dir==='SELL' && tp>=entry) return errEl && (errEl.textContent = 'TP must be below entry for SELL');
+    if (sl&&dir==='BUY'  &&sl>=entry) return errEl && (errEl.textContent = 'SL must be below entry for BUY');
+    if (sl&&dir==='SELL' &&sl<=entry) return errEl && (errEl.textContent = 'SL must be above entry for SELL');
 
     const btn = e.target.querySelector('[type=submit]');
     btn.disabled = true; btn.textContent = 'Posting…';
     try {
-      await API.postRec({ symbol:sym, takeProfit:tp, stopLoss:sl, direction:dir, note });
+      await API.postRec({ symbol:sym, entryPrice:entryInput?.value || undefined, takeProfit:tp, stopLoss:sl, direction:dir, note });
       toast('🚀 Posted to feed!', 'success');
       e.target.reset(); priceDisp.innerHTML = ''; livePrice = null;
       if (typeof closeShareForm === 'function') closeShareForm();
@@ -451,12 +527,71 @@ async function unfollowInstrument(sym) {
   } catch(err) { toast(err.message, 'error'); }
 }
 
+let activeCloseCall = null;
+
+function openCloseCall(recId, symbol, entryPrice, direction, currentPrice) {
+  activeCloseCall = { recId, symbol, entryPrice, direction, currentPrice };
+  const overlay = document.getElementById('close-call-overlay');
+  const priceInput = document.getElementById('close-call-price');
+  const summary = document.getElementById('close-call-summary');
+  document.getElementById('close-call-title').textContent = 'Close $' + symbol + ' ' + direction + ' trade';
+  summary.textContent = 'Entry: $' + Number(entryPrice).toFixed(2) + ' · Live: $' + Number(currentPrice || entryPrice).toFixed(2) + '. Your realized return will be recorded in your trader statistics.';
+  priceInput.value = currentPrice ? Number(currentPrice).toFixed(2) : '';
+  document.getElementById('close-call-error').textContent = '';
+  overlay.style.display = 'flex';
+  priceInput.focus();
+}
+
+function closeCallModal() {
+  document.getElementById('close-call-overlay').style.display = 'none';
+  activeCloseCall = null;
+}
+
+document.getElementById('close-call-overlay')?.addEventListener('click', function(event) {
+  if (event.target === this) closeCallModal();
+});
+
+document.getElementById('close-call-submit')?.addEventListener('click', async function() {
+  if (!activeCloseCall) return;
+  const btn = this;
+  const error = document.getElementById('close-call-error');
+  const rawPrice = document.getElementById('close-call-price').value;
+  const closePrice = rawPrice ? Number(rawPrice) : undefined;
+  if (rawPrice && (!Number.isFinite(closePrice) || closePrice <= 0)) {
+    error.textContent = 'Enter a valid exit price.';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Closing…';
+  try {
+    const rec = await API.closeRec(activeCloseCall.recId, { closePrice });
+    toast((rec.returnPct >= 0 ? 'Profit closed: +' : 'Loss closed: ') + rec.returnPct.toFixed(2) + '%', rec.returnPct >= 0 ? 'success' : 'info');
+    closeCallModal();
+    window.reloadSwingRushProfile && window.reloadSwingRushProfile();
+  } catch (err) {
+    error.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Close Trade';
+  }
+});
+
 // ── Profile card builder ───────────────────────────────────────────
 function buildProfileCard(r, isOwn) {
   const isBuy    = r.direction === 'BUY';
   const isClosed = !r.isOpen;
   const isWin    = r.outcome === 'WIN';
-  const retColor = (r.returnPct||0) >= 0 ? 'var(--green)' : 'var(--red)';
+  const current = Number(r.currentPrice || r.entryPrice);
+  const openReturn = r.isOpen && r.entryPrice
+    ? (isBuy ? ((current-r.entryPrice)/r.entryPrice*100) : ((r.entryPrice-current)/r.entryPrice*100))
+    : Number(r.returnPct || 0);
+  const retColor = openReturn >= 0 ? 'var(--green)' : 'var(--red)';
+  const viewer = Auth.user();
+  const viewerId = String(viewer?._id || viewer?.id || '');
+  const likedByViewer = (r.likes || []).some(like => String(like?._id || like) === viewerId);
+  const openedDate = new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar' : 'en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  }).format(new Date(r.openedAt || r.createdAt));
 
   const outcomeBadge = isClosed
     ? (isWin ? '<span class="badge-win">🏆 WIN</span>' : '<span class="badge-loss">💸 LOSS</span>')
@@ -481,7 +616,7 @@ function buildProfileCard(r, isOwn) {
       </div>
       <span class="${isBuy?'badge-buy':'badge-sell'}">${isBuy?'▲':'▼'} ${r.direction}</span>
       ${outcomeBadge}
-      <div class="rec-time" style="margin-left:auto;">${timeAgo(r.createdAt)}</div>
+      <div class="rec-time rec-opened-date" style="margin-left:auto;" title="Trade opened date">Opened · ${openedDate}</div>
     </div>
     ${repostOrigin}
     <div class="rec-prices">
@@ -492,11 +627,12 @@ function buildProfileCard(r, isOwn) {
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
       ${r.isOpen ? `<span style="font-size:12px;color:var(--muted);">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
       <span class="live-change" style="font-size:11px;color:var(--muted);margin-left:4px;"></span>
-    </span>` : `<span style="font-size:12px;color:var(--muted);">${r.outcome==='WIN'?'🎯 Hit TP':'🛑 Hit SL'} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice))}</span>
+    </span>` : `<span style="font-size:12px;color:var(--muted);">${r.manualClose?'✓ Closed manually':(r.outcome==='WIN'?'🎯 Hit TP':'🛑 Hit SL')} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.closePrice || (r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice)))}</span>
       <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
     </span>`}
-      <span class="live-return" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${retColor};">${r.returnPct?fmtPct(r.returnPct):'—'}</span>
-      <button class="like-btn" data-id="${r._id}" style="margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;font-weight:700;">${r.likes?.length||0}</span></button> <button class="pf-repost-btn" data-id="${r._id}" style="font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;margin-left:6px;">↻ Repost</button>
+      <span class="live-return" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${retColor};">${openReturn >= 0 ? '+' : ''}${openReturn.toFixed(2)}%</span>
+      <button class="like-btn ${likedByViewer ? 'liked' : ''}" data-id="${r._id}" aria-pressed="${likedByViewer}" style="margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;font-weight:700;">${r.likes?.length||0}</span></button>
+      ${!isOwn && r.source !== 'repost' ? `<button class="pf-repost-btn" data-id="${r._id}" style="font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">↻ Repost</button>` : ''}
       <button class="btn btn-sm btn-ghost"
         data-action="toggle-comments" data-recid="${r._id}" data-count="${commentCount}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;">
@@ -506,6 +642,9 @@ function buildProfileCard(r, isOwn) {
         style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--red);border-color:var(--red);">
         ✕ Undo Repost
       </button>` : ''}
+      ${isOwn && r.source==='engine' ? `<button class="btn btn-sm btn-outline" data-action="unsave-engine" data-recid="${r._id}"
+        style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--gold);border-color:rgba(246,183,60,.5);">Unsave Signal</button>` : ''}
+      ${isOwn && r.isOpen && (!r.source || r.source === 'manual') ? `<button type="button" class="btn btn-sm btn-outline" onclick="openCloseCall('${r._id}','${r.symbol}',${Number(r.entryPrice)},'${r.direction}',${Number(r.currentPrice||r.entryPrice)})" style="font-size:12px;padding:5px 10px;color:var(--gold);border-color:rgba(246,183,60,.5);">Close Trade</button>` : ''}
     </div>
     ${r.note?`<div class="rec-note">"${r.note}"</div>`:''}
     <div id="pcs-${r._id}" style="display:none;margin-top:10px;border-top:1px solid var(--bg3);padding-top:10px;">
@@ -622,13 +761,12 @@ function buildProfileCard(r, isOwn) {
     var rp = e.target.closest('.pf-repost-btn');
     if (rp && rp.dataset.id) {
       e.preventDefault();
+      rp.disabled = true;
       try {
-        var rres = await fetch('/api/recommendations/' + rp.dataset.id + '/repost', { method: 'POST', headers: authHdr() });
-        var rd = await rres.json();
-        if (!rres.ok) throw new Error(rd.message || 'Repost failed');
+        await API.repost(rp.dataset.id, '');
         rp.textContent = '✓ Reposted';
         if (window.toast) toast('Reposted!', 'success');
-      } catch (err) { if (window.toast) toast(err.message, 'error'); }
+      } catch (err) { if (window.toast) toast(err.message, 'error'); rp.disabled = false; }
       return;
     }
     var countEl = e.target.closest('.like-count');
@@ -640,14 +778,18 @@ function buildProfileCard(r, isOwn) {
     var likeBtn = e.target.closest('.like-btn');
     if (likeBtn && likeBtn.dataset.id) {
       e.preventDefault();
+      if (likeBtn.disabled) return;
+      likeBtn.disabled = true;
       try {
         var res = await fetch('/api/recommendations/' + likeBtn.dataset.id + '/like', { method: 'POST', headers: authHdr() });
         var d = await res.json();
         if (!res.ok) throw new Error(d.message || 'Like failed');
         var c = likeBtn.querySelector('.like-count');
         if (c) c.textContent = d.likes;
-        likeBtn.style.color = d.liked ? 'var(--red)' : 'var(--muted)';
+        likeBtn.classList.toggle('liked', d.liked);
+        likeBtn.setAttribute('aria-pressed', String(d.liked));
       } catch (err) { if (window.toast) toast(err.message, 'error'); }
+      finally { likeBtn.disabled = false; }
     }
   });
 })();

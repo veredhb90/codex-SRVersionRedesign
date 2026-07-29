@@ -140,70 +140,196 @@ const scanResultSchema = new mongoose.Schema({
   topSells:     { type: Array,  default: [] },
   scannedAt:    { type: Date,   default: Date.now },
   scannedCount: { type: Number, default: 0 },
+  technicalResults: { type: Number, default: 0 },
+  newsEnrichedCount: { type: Number, default: 0 },
+  phase:        { type: String, default: 'idle' },
+  resultStage:  { type: String, default: 'idle' },
+  refreshStartedAt: { type: Date, default: null },
+  lastCompletedAt: { type: Date, default: null },
+  nextScheduledAt: { type: Date, default: null },
+  technicalCandidates: { type: Array, default: [] },
   duration:     { type: Number, default: 0 },
   running:      { type: Boolean, default: false },
 }, { timestamps: true });
 
 const ScanResult = mongoose.models.ScanResult || mongoose.model('ScanResult', scanResultSchema);
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
+const withTimeout = (work, ms, label) => Promise.race([
+  work,
+  new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out`)), ms)),
+]);
 
-// ── PHASE 1: Technical scan (Yahoo Finance, no rate limit) ─────────
-const scanTechnical = async (symbols) => {
+const MIN_ACTIONABLE_SCORE = 4;
+const WEEKDAY_SCAN_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+const getNextWeekdayScanAt = (from = new Date()) => {
+  const next = new Date(from);
+  next.setUTCMinutes(0, 0, 0);
+  next.setUTCHours((Math.floor(next.getUTCHours() / 4) + 1) * 4);
+  while ([0, 6].includes(next.getUTCDay())) {
+    next.setUTCDate(next.getUTCDate() + 1);
+    next.setUTCHours(0, 0, 0, 0);
+  }
+  return next;
+};
+
+// ── PHASE 1: Technical scan (Yahoo Finance only) ───────────────────
+const scanTechnical = async (symbols, onProgress) => {
   const results = [];
-  const concurrency = 3;
+  let failures = 0;
+  const concurrency = 6;
+  const marketRegime = await getEngineRecommendation('SPY', { skipNews: true, skipWeekly: true })
+    .then(result => ({ regime: result.regime || 'unknown' }))
+    .catch(() => ({ regime: 'unknown' }));
   for (let i = 0; i < symbols.length; i += concurrency) {
     const batch = symbols.slice(i, i + concurrency);
     const batchResults = await Promise.allSettled(
-      batch.map(sym => getEngineRecommendation(sym, { skipNews: true }))
+      batch.map(sym => withTimeout(
+        getEngineRecommendation(sym, { skipNews: true, skipWeekly: true, regime: marketRegime }),
+        15000,
+        `Technical scan for ${sym}`
+      ))
     );
     batchResults.forEach((r, idx) => {
       if (r.status === 'fulfilled') {
         const val = r.value;
         results.push({ symbol: batch[idx], ...val, score: val.score || 0 });
+      } else {
+        failures++;
       }
     });
     const done = Math.min(i + concurrency, symbols.length);
     if (done % 50 === 0) console.log(`📊 Phase 1: ${done}/${symbols.length} scanned...`);
-    if (i + concurrency < symbols.length) await delay(600);
+    if (onProgress && (done % 30 === 0 || done === symbols.length)) await onProgress(done);
+    if (i + concurrency < symbols.length) await delay(250);
   }
+  console.log(`📊 Phase 1 complete: ${results.length}/${symbols.length} technical results (${failures} unavailable)`);
   return results;
 };
 
-// ── PHASE 2: Enrich top 50 with news + analysts ────────────────────
-const enrichWithNews = async (topStocks) => {
-  console.log(`📰 Phase 2: Fetching news for top ${topStocks.length} stocks...`);
-  for (let i = 0; i < topStocks.length; i += 3) {
-    const batch = topStocks.slice(i, i + 3);
-    const newsResults = await Promise.allSettled(batch.map(s => getNewsSentiment(s.symbol)));
+const confidenceForScore = (abs) => {
+  if (abs >= 14) return 'Very High';
+  if (abs >= 10) return 'High';
+  if (abs >= 7)  return 'Medium';
+  return 'Low';
+};
+
+const applyTradePlan = (stock) => {
+  const absScore = Math.abs(stock.score || 0);
+  if (absScore < MIN_ACTIONABLE_SCORE) {
+    stock.direction = 'NEUTRAL';
+    stock.confidence = 'Insufficient';
+    stock.takeProfit = null;
+    stock.stopLoss = null;
+    stock.riskReward = null;
+    stock.noSignal = true;
+    stock.noSignalReason = `Score ${stock.score > 0 ? '+' : ''}${stock.score} — below minimum threshold of ±${MIN_ACTIONABLE_SCORE}.`;
+    return stock;
+  }
+
+  const direction = stock.score > 0 ? 'BUY' : 'SELL';
+  const atrValue = Number(stock.atrValue) > 0 ? Number(stock.atrValue) : stock.price * 0.025;
+  const tpMult = absScore >= 12 ? 4.5 : absScore >= 8 ? 3.5 : absScore >= 5 ? 2.5 : 2.0;
+  const slMult = 1.5;
+  const pricePrecision = stock.price < 0.01 ? 6 : stock.price < 1 ? 4 : 2;
+  const roundPrice = (value) => +value.toFixed(pricePrecision);
+  const takeProfit = direction === 'BUY'
+    ? roundPrice(stock.price + atrValue * tpMult)
+    : roundPrice(stock.price - atrValue * tpMult);
+  const stopLoss = direction === 'BUY'
+    ? roundPrice(stock.price - atrValue * slMult)
+    : roundPrice(stock.price + atrValue * slMult);
+
+  stock.direction = direction;
+  stock.confidence = confidenceForScore(absScore);
+  stock.takeProfit = takeProfit;
+  stock.stopLoss = stopLoss;
+  stock.riskReward = +(Math.abs(takeProfit - stock.price) / Math.abs(stopLoss - stock.price)).toFixed(2);
+  stock.noSignal = false;
+  delete stock.noSignalReason;
+  return stock;
+};
+
+// ── PHASE 2: Full-universe news enrichment, then rank the combined score ──
+const enrichWithNews = async (stocks, onProgress, startAt = 0) => {
+  console.log(`📰 Phase 2: Fetching news for all ${stocks.length} technical results...`);
+  stocks.forEach(stock => {
+    if (stock.newsEnriched) return;
+    stock.technicalScore = Number(stock.score || 0);
+    stock.newsScore = 0;
+    stock.newsLabel = 'Neutral';
+    stock.analystScore = 0;
+    stock.newsArticleCount = 0;
+  });
+  for (let i = startAt; i < stocks.length; i += 2) {
+    const batch = stocks.slice(i, i + 2);
+    // A vendor request must never hold the entire full-universe run indefinitely.
+    const newsResults = await Promise.allSettled(
+      batch.map(s => withTimeout(getNewsSentiment(s.symbol), 20000, `News for ${s.symbol}`))
+    );
     newsResults.forEach((nr, idx) => {
+      const stock = batch[idx];
+      stock.newsEnriched = true;
       if (nr.status === 'fulfilled' && nr.value) {
-        const stock = batch[idx];
         const news  = nr.value;
         stock.score       += news.score || 0;
         stock.newsLabel    = news.label;
         stock.newsScore    = news.score;
+        stock.analystScore = news.analystScore || 0;
+        stock.newsArticleCount = news.totalArticles || 0;
         stock.analystLabel = news.analystLabel;
         stock.news         = news.news;
-        stock.confidence   = getConfidence(Math.abs(stock.score));
-        stock.direction    = stock.score > 0 ? 'BUY' : stock.score < 0 ? 'SELL' : stock.direction;
         console.log(`  ✅ ${stock.symbol}: tech=${stock.score - (news.score||0)} + news=${news.score||0} = ${stock.score}`);
       }
     });
-    if (i + 3 < topStocks.length) await delay(1000);
+    const done = Math.min(i + 2, stocks.length);
+    if (onProgress) await onProgress(done, i, batch);
+    // Two Finnhub calls per symbol. Keep the shared production quota below 30 req/min.
+    if (i + 2 < stocks.length) await delay(8000);
   }
-  return topStocks;
-};
-
-const getConfidence = (abs) => {
-  if (abs >= 17) return 'Very High';
-  if (abs >= 12) return 'High';
-  if (abs >= 8)  return 'Medium';
-  if (abs >= 4)  return 'Low';
-  return 'Very Low';
+  return stocks.map(applyTradePlan);
 };
 
 // ── Main scanner ───────────────────────────────────────────────────
 let isScanning = false;
+
+const rankedResults = (stocks) => stocks
+  .map(stock => applyTradePlan({ ...stock }))
+  .filter(stock => !stock.noSignal && Number.isFinite(stock.takeProfit) && Number.isFinite(stock.stopLoss))
+  .sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+
+const resultLists = (results) => ({
+  results,
+  top5: results.slice(0, 20),
+  topBuys: results.filter(result => result.direction === 'BUY').slice(0, 20),
+  topSells: results.filter(result => result.direction === 'SELL').slice(0, 20),
+});
+
+const finishNewsPhase = async (allResults, start, startAt = 0) => {
+  const enriched = await enrichWithNews(allResults, (done, batchStart, batch) => {
+    const checkpoint = { newsEnrichedCount: done, phase: 'news' };
+    batch.forEach((stock, index) => {
+      checkpoint[`technicalCandidates.${batchStart + index}`] = stock;
+    });
+    return ScanResult.findOneAndUpdate({ key: 'latest' }, checkpoint);
+  }, startAt);
+  const finalResults = rankedResults(enriched);
+  const duration = Math.round((Date.now() - start) / 1000);
+  await ScanResult.findOneAndUpdate({ key: 'latest' }, {
+    ...resultLists(finalResults),
+    scannedAt: new Date(),
+    lastCompletedAt: new Date(),
+    scannedCount: UNIVERSE.length,
+    technicalResults: allResults.length,
+    newsEnrichedCount: allResults.length,
+    technicalCandidates: [],
+    phase: 'complete',
+    resultStage: 'complete',
+    duration,
+    running: false,
+  }, { upsert: true });
+  console.log(`\n🏆 SCAN COMPLETE in ${duration}s | Scanned: ${allResults.length} | Top: ${finalResults[0]?.symbol}:${finalResults[0]?.score}`);
+};
 
 const runFullScan = async () => {
   if (isScanning) { console.log('⏳ Already scanning'); return; }
@@ -211,65 +337,79 @@ const runFullScan = async () => {
   const start = Date.now();
   console.log(`\n🔍 Starting 2-phase scan of ${UNIVERSE.length} stocks...`);
   try {
-    await ScanResult.findOneAndUpdate({ key: 'latest' }, { running: true }, { upsert: true });
+    const existing = await ScanResult.findOne({ key: 'latest' }).lean();
+    const hasCompletedCache = existing?.resultStage === 'complete' && Boolean(existing.top5?.length);
+    const scanStartUpdate = {
+      running: true, phase: 'technical', scannedCount: 0, technicalResults: 0,
+      newsEnrichedCount: 0, refreshStartedAt: new Date(), nextScheduledAt: getNextWeekdayScanAt(),
+      resultStage: hasCompletedCache ? (existing.resultStage || 'complete') : 'building',
+    };
+    // A partial technical result is never user-facing. Keep only a previously
+    // completed Technical + News cache while the next scheduled run refreshes.
+    Object.assign(scanStartUpdate, { technicalCandidates: [] });
+    if (!hasCompletedCache) Object.assign(scanStartUpdate, resultLists([]));
+    await ScanResult.findOneAndUpdate({ key: 'latest' }, scanStartUpdate, { upsert: true });
 
     // Phase 1: Technical scan all stocks
     console.log('\n📊 PHASE 1: Technical scan...');
-    const allResults = await scanTechnical(UNIVERSE);
-    const withScores = allResults.filter(r => Math.abs(r.score || 0) >= 2)
-      .sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+    const allResults = await scanTechnical(UNIVERSE, (done) =>
+      ScanResult.findOneAndUpdate({ key: 'latest' }, { scannedCount: done, phase: 'technical' })
+    );
+    console.log(`\n✅ Phase 1 done: ${allResults.length}/${UNIVERSE.length} technical results. Starting full news enrichment.`);
 
-    console.log(`\n✅ Phase 1 done: ${withScores.length} stocks with signals`);
-
-    // Save phase 1 immediately so users see something
+    // Keep a completed cache visible during scheduled refreshes, but never
+    // publish a technical-only ranking. The scanner surface is final combined
+    // Technical + News scoring only.
     await ScanResult.findOneAndUpdate({ key: 'latest' }, {
-      results:      withScores.slice(0, 100),
-      top5:         withScores.slice(0, 20),
-      topBuys:      withScores.filter(r => r.direction === 'BUY').slice(0, 20),
-      topSells:     withScores.filter(r => r.direction === 'SELL').slice(0, 20),
-      scannedCount: allResults.length,
+      scannedCount: UNIVERSE.length,
+      technicalResults: allResults.length,
+      newsEnrichedCount: 0,
+      technicalCandidates: allResults,
+      phase: 'news',
       running:      true,
     }, { upsert: true });
 
-    // News already included in Phase 1 - no Phase 2 needed
-    const finalResults = withScores;
-
-    const duration = Math.round((Date.now() - start) / 1000);
-    await ScanResult.findOneAndUpdate({ key: 'latest' }, {
-      results:      finalResults,
-      top5:         finalResults.slice(0, 20),
-      topBuys:      finalResults.filter(r => r.direction === 'BUY').slice(0, 20),
-      topSells:     finalResults.filter(r => r.direction === 'SELL').slice(0, 20),
-      scannedAt:    new Date(),
-      scannedCount: allResults.length,
-      duration,
-      running:      false,
-    }, { upsert: true });
-
-    console.log(`\n🏆 SCAN COMPLETE in ${duration}s | Scanned: ${allResults.length} | Top: ${finalResults[0]?.symbol}:${finalResults[0]?.score}`);
+    // Every ticker with valid technical data receives news and analyst context
+    // before the final composite ranking is created.
+    await finishNewsPhase(allResults, start);
   } catch(err) {
     console.error('❌ Scan error:', err.message);
-    await ScanResult.findOneAndUpdate({ key: 'latest' }, { running: false }).catch(() => {});
+    await ScanResult.findOneAndUpdate({ key: 'latest' }, { running: false, phase: 'failed' }).catch(() => {});
+  } finally {
+    isScanning = false;
+  }
+};
+
+const resumeNewsScan = async (doc) => {
+  if (isScanning) return;
+  const candidates = Array.isArray(doc.technicalCandidates) ? doc.technicalCandidates : [];
+  if (!candidates.length) return runFullScan();
+  isScanning = true;
+  const start = doc.refreshStartedAt ? new Date(doc.refreshStartedAt).getTime() : Date.now();
+  console.log(`🔄 Resuming news enrichment for ${candidates.length} technical candidates...`);
+  try {
+    await ScanResult.findOneAndUpdate({ key: 'latest' }, {
+      running: true, phase: 'news', scannedCount: UNIVERSE.length,
+      technicalResults: candidates.length,
+    });
+    await finishNewsPhase(candidates, start, Number(doc.newsEnrichedCount || 0));
+  } catch (err) {
+    console.error('❌ News resume error:', err.message);
+    await ScanResult.findOneAndUpdate({ key: 'latest' }, { running: false, phase: 'failed' }).catch(() => {});
   } finally {
     isScanning = false;
   }
 };
 
 // ── Get results ────────────────────────────────────────────────────
-const getTop5 = async (forceRefresh = false) => {
+const getTop5 = async () => {
   const doc = await ScanResult.findOne({ key: 'latest' });
-  if (forceRefresh || !doc || !doc.scannedAt) {
-    runFullScan().catch(console.error);
-    return { top5:[], topBuys:[], topSells:[], scanning:true, scannedCount:0, duration:0,
-      message: `🔍 Scanning ${UNIVERSE.length} stocks (2-phase)... Phase 1: Technical, Phase 2: News. ~5-8 min.` };
-  }
-  const age       = Date.now() - new Date(doc.scannedAt).getTime();
-  const day       = new Date().getUTCDay();
-  const isWeekend = [0,6].includes(day);
-  const maxAge    = isWeekend ? 48*60*60*1000 : 6*60*60*1000;
-  if (age > maxAge && !doc.running && !isScanning) {
-    console.log('🔄 Stale scan, refreshing...');
-    runFullScan().catch(console.error);
+  if (!doc || !doc.scannedAt) {
+    return { top5:[], topBuys:[], topSells:[], scanning:isScanning, scannedCount:0, technicalResults:0,
+      newsEnrichedCount:0, phase:'technical', universeSize:UNIVERSE.length, duration:0,
+      resultStage:'building',
+      nextScheduledAt: getNextWeekdayScanAt(),
+      message: `🔍 Building the first ${UNIVERSE.length}-ticker technical ranking.` };
   }
   return {
     top5:         doc.top5     || [],
@@ -277,8 +417,15 @@ const getTop5 = async (forceRefresh = false) => {
     topSells:     doc.topSells || [],
     scannedAt:    doc.scannedAt,
     scannedCount: doc.scannedCount,
+    technicalResults: doc.technicalResults,
+    newsEnrichedCount: doc.newsEnrichedCount,
+    phase:        doc.phase,
+    resultStage:  doc.resultStage || (doc.top5?.length ? 'complete' : 'building'),
     duration:     doc.duration,
     scanning:     doc.running || isScanning,
+    cached:       doc.resultStage === 'complete' && Boolean(doc.top5?.length),
+    cachedAt:     doc.lastCompletedAt || doc.scannedAt,
+    nextScheduledAt: doc.nextScheduledAt || getNextWeekdayScanAt(),
     universeSize: UNIVERSE.length,
   };
 };
@@ -289,9 +436,14 @@ setTimeout(() => {
     if (!doc || !doc.scannedAt) {
       console.log('🚀 No scan data, running initial scan...');
       runFullScan().catch(console.error);
+    } else if (doc.running) {
+      console.log('🔄 Recovering interrupted scanner run after restart...');
+      resumeNewsScan(doc).catch(console.error);
     } else {
       const age = Date.now() - new Date(doc.scannedAt).getTime();
-      if (age > 6*60*60*1000) {
+      const day = new Date().getUTCDay();
+      const maxAge = [0, 6].includes(day) ? 48*60*60*1000 : WEEKDAY_SCAN_INTERVAL_MS;
+      if (age > maxAge) {
         console.log('🔄 Scan stale, refreshing...');
         runFullScan().catch(console.error);
       } else {
@@ -301,14 +453,16 @@ setTimeout(() => {
   }).catch(() => runFullScan().catch(console.error));
 }, 10000);
 
-// Weekdays every 2 hours, Weekend: Saturday morning only
-// Run every 2 hours
-setInterval(() => {
-  const day = new Date().getUTCDay();
-  if (day !== 0 && day !== 6) {
+// Weekdays on each four-hour UTC boundary. Weekends keep the latest final cache.
+const scheduleNextAutomaticScan = () => {
+  const next = getNextWeekdayScanAt();
+  ScanResult.updateOne({ key: 'latest' }, { nextScheduledAt: next }).catch(() => {});
+  setTimeout(() => {
     console.log('⏰ Scheduled scan...');
     runFullScan().catch(console.error);
-  }
-}, 6*60*60*1000);
+    scheduleNextAutomaticScan();
+  }, Math.max(1000, next.getTime() - Date.now()));
+};
+scheduleNextAutomaticScan();
 
 module.exports = { getTop5, runFullScan, UNIVERSE };

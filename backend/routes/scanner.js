@@ -1,13 +1,13 @@
 const express = require('express');
 const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
-const { getTop5, runFullScan, UNIVERSE } = require('../services/stockScanner');
+const { getTop5, UNIVERSE } = require('../services/stockScanner');
 
 // GET /api/scanner/top5 — returns instantly from DB
 router.get('/top5', async (req, res) => {
   try {
-    const forceRefresh = req.query.refresh === 'true';
-    const result = await getTop5(forceRefresh);
+    // This endpoint is read-only for users. Scheduled server jobs own refreshes.
+    const result = await getTop5();
     res.json(result);
   } catch (err) {
     console.error('Scanner error:', err);
@@ -18,7 +18,7 @@ router.get('/top5', async (req, res) => {
 // GET /api/scanner/status — check if scan is running
 router.get('/status', protect, async (req, res) => {
   try {
-    const result = await getTop5(false);
+    const result = await getTop5();
     res.json({
       scanning:     result.scanning,
       scannedAt:    result.scannedAt,

@@ -6,18 +6,30 @@
   <title>Login — SwingRush</title>
   <link rel="stylesheet" href="/css/main.css"/>
   <style>
-    body { background: var(--bg2); min-height:100vh; display:flex; flex-direction:column; }
+    body { background: var(--bg); min-height:100vh; display:flex; flex-direction:column; position:relative; }
     .login-wrap {
       flex:1; display:flex; align-items:center; justify-content:center; padding:40px 16px;
+      position:relative; overflow:hidden;
       background:
-        radial-gradient(ellipse 50% 60% at 20% 50%, rgba(10,31,92,0.06) 0%, transparent 70%),
-        radial-gradient(ellipse 40% 50% at 80% 50%, rgba(0,200,83,0.04) 0%, transparent 70%);
+        radial-gradient(ellipse 50% 60% at 20% 30%, rgba(79,125,255,0.10) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 50% at 80% 70%, rgba(0,230,118,0.07) 0%, transparent 70%);
+    }
+    .login-wrap::before {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background:
+        repeating-linear-gradient(0deg,transparent,transparent 48px,rgba(255,255,255,0.02) 48px,rgba(255,255,255,0.02) 49px),
+        repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,0.02) 48px,rgba(255,255,255,0.02) 49px);
+      -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, #000 0%, transparent 75%);
+              mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, #000 0%, transparent 75%);
     }
     .login-card {
-      background:#fff; border:2px solid var(--border);
-      border-radius:20px; padding:50px 44px;
+      position:relative; z-index:1;
+      background: linear-gradient(165deg, rgba(79,125,255,0.07), rgba(13,18,32,0.5) 45%), rgba(11,15,26,0.75);
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border:1px solid rgba(79,125,255,0.25);
+      border-radius:22px; padding:50px 44px;
       width:100%; max-width:440px;
-      box-shadow:var(--shadow-lg);
+      box-shadow:var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 60px -30px rgba(79,125,255,0.35);
       animation:fadeUp .4s ease;
     }
     @keyframes fadeUp { from{opacity:0;transform:translateY(18px);} }
@@ -27,8 +39,8 @@
       display:flex; align-items:center; justify-content:center; gap:10px;
       margin-bottom:4px; line-height:1;
     }
-    .login-logo .g { color:var(--accent); }
-    .login-logo .r { color:var(--red); }
+    .login-logo .g { color:var(--green2); text-shadow:0 0 24px rgba(0,230,118,0.4); }
+    .login-logo .r { color:var(--red2); }
     .login-tagline { text-align:center; color:var(--muted); font-size:13px; margin-bottom:32px; }
 
     /* Mini market strip */
@@ -44,27 +56,35 @@
     .down-chip { color:var(--red);   border-color:var(--red);   background:var(--red-bg); }
 
     .login-title {
-      font-family:var(--font-disp); font-size:20px; letter-spacing:1px;
-      text-align:center; color:var(--accent); margin-bottom:22px;
+      font-family:var(--font-disp); font-size:20px; letter-spacing:2px;
+      text-align:center; color:#fff; margin-bottom:22px;
     }
     .btn-login {
       width:100%; justify-content:center; font-size:16px;
       padding:14px; background:var(--accent); color:#fff; margin-top:4px;
     }
-    .btn-login:hover { background:var(--accent2); transform:translateY(-1px); box-shadow:0 4px 20px rgba(10,31,92,0.25); }
+    .btn-login:hover { background:var(--accent2); transform:translateY(-1px); box-shadow:0 4px 20px rgba(79,125,255,0.4); }
     .login-footer { text-align:center; margin-top:22px; font-size:14px; color:var(--muted); }
     .login-footer a { color:var(--accent2); font-weight:700; text-decoration:none; }
     .login-footer a:hover { text-decoration:underline; }
+
+    @media (max-width:480px) {
+      .login-card { padding:36px 24px; border-radius:18px; }
+      .login-logo { font-size:26px; }
+      .mkt-strip { gap:6px; }
+      .mkt-chip { font-size:10px; padding:3px 8px; }
+    }
   </style>
+  <link rel="stylesheet" href="/css/redesign.css"/>
 </head>
-<body>
+<body class="login-page">
 <nav class="navbar">
   <a class="navbar-brand" href="/index.html">
     <span class="brand-dot"></span>
     <span style="color:var(--accent);">SWING</span><span style="color:var(--red);">RUSH</span>
   </a>
   <div class="navbar-actions">
-    <a href="/index.html#register" class="btn btn-green btn-sm">Join Free</a>
+    <a href="/index.html#register" class="btn btn-green btn-sm" data-i18n="nav.join_free">Join Free</a>
   </div>
 </nav>
 
@@ -74,7 +94,7 @@
       <span class="brand-dot"></span>
       <span class="g">SWING</span><span class="r">RUSH</span>
     </div>
-    <div class="login-tagline">Financial Recommendation Network</div>
+    <div class="login-tagline" data-i18n="login.tagline">Financial Recommendation Network</div>
 
     <div class="mkt-strip" id="mkt-strip">
       <span class="mkt-chip up-chip">SPY ···</span>
@@ -82,46 +102,47 @@
       <span class="mkt-chip down-chip">CL=F ···</span>
     </div>
 
-    <div class="login-title">TRADER LOGIN</div>
+    <div class="login-title" data-i18n="login.title">TRADER LOGIN</div>
 
     <form id="login-form">
       <div class="form-group">
-        <label class="form-label">Email</label>
+        <label class="form-label" data-i18n="login.email">Email</label>
         <input id="l-email" type="email" class="form-input" placeholder="your@email.com" required autocomplete="email"/>
       </div>
       <div class="form-group">
-        <label class="form-label">Password</label>
+        <label class="form-label" data-i18n="login.password">Password</label>
         <input id="l-pass" type="password" class="form-input" placeholder="••••••••••" required autocomplete="current-password"/>
         <div class="form-error" id="l-err"></div>
       </div>
-      <button type="submit" class="btn btn-login" id="login-btn">Enter the Feed →</button>
+      <button type="submit" class="btn btn-login" id="login-btn" data-i18n="login.button">Enter the Feed</button>
       <div style="text-align:center;margin-top:16px;">
         <button type="button" onclick="showForgotPassword()" style="background:none;border:none;color:var(--accent2);cursor:pointer;font-size:14px;text-decoration:underline;">
-          Forgot your password?
+          <span data-i18n="login.forgot">Forgot your password?</span>
         </button>
       </div>
 
       <!-- Forgot password form -->
       <div id="forgot-section" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
-        <p style="font-size:14px;color:var(--muted);margin-bottom:12px;">Enter your email and we'll send you a new password.</p>
+        <p style="font-size:14px;color:var(--muted);margin-bottom:12px;" data-i18n="login.forgot_copy">Enter your email and we'll send you a new password.</p>
         <div class="form-group">
           <input id="forgot-email" type="email" class="form-input" placeholder="your@email.com"/>
         </div>
         <div class="form-error" id="forgot-err"></div>
         <button type="button" onclick="submitForgotPassword()" class="btn btn-primary" style="width:100%;justify-content:center;" id="forgot-btn">
-          Send New Password
+          <span data-i18n="login.send_password">Send New Password</span>
         </button>
         <button type="button" onclick="hideForgotPassword()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;margin-top:8px;width:100%;">
-          Cancel
+          <span data-i18n="login.cancel">Cancel</span>
         </button>
       </div>
     </form>
 
-    <div class="login-footer">New trader? <a href="/index.html#register">Create free account</a></div>
+    <div class="login-footer"><span data-i18n="login.new_trader">New trader?</span> <a href="/index.html#register" data-i18n="login.create">Create free account</a></div>
   </div>
 </div>
 
 <script src="/js/api.js"></script>
+<script src="/js/i18n.js"></script>
 <script>
   function showForgotPassword() {
     document.getElementById('forgot-section').style.display = 'block';
@@ -137,7 +158,7 @@
     const btn    = document.getElementById('forgot-btn');
     errEl.textContent = '';
     if (!email) { errEl.textContent = 'Enter your email'; return; }
-    btn.disabled = true; btn.textContent = 'Sending…';
+    btn.disabled = true; btn.textContent = SRLang.t('login.sending', 'Sending…');
     try {
       const res = await API.forgotPassword({ email });
       toast(res.message, 'success', 5000);
@@ -145,7 +166,7 @@
     } catch (err) {
       errEl.textContent = err.message;
     } finally {
-      btn.disabled = false; btn.textContent = 'Send New Password';
+      btn.disabled = false; btn.textContent = SRLang.t('login.send_password', 'Send New Password');
     }
   }
 </script>
@@ -172,7 +193,7 @@
   document.getElementById('login-form').addEventListener('submit', async e => {
     e.preventDefault();
     const btn = document.getElementById('login-btn');
-    btn.disabled = true; btn.textContent = 'Logging in…';
+    btn.disabled = true; btn.textContent = SRLang.t('login.logging_in', 'Logging in…');
     document.getElementById('l-err').textContent = '';
 
     try {
@@ -185,7 +206,7 @@
       setTimeout(() => location.href = '/feed.html', 500);
     } catch(err) {
       document.getElementById('l-err').textContent = err.message;
-      btn.disabled = false; btn.textContent = 'Enter the Feed →';
+      btn.disabled = false; btn.textContent = SRLang.t('login.button', 'Enter the Feed');
     }
   });
 </script>

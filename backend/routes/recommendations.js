@@ -29,8 +29,8 @@ const checkOutcome = async (rec, io) => {
 
       // ── Notify & email the REC OWNER ─────────────────────────────
       io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
-        type:'win', title:`🏆 Your $${rec.symbol} call hit Take Profit!`,
-        body:`+${rec.returnPct}% return · Great call!`, recId:rec._id, time:new Date(),
+        type:'win', title:`🏆 Your $${rec.symbol} trade hit Take Profit!`,
+        body:`+${rec.returnPct}% return · Great trade!`, recId:rec._id, time:new Date(),
       });
       if (author?.email) {
         sendWinAlert(author.email, author.username||author.fullName, rec.symbol, rec.returnPct)
@@ -74,7 +74,7 @@ const checkOutcome = async (rec, io) => {
 
       // ── Notify & email the REC OWNER on LOSS ─────────────────────
       io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
-        type:'loss', title:`💸 Your $${rec.symbol} call hit Stop Loss`,
+        type:'loss', title:`💸 Your $${rec.symbol} trade hit Stop Loss`,
         body:`${rec.returnPct}% · Review your analysis`, recId:rec._id, time:new Date(),
       });
       if (author?.email) {
@@ -108,7 +108,7 @@ router.get('/feed', protect, async (req, res) => {
     const io   = req.app.get('io');
     const page = parseInt(req.query.page) || 1;
     const recs = await Recommendation.find({ profileOnly:{ $ne:true }, source:{ $ne:'repost' } })
-      .sort({ createdAt:-1 }).skip((page-1)*20).limit(20)
+      .sort({ openedAt:-1, createdAt:-1 }).skip((page-1)*20).limit(20)
       .populate('user','fullName username email')
       .populate('comments.user','fullName username')
       .populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username' } });
@@ -124,7 +124,7 @@ router.get('/following', protect, async (req, res) => {
     const followingIds = freshUser?.following || [];
     if (!followingIds.length) return res.json([]);
     const recs = await Recommendation.find({ user:{ $in:followingIds }, profileOnly:{ $ne:true }, source:{ $ne:'repost' } })
-      .sort({ createdAt:-1 }).limit(50)
+      .sort({ openedAt:-1, createdAt:-1 }).limit(50)
       .populate('user','fullName username email')
       .populate('comments.user','fullName username');
     res.json(recs);
@@ -149,7 +149,7 @@ router.get('/symbol/:symbol', protect, async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
     const recs = await Recommendation.find({ symbol, profileOnly:{ $ne:true } })
-      .sort({ createdAt:-1 }).limit(50)
+      .sort({ openedAt:-1, createdAt:-1 }).limit(50)
       .populate('user','fullName username email')
       .populate('comments.user','fullName username');
     const total=recs.length, buys=recs.filter(r=>r.direction==='BUY').length;
@@ -177,7 +177,7 @@ router.post('/subscribe/:symbol', protect, async (req, res) => {
 router.post('/', protect, async (req, res) => {
   try {
     const io = req.app.get('io');
-    const { symbol,takeProfit,direction,note,stopLoss } = req.body;
+    const { symbol,takeProfit,direction,note,stopLoss,entryPrice } = req.body;
     const sym = symbol?.trim().toUpperCase();
     if (!sym||!takeProfit||!direction) return res.status(400).json({ message:'Symbol, direction and take profit are required' });
     // Check: user cannot have 2 open recommendations on same symbol
@@ -195,15 +195,26 @@ router.post('/', protect, async (req, res) => {
 
     const quote = await yf.getQuote(sym);
     if (!quote?.price) return res.status(400).json({ message:'Could not fetch live price' });
-    const tp=Number(takeProfit), sl=stopLoss?Number(stopLoss):null;
-    if (direction==='BUY'  && tp<=quote.price) return res.status(400).json({ message:'Take profit must be above current price for BUY' });
-    if (direction==='SELL' && tp>=quote.price) return res.status(400).json({ message:'Take profit must be below current price for SELL' });
-    if (sl&&direction==='BUY'  &&sl>=quote.price) return res.status(400).json({ message:'Stop loss must be below entry for BUY' });
-    if (sl&&direction==='SELL' &&sl<=quote.price) return res.status(400).json({ message:'Stop loss must be above entry for SELL' });
+    const customEntry = entryPrice !== undefined && entryPrice !== null && String(entryPrice).trim() !== '';
+    const entry = customEntry ? Number(entryPrice) : Number(quote.price);
+    const tp = Number(takeProfit), sl = stopLoss ? Number(stopLoss) : null;
+    if (!Number.isFinite(entry) || entry <= 0) return res.status(400).json({ message:'Entry price must be a positive number' });
+    if (!Number.isFinite(tp) || tp <= 0) return res.status(400).json({ message:'Take profit must be a positive number' });
+    if (sl !== null && (!Number.isFinite(sl) || sl <= 0)) return res.status(400).json({ message:'Stop loss must be a positive number' });
+    if (direction==='BUY'  && tp<=entry) return res.status(400).json({ message:'Take profit must be above entry for BUY' });
+    if (direction==='SELL' && tp>=entry) return res.status(400).json({ message:'Take profit must be below entry for SELL' });
+    if (sl&&direction==='BUY'  &&sl>=entry) return res.status(400).json({ message:'Stop loss must be below entry for BUY' });
+    if (sl&&direction==='SELL' &&sl<=entry) return res.status(400).json({ message:'Stop loss must be above entry for SELL' });
+    let openedAt = new Date();
+    if (customEntry) {
+      try { openedAt = await yf.findLastPriceTouch(sym, entry) || openedAt; }
+      catch (_) {}
+    }
     const rec = await Recommendation.create({
       user:req.user._id, symbol:sym, companyName:quote.shortName,
-      entryPrice:quote.price, takeProfit:tp, stopLoss:sl,
-      direction, note, currentPrice:quote.price, source:'manual', profileOnly:false,
+      entryPrice:entry, takeProfit:tp, stopLoss:sl,
+      direction, note, currentPrice:quote.price, openedAt,
+      customEntryPrice:customEntry, source:'manual', profileOnly:false,
     });
     await rec.populate('user','fullName username email');
     io.emit('recommendation:new', rec);
@@ -217,7 +228,7 @@ router.post('/', protect, async (req, res) => {
       notified.add(fid);
       io.notifyUser && io.notifyUser(fid, 'notification', {
         type:'new_rec', title:`📡 @${req.user.username||req.user.fullName} posted ${direction} on $${sym}`,
-        body:`TP: $${tp} · Entry: $${quote.price.toFixed(2)}`, recId:rec._id, fromUser:String(req.user._id), time:new Date(),
+        body:`TP: $${tp} · Entry: $${entry.toFixed(2)}`, recId:rec._id, fromUser:String(req.user._id), time:new Date(),
       });
       sendFollowAlert(f.email, '@' + (req.user.username || req.user.fullName), sym, direction, tp).catch(()=>{});
     });
@@ -246,6 +257,43 @@ router.post('/', protect, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ message:err.message }); }
 });
 
+// POST /api/recommendations/:id/close — owner closes an open trade at the exit price
+router.post('/:id/close', protect, async (req, res) => {
+  try {
+    const rec = await Recommendation.findById(req.params.id);
+    if (!rec) return res.status(404).json({ message:'Trade not found' });
+    if (String(rec.user) !== String(req.user._id)) return res.status(403).json({ message:'You can only close your own trades' });
+    if (!rec.isOpen) return res.status(400).json({ message:'This trade is already closed' });
+
+    let closePrice = req.body?.closePrice;
+    if (closePrice === undefined || closePrice === null || String(closePrice).trim() === '') {
+      const quote = await yf.getQuote(rec.symbol);
+      closePrice = quote?.price;
+    }
+    closePrice = Number(closePrice);
+    if (!Number.isFinite(closePrice) || closePrice <= 0) {
+      return res.status(400).json({ message:'A valid close price is required' });
+    }
+
+    const rawReturn = rec.direction === 'BUY'
+      ? ((closePrice - rec.entryPrice) / rec.entryPrice * 100)
+      : ((rec.entryPrice - closePrice) / rec.entryPrice * 100);
+    rec.currentPrice = closePrice;
+    rec.closePrice = closePrice;
+    rec.returnPct = +rawReturn.toFixed(2);
+    rec.outcome = rawReturn >= 0 ? 'WIN' : 'LOSS';
+    rec.isOpen = false;
+    rec.manualClose = true;
+    rec.closedAt = new Date();
+    await rec.save();
+    await rec.populate('user','fullName username email');
+    req.app.get('io')?.emit('recommendation:closed', {
+      recId:rec._id, symbol:rec.symbol, returnPct:rec.returnPct, outcome:rec.outcome,
+    });
+    res.json(rec);
+  } catch (err) { res.status(500).json({ message:err.message }); }
+});
+
 // POST /api/recommendations/engine-save
 router.post('/engine-save', protect, async (req, res) => {
   try {
@@ -254,7 +302,7 @@ router.post('/engine-save', protect, async (req, res) => {
       user:req.user._id, symbol:symbol.toUpperCase(), companyName:symbol.toUpperCase(),
       entryPrice:Number(entryPrice), takeProfit:Number(takeProfit),
       stopLoss:stopLoss?Number(stopLoss):null, direction, note,
-      currentPrice:Number(entryPrice), source:'engine', profileOnly:true,
+      currentPrice:Number(entryPrice), openedAt:new Date(), source:'engine', profileOnly:true,
     });
     await rec.populate('user','fullName username email');
     res.status(201).json(rec);
@@ -274,6 +322,7 @@ router.post('/:id/repost', protect, async (req, res) => {
       user:req.user._id, symbol:original.symbol, companyName:original.companyName,
       entryPrice:original.entryPrice, takeProfit:original.takeProfit, stopLoss:original.stopLoss,
       direction:original.direction, note:comment?.trim()||'', currentPrice:original.currentPrice,
+      openedAt:original.openedAt || original.createdAt,
       source:'repost', repostedFrom:original._id, profileOnly:false,
     });
     if (!original.repostedBy.map(String).includes(String(req.user._id))) {
@@ -282,7 +331,7 @@ router.post('/:id/repost', protect, async (req, res) => {
     // Notify original poster
     const io = req.app.get('io');
     io.notifyUser && io.notifyUser(String(original.user._id), 'notification', {
-      type:'repost', title:`↩ @${req.user.username||req.user.fullName} reposted your $${original.symbol} call`,
+      type:'repost', title:`↩ @${req.user.username||req.user.fullName} reposted your $${original.symbol} trade`,
       body:comment?.trim()||'', recId:original._id, time:new Date(),
     });
     await repost.populate('user','fullName username email');
@@ -294,9 +343,13 @@ router.post('/:id/repost', protect, async (req, res) => {
 // DELETE /api/recommendations/:id/repost
 router.delete('/:id/repost', protect, async (req, res) => {
   try {
-    const repost = await Recommendation.findOne({ user:req.user._id, repostedFrom:req.params.id, source:'repost' });
+    const repost = await Recommendation.findOne({
+      user:req.user._id,
+      source:'repost',
+      $or:[{ repostedFrom:req.params.id }, { _id:req.params.id }],
+    });
     if (!repost) return res.status(404).json({ message:'Repost not found' });
-    await Recommendation.findByIdAndUpdate(req.params.id, { $pull:{ repostedBy:req.user._id } });
+    await Recommendation.findByIdAndUpdate(repost.repostedFrom, { $pull:{ repostedBy:req.user._id } });
     await repost.deleteOne();
     res.json({ message:'Repost removed' });
   } catch (err) { res.status(500).json({ message:err.message }); }
@@ -315,7 +368,7 @@ router.post('/:id/like', protect, async (req, res) => {
     if (!liked && String(rec.user._id) !== String(req.user._id)) {
       const io = req.app.get('io');
       io.notifyUser && io.notifyUser(String(rec.user._id), 'notification', {
-        type:'like', title:`❤️ @${req.user.username||req.user.fullName} liked your $${rec.symbol} call`,
+        type:'like', title:`❤️ @${req.user.username||req.user.fullName} liked your $${rec.symbol} trade`,
         body:'', recId:rec._id, time:new Date(),
       });
     }
@@ -323,7 +376,7 @@ router.post('/:id/like', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
 
-// GET /api/recommendations/:id/likes — who liked this call
+// GET /api/recommendations/:id/likes — who liked this trade
 router.get('/:id/likes', protect, async (req, res) => {
   try {
     const rec = await Recommendation.findById(req.params.id).select('likes');
@@ -338,11 +391,14 @@ router.get('/:id/likes', protect, async (req, res) => {
 // POST /api/recommendations/:id/comment
 router.post('/:id/comment', protect, async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, parentCommentId } = req.body;
     if (!text?.trim()) return res.status(400).json({ message:'Comment cannot be empty' });
     const rec = await Recommendation.findById(req.params.id).populate('user','_id fullName');
     if (!rec) return res.status(404).json({ message:'Not found' });
-    rec.comments.push({ user:req.user._id, text:text.trim() });
+    if (parentCommentId && !rec.comments.id(parentCommentId)) {
+      return res.status(400).json({ message:'Reply target was not found' });
+    }
+    rec.comments.push({ user:req.user._id, text:text.trim(), parentCommentId: parentCommentId || null });
     await rec.save();
     await rec.populate('comments.user','fullName username');
     const newComment = rec.comments[rec.comments.length-1];
@@ -351,7 +407,7 @@ router.post('/:id/comment', protect, async (req, res) => {
     // Notify rec owner
     if (String(rec.user._id) !== String(req.user._id)) {
       io.notifyUser && io.notifyUser(String(rec.user._id), 'notification', {
-        type:'comment', title:`💬 @${req.user.username||req.user.fullName} commented on your $${rec.symbol} call`,
+        type:'comment', title:`💬 @${req.user.username||req.user.fullName} commented on your $${rec.symbol} trade`,
         body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), time:new Date(),
       });
     }
@@ -371,6 +427,16 @@ router.post('/:id/comment', protect, async (req, res) => {
       }
     } catch (e) {}
     res.status(201).json(newComment);
+  } catch (err) { res.status(500).json({ message:err.message }); }
+});
+
+// DELETE /api/recommendations/:id/engine-save — remove an owner-saved Signal Engine trade.
+router.delete('/:id/engine-save', protect, async (req, res) => {
+  try {
+    const rec = await Recommendation.findOne({ _id:req.params.id, user:req.user._id, source:'engine' });
+    if (!rec) return res.status(404).json({ message:'Saved engine trade not found' });
+    await rec.deleteOne();
+    res.json({ message:'Saved engine trade removed' });
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
 

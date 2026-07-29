@@ -26,7 +26,7 @@ const fetchJSON = async (url, retries = 3) => {
             'Referer': 'https://finance.yahoo.com/',
           }
         };
-        https.get(url, opts, (res) => {
+        const req = https.get(url, opts, (res) => {
           if (res.statusCode === 301 || res.statusCode === 302) {
             return fetchJSON(res.headers.location, retries).then(resolve).catch(reject);
           }
@@ -39,7 +39,9 @@ const fetchJSON = async (url, retries = 3) => {
             try { resolve(JSON.parse(data)); }
             catch(e) { reject(new Error('PARSE_ERROR')); }
           });
-        }).on('error', reject).on('timeout', () => reject(new Error('TIMEOUT')));
+        });
+        req.on('error', reject);
+        req.on('timeout', () => req.destroy(new Error('TIMEOUT')));
       });
       return result;
     } catch(err) {
@@ -147,6 +149,30 @@ const getCandles = async (symbol, days = 120) => {
   const vols   = (q.volume || []).filter(v => v != null);
   if (closes.length < 20) throw new Error('Not enough data');
   return { c: closes, h: highs, l: lows, v: vols };
+};
+
+// Finds the latest daily session whose range traded through a requested entry.
+// Used only when a trader supplies a historical entry price for a new call.
+const findLastPriceTouch = async (symbol, targetPrice, days = 5 * 365) => {
+  const resolved = resolveSymbol(symbol);
+  const ySym = resolved.startsWith('BINANCE:') ? resolved.replace('BINANCE:','').replace('USDT','-USD') : resolved;
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - days * 86400;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ySym)}?interval=1d&period1=${from}&period2=${now}`;
+  const data = await fetchJSON(url);
+  const result = data?.chart?.result?.[0];
+  const quote = result?.indicators?.quote?.[0];
+  const timestamps = result?.timestamp || [];
+  if (!quote?.high || !quote?.low) return null;
+
+  for (let i = timestamps.length - 1; i >= 0; i--) {
+    const high = quote.high[i];
+    const low = quote.low[i];
+    if (Number.isFinite(high) && Number.isFinite(low) && low <= targetPrice && targetPrice <= high) {
+      return new Date(timestamps[i] * 1000);
+    }
+  }
+  return null;
 };
 
 // ── Weekly candles for multi-timeframe ────────────────────────────
@@ -390,22 +416,41 @@ const adx = (highs, lows, closes, period=14) => {
 };
 
 // ── MAIN ENGINE ────────────────────────────────────────────────────
-const getEngineRecommendation = async (symbol) => {
-  const quote = await getQuote(symbol);
-  const { price, changePct } = quote;
+const getEngineRecommendation = async (symbol, opts = {}) => {
+  const skipNews = opts.skipNews === true;
+  const skipWeekly = opts.skipWeekly === true;
+  const suppliedRegime = opts.regime;
 
-  // Parallel fetch all data
-  const [candleResult, weeklyCandleResult, newsResult, regimeResult] = await Promise.allSettled([
+  // Scanner phase one must not consume Finnhub. Build its quote from Yahoo candles
+  // and defer news/analyst requests until the small enrichment phase.
+  const [candleResult, weeklyCandleResult, newsResult, regimeResult, quoteResult] = await Promise.allSettled([
     getCandles(symbol, 120),
-    getWeeklyCandles(symbol),
-    getNewsSentiment(symbol),
-    getMarketRegime(),
+    skipWeekly ? Promise.resolve(null) : getWeeklyCandles(symbol),
+    skipNews ? Promise.resolve(null) : getNewsSentiment(symbol),
+    suppliedRegime ? Promise.resolve(suppliedRegime) : getMarketRegime(),
+    skipNews ? Promise.resolve(null) : getQuote(symbol),
   ]);
 
   const candles       = candleResult.status       === 'fulfilled' ? candleResult.value       : null;
   const weeklyCandles = weeklyCandleResult.status === 'fulfilled' ? weeklyCandleResult.value : null;
-  const news          = newsResult.status         === 'fulfilled' ? newsResult.value         : { score:0, news:[], label:'Unavailable', analystScore:0, analystLabel:'' };
+  const news          = skipNews
+    ? { score:0, news:[], label:'Pending enrichment', analystScore:0, analystLabel:'' }
+    : newsResult.status === 'fulfilled' ? newsResult.value : { score:0, news:[], label:'Unavailable', analystScore:0, analystLabel:'' };
   const regime        = regimeResult.status       === 'fulfilled' ? regimeResult.value       : { regime:'unknown' };
+  let quote           = quoteResult.status        === 'fulfilled' ? quoteResult.value : null;
+
+  if (!quote && candles?.c?.length >= 2) {
+    const price = candles.c[candles.c.length - 1];
+    const prev  = candles.c[candles.c.length - 2] || price;
+    quote = {
+      symbol: symbol.toUpperCase(), shortName: symbol.toUpperCase(), price,
+      change: price - prev, changePct: prev ? ((price - prev) / prev * 100) : 0,
+      high: candles.h[candles.h.length - 1] || price,
+      low:  candles.l[candles.l.length - 1] || price,
+    };
+  }
+  if (!quote) throw new Error(`No market data for ${symbol}`);
+  const { price, changePct } = quote;
 
   if (!candles || candles.c.length < 20) return simpleFallback(quote, symbol, news, regime);
 
@@ -547,12 +592,14 @@ const getEngineRecommendation = async (symbol) => {
   // ── MINIMUM THRESHOLD — only signal if score strong enough ───────
   const absScore = Math.abs(score);
   const MIN_SCORE = 4; // must have at least 4 points of conviction
+  const realAtr  = atr(highs,lows,closes) || Math.max(price * 0.015, 0.01);
 
   if (absScore < MIN_SCORE) {
     return {
       symbol: quote.symbol, name: quote.shortName, price,
       direction: 'NEUTRAL', confidence: 'Insufficient',
       takeProfit: null, stopLoss: null, riskReward: null,
+      atrValue: realAtr,
       score, signals, gates,
       news: news.news, newsLabel: news.label, newsScore: news.score,
       analystLabel: news.analystLabel,
@@ -572,7 +619,6 @@ const getEngineRecommendation = async (symbol) => {
   else                   confidence='Very Low';
 
   // ── ATR-based TP & SL ────────────────────────────────────────────
-  const realAtr  = atr(highs,lows,closes);
   const tpMult   = absScore>=12 ? 4.5 : absScore>=8 ? 3.5 : absScore>=5 ? 2.5 : 2.0;
   const slMult   = 1.5;
   const takeProfit = direction==='BUY' ? +(price+realAtr*tpMult).toFixed(2) : +(price-realAtr*tpMult).toFixed(2);
@@ -596,7 +642,7 @@ const getEngineRecommendation = async (symbol) => {
 
   return {
     symbol: quote.symbol, name: quote.shortName, price,
-    direction, confidence, takeProfit, stopLoss, riskReward,
+    direction, confidence, takeProfit, stopLoss, riskReward, atrValue: realAtr,
     rangePct:   +rangePct.toFixed(1),
     trend:      score>0?'Bullish':score<0?'Bearish':'Neutral',
     change:     changePct, score, signals, gates,
@@ -643,4 +689,4 @@ const simpleFallback = (quote, symbol, news={score:0,news:[],label:'N/A'}, regim
   };
 };
 
-module.exports = { getQuote, getEngineRecommendation, getNewsSentiment };
+module.exports = { getQuote, getEngineRecommendation, getNewsSentiment, findLastPriceTouch };

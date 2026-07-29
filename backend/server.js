@@ -15,7 +15,6 @@ const io     = new Server(server, {
 });
 
 app.set('io', io);
-connectDB();
 
 app.set('trust proxy', 1); // Required for Railway/Heroku
 app.use(cors({ origin: '*', credentials: true }));
@@ -98,4 +97,5 @@ app.get('*', (_, res) =>
 );
 
 const PORT = process.env.PORT || 5000;
+connectDB();
 server.listen(PORT, () => console.log(`🚀 SwingRush on http://localhost:${PORT}`));

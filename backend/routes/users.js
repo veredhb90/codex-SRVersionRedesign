@@ -7,13 +7,27 @@ const Recommendation = require('../models/Recommendation');
 function computeStats(recs) {
   const myRecs = recs.filter(r => !r.source || r.source === 'manual');
   const closed  = myRecs.filter(r => r.outcome !== 'OPEN');
+  const open    = myRecs.filter(r => r.isOpen);
   const wins    = closed.filter(r => r.outcome === 'WIN').length;
   const winRate = closed.length > 0 ? +((wins / closed.length) * 100).toFixed(1) : 0;
-  const totalRet = myRecs.reduce((s, r) => s + (r.returnPct || 0), 0);
+  const tradeReturn = r => {
+    if (!r.isOpen) return Number(r.returnPct || 0);
+    const entry = Number(r.entryPrice || 0);
+    const current = Number(r.currentPrice || entry);
+    if (!entry || !Number.isFinite(current)) return 0;
+    return r.direction === 'SELL'
+      ? ((entry - current) / entry) * 100
+      : ((current - entry) / entry) * 100;
+  };
+  const openReturn = open.reduce((sum, r) => sum + tradeReturn(r), 0);
+  const closedReturn = closed.reduce((sum, r) => sum + tradeReturn(r), 0);
+  const totalRet = openReturn + closedReturn;
   return {
-    total: myRecs.length, open: myRecs.filter(r => r.isOpen).length,
+    total: myRecs.length, open: open.length,
     closed: closed.length, wins, losses: closed.length - wins,
     winRate, totalReturn: +totalRet.toFixed(2),
+    openReturn: +openReturn.toFixed(2),
+    closedReturn: +closedReturn.toFixed(2),
     avgReturn: myRecs.length > 0 ? +(totalRet / myRecs.length).toFixed(2) : 0,
   };
 }
@@ -49,7 +63,7 @@ router.get('/me', protect, async (req, res) => {
       .populate('following', 'fullName username email')
       .populate('followers', 'fullName username email');
     const recs = await Recommendation.find({ user: req.user._id })
-      .sort({ createdAt: -1 })
+      .sort({ openedAt: -1, createdAt: -1 })
       .populate('comments.user', 'fullName username')
       .populate({ path: 'repostedFrom', populate: { path: 'user', select: 'fullName username' } })
       .lean();
@@ -69,7 +83,7 @@ router.get('/:id', protect, async (req, res) => {
       user: req.params.id,
       $or: [{ source: 'manual' }, { source: 'repost' }, { source: { $exists: false } }]
     })
-      .sort({ createdAt: -1 })
+      .sort({ openedAt: -1, createdAt: -1 })
       .populate('comments.user', 'fullName username')
       .populate({ path: 'repostedFrom', populate: { path: 'user', select: 'fullName username' } })
       .lean();

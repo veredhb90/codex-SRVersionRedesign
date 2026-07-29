@@ -6,27 +6,35 @@ const User = require('../models/User');
 
 router.get('/', protect, async (req, res) => {
   try {
-    // Get all closed recs
-    const closedRecs = await Recommendation.find({ isOpen: false })
-      .select('user outcome returnPct symbol source')
+    // Rank only original manual trades. Open trades use their latest stored market value.
+    const trades = await Recommendation.find({ $or:[{ source:'manual' }, { source:{ $exists:false } }] })
+      .select('user outcome returnPct entryPrice currentPrice direction isOpen')
       .lean();
 
-    console.log('Leaderboard: found', closedRecs.length, 'closed recs');
+    console.log('Leaderboard: found', trades.length, 'manual trades');
 
-    if (!closedRecs.length) {
+    if (!trades.length) {
       return res.json({ byWinRate: [], byTotalReturn: [] });
     }
 
     // Group by user manually
     const userStats = {};
-    closedRecs.forEach(r => {
+    trades.forEach(r => {
       const uid = String(r.user);
       if (!userStats[uid]) {
-        userStats[uid] = { total: 0, wins: 0, totalReturn: 0 };
+        userStats[uid] = { total: 0, closed: 0, wins: 0, totalReturn: 0 };
       }
       userStats[uid].total++;
-      if (r.outcome === 'WIN') userStats[uid].wins++;
-      userStats[uid].totalReturn += (r.returnPct || 0);
+      if (!r.isOpen) {
+        userStats[uid].closed++;
+        if (r.outcome === 'WIN') userStats[uid].wins++;
+      }
+      const entry = Number(r.entryPrice || 0);
+      const current = Number(r.currentPrice || entry);
+      const liveReturn = entry && Number.isFinite(current)
+        ? (r.direction === 'SELL' ? ((entry-current)/entry)*100 : ((current-entry)/entry)*100)
+        : 0;
+      userStats[uid].totalReturn += r.isOpen ? liveReturn : Number(r.returnPct || 0);
     });
 
     // Get user details
@@ -49,8 +57,8 @@ router.get('/', protect, async (req, res) => {
           followers:   u.followers?.length || 0,
           total:       s.total,
           wins:        s.wins,
-          losses:      s.total - s.wins,
-          winRate:     +(s.wins / s.total * 100).toFixed(1),
+          losses:      s.closed - s.wins,
+          winRate:     s.closed ? +(s.wins / s.closed * 100).toFixed(1) : 0,
           totalReturn: +s.totalReturn.toFixed(2),
           avgReturn:   +(s.totalReturn / s.total).toFixed(2),
         };
@@ -58,7 +66,7 @@ router.get('/', protect, async (req, res) => {
 
     console.log('Leaderboard enriched:', enriched.length, 'traders');
 
-    const byWinRate     = [...enriched].sort((a,b) => b.winRate - a.winRate || b.total - a.total).slice(0,10);
+    const byWinRate     = [...enriched].filter(t => t.wins + t.losses > 0).sort((a,b) => b.winRate - a.winRate || b.total - a.total).slice(0,10);
     const byTotalReturn = [...enriched].sort((a,b) => b.totalReturn - a.totalReturn).slice(0,10);
 
     res.json({ byWinRate, byTotalReturn });

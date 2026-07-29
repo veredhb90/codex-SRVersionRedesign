@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin — SwingRush</title>
   <link rel="stylesheet" href="/css/main.css"/>
+  <link rel="stylesheet" href="/css/redesign.css"/>
   <style>
     .adm-wrap { max-width:1080px; margin:28px auto; padding:0 16px; }
     .adm-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:24px; }
@@ -36,10 +37,72 @@
     #adm-denied { display:none; text-align:center; padding:80px 20px; }
     #adm-denied .icon { font-size:52px; margin-bottom:12px; }
     .sub-until { font-size:11px; color:var(--muted); }
-    @media(max-width:768px){ .adm-wrap{margin:14px auto;} .adm-stat .num{font-size:22px;} }
+    .admin-page { background:var(--bg) !important; color:var(--text); }
+    .admin-page .navbar { background:rgba(6,7,8,.92) !important; }
+    .adm-nav-label { color:var(--gold); font:800 11px var(--font-mono); }
+    .adm-wrap { max-width:1240px; margin:24px auto 64px; }
+    .adm-hero { display:flex; justify-content:space-between; gap:24px; align-items:end; padding:24px 0 22px; border-bottom:1px solid var(--border); }
+    .adm-eyebrow { display:inline-flex; align-items:center; gap:7px; color:var(--accent2); font:800 10px var(--font-mono); }
+    .adm-hero h1, .adm-table-heading h2, .adm-modal-card h2 { margin:6px 0 0; color:var(--text); font:800 28px var(--font-disp); }
+    .adm-hero p { max-width:620px; margin:8px 0 0; color:var(--text2); font-size:14px; line-height:1.5; }
+    .adm-sync { display:inline-flex; align-items:center; gap:8px; color:var(--text2); font:700 11px var(--font-mono); white-space:nowrap; }
+    .adm-sync-dot { width:8px; height:8px; border-radius:50%; background:var(--green2); box-shadow:0 0 0 4px rgba(37,208,111,.1); }
+    .adm-stats { grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px; margin:20px 0 12px; }
+    .adm-stat { min-height:98px; display:grid; align-content:center; text-align:left; background:var(--surface) !important; border:1px solid var(--border) !important; border-radius:var(--radius); padding:14px; position:relative; overflow:hidden; }
+    .adm-stat::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--accent); }
+    .adm-stat .num { color:var(--text) !important; font:800 23px var(--font-mono); }
+    .adm-stat .lbl { color:var(--muted) !important; font:800 10px var(--font-mono); margin-top:5px; }
+    .adm-stat-scan::before { background:var(--gold); }
+    .adm-scan-status { display:flex; justify-content:space-between; gap:18px; align-items:center; padding:15px 16px; border:1px solid var(--border); border-left:3px solid var(--muted); background:var(--surface); }
+    .adm-scan-status.running { border-left-color:var(--accent); background:rgba(54,197,240,.07); }
+    .adm-scan-status.complete { border-left-color:var(--green); background:rgba(37,208,111,.06); }
+    .adm-scan-status strong { display:block; margin-top:4px; color:var(--text); font-size:14px; }
+    .adm-scan-label { color:var(--muted); font:800 10px var(--font-mono); }
+    .adm-scan-status p { margin:0; max-width:570px; color:var(--text2); font-size:12px; line-height:1.45; text-align:right; }
+    .adm-table-heading { display:flex; justify-content:space-between; align-items:end; margin:30px 0 12px; }
+    .adm-table-heading h2 { font-size:20px; }
+    .adm-user-count { color:var(--muted); font:700 11px var(--font-mono); }
+    .adm-toolbar { margin-bottom:12px; gap:8px; }
+    .adm-search { min-height:40px; background:var(--surface) !important; color:var(--text) !important; border:1px solid var(--border2) !important; border-radius:var(--radius-sm); }
+    .adm-search:focus { border-color:rgba(54,197,240,.75) !important; box-shadow:0 0 0 3px rgba(54,197,240,.1); }
+    .adm-filter-group { display:flex; gap:4px; padding:3px; border:1px solid var(--border); background:var(--surface); border-radius:var(--radius-sm); }
+    .adm-filter { min-height:32px; padding:5px 10px; color:var(--muted); border:0; background:transparent; font:700 11px var(--font-body); cursor:pointer; }
+    .adm-filter.active { color:#03120a; background:var(--green); }
+    .adm-table-wrap { border:1px solid var(--border) !important; border-radius:var(--radius); background:var(--surface) !important; box-shadow:var(--shadow-sm); }
+    table.adm { color:var(--text2); min-width:900px; }
+    table.adm th { padding:12px 14px; background:var(--surface2) !important; color:var(--muted) !important; border-bottom:1px solid var(--border) !important; font:800 10px var(--font-mono); }
+    table.adm td { border-bottom-color:var(--border) !important; padding:13px 14px; }
+    table.adm tr:hover td { background:rgba(255,255,255,.025) !important; }
+    .badge-pro, .badge-free, .badge-adm { border-radius:999px; font-family:var(--font-mono); }
+    .badge-pro { background:var(--gold-bg); color:var(--gold); border:1px solid rgba(246,183,60,.35); }
+    .badge-free { background:rgba(255,255,255,.05); color:var(--text2); border:1px solid var(--border); }
+    .badge-adm { background:var(--accent-bg); color:var(--accent2); border:1px solid rgba(54,197,240,.35); }
+    .adm-btn { min-height:32px; margin:2px; border-radius:var(--radius-sm); }
+    .adm-btn.up { background:var(--accent-bg); color:var(--accent2); border:1px solid rgba(54,197,240,.3); }
+    .adm-btn.up:hover { background:var(--accent); color:#031014; }
+    .adm-btn.del { background:transparent; color:var(--red2); border-color:rgba(255,77,109,.32); }
+    .adm-msg { border:1px solid var(--border); border-radius:var(--radius-sm); }
+    .adm-msg.ok { background:var(--green-bg); color:var(--green2); border-color:rgba(37,208,111,.3); }
+    .adm-msg.err { background:var(--red-bg); color:var(--red2); border-color:rgba(255,77,109,.3); }
+    .adm-modal { display:none; position:fixed; inset:0; z-index:41000; align-items:center; justify-content:center; padding:20px; }
+    .adm-modal.open { display:flex; }
+    .adm-modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.72); backdrop-filter:blur(6px); }
+    .adm-modal-card { position:relative; width:min(430px,100%); padding:22px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--radius); box-shadow:var(--shadow-lg); }
+    .adm-modal-head { display:flex; justify-content:space-between; gap:18px; align-items:start; }
+    .adm-modal-card h2 { font-size:21px; }
+    .adm-icon-btn { width:34px; height:34px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2); color:var(--text2); cursor:pointer; font-size:20px; }
+    .adm-modal-user { margin:18px 0; padding:9px 10px; background:var(--bg2); border:1px solid var(--border); color:var(--text2); font:700 12px var(--font-mono); overflow-wrap:anywhere; }
+    .adm-field-label { display:block; margin-bottom:7px; color:var(--text2); font-size:12px; font-weight:700; }
+    .adm-access-select { width:100%; min-height:42px; padding:0 10px; background:var(--bg2); color:var(--text); border:1px solid var(--border2); border-radius:var(--radius-sm); }
+    .adm-modal-note { margin:10px 0 18px; color:var(--muted); font-size:11px; line-height:1.45; }
+    .adm-modal-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .adm-downgrade-btn { color:var(--red2) !important; border-color:rgba(255,77,109,.35) !important; }
+    @media(max-width:980px){ .adm-stats{grid-template-columns:repeat(3,minmax(0,1fr));} }
+    @media(max-width:768px){ .adm-wrap{margin:14px auto 44px;} .adm-hero,.adm-scan-status{align-items:flex-start;flex-direction:column;} .adm-scan-status p{text-align:left;} .adm-toolbar{align-items:stretch;} .adm-search{flex-basis:100%;} }
+    @media(max-width:520px){ .adm-stats{grid-template-columns:repeat(2,minmax(0,1fr));} .adm-hero h1{font-size:24px;} .adm-filter-group{width:100%;} .adm-filter{flex:1;} .adm-table-heading{align-items:start;flex-direction:column;gap:5px;} }
   </style>
 </head>
-<body>
+<body class="admin-page">
 
 <nav class="navbar">
   <a class="navbar-brand" href="/feed.html">
@@ -47,8 +110,8 @@
     <span style="color:var(--accent);">SWING</span><span style="color:var(--red);">RUSH</span>
   </a>
   <div class="navbar-actions">
-    <span style="color:var(--muted);font-size:13px;font-weight:700;letter-spacing:1px;">🛡 ADMIN PANEL</span>
-    <a href="/feed.html" class="btn btn-outline btn-sm">← Feed</a>
+    <span class="adm-nav-label">ADMIN COMMAND</span>
+    <a href="/feed.html" class="btn btn-outline btn-sm">Back to Feed</a>
   </div>
 </nav>
 
@@ -59,18 +122,46 @@
 </div>
 
 <div class="adm-wrap" id="adm-main" style="display:none;">
+  <section class="adm-hero">
+    <div>
+      <div class="adm-eyebrow"><span class="live-dot-sm"></span> CONTROL ROOM</div>
+      <h1>Platform Operations</h1>
+      <p>Manage subscriber access and monitor the market-intelligence pipeline from one operational view.</p>
+    </div>
+    <div class="adm-sync">
+      <span class="adm-sync-dot"></span>
+      <span id="adm-last-sync">Syncing data</span>
+    </div>
+  </section>
+
   <div class="adm-stats">
     <div class="adm-stat"><div class="num" id="st-total">–</div><div class="lbl">TOTAL USERS</div></div>
     <div class="adm-stat"><div class="num" id="st-pro" style="color:#E6A817;">–</div><div class="lbl">⚡ PRO</div></div>
     <div class="adm-stat"><div class="num" id="st-free">–</div><div class="lbl">FREE</div></div>
     <div class="adm-stat"><div class="num" id="st-new" style="color:#00893E;">–</div><div class="lbl">NEW THIS WEEK</div></div>
+    <div class="adm-stat adm-stat-scan"><div class="num" id="st-scan">–</div><div class="lbl">SCANNER STATUS</div></div>
   </div>
+
+  <section class="adm-scan-status" id="adm-scan-status">
+    <div><span class="adm-scan-label">MARKET SCANNER</span><strong id="adm-scan-title">Loading scanner status</strong></div>
+    <p id="adm-scan-copy">Checking the latest saved market ranking.</p>
+  </section>
 
   <div class="adm-msg" id="adm-msg"></div>
 
+  <div class="adm-table-heading">
+    <div><span class="adm-eyebrow">USER ACCESS</span><h2>Subscribers</h2></div>
+    <span id="adm-user-count" class="adm-user-count">– users</span>
+  </div>
+
   <div class="adm-toolbar">
     <input class="adm-search" id="adm-search" type="text" placeholder="🔍 Search by email, username or name..."/>
-    <button class="btn btn-outline btn-sm" onclick="loadAll()">↻ Refresh</button>
+    <div class="adm-filter-group" aria-label="Plan filter">
+      <button type="button" class="adm-filter active" onclick="setPlanFilter('all', this)">All</button>
+      <button type="button" class="adm-filter" onclick="setPlanFilter('pro', this)">Pro</button>
+      <button type="button" class="adm-filter" onclick="setPlanFilter('free', this)">Free</button>
+    </div>
+    <button type="button" class="btn btn-outline btn-sm" onclick="loadAll()">Refresh</button>
   </div>
 
   <div class="adm-table-wrap">
@@ -87,9 +178,35 @@
   </div>
 </div>
 
+<div class="adm-modal" id="adm-access-modal" aria-hidden="true">
+  <div class="adm-modal-backdrop" onclick="closeAccessModal()"></div>
+  <section class="adm-modal-card" role="dialog" aria-modal="true" aria-labelledby="adm-access-title">
+    <div class="adm-modal-head">
+      <div><span class="adm-eyebrow">SUBSCRIBER ACCESS</span><h2 id="adm-access-title">Manage Pro access</h2></div>
+      <button type="button" class="adm-icon-btn" onclick="closeAccessModal()" aria-label="Close">×</button>
+    </div>
+    <p id="adm-access-user" class="adm-modal-user"></p>
+    <label class="adm-field-label" for="adm-access-months">Extension length</label>
+    <select id="adm-access-months" class="adm-access-select">
+      <option value="1">1 month</option>
+      <option value="3">3 months</option>
+      <option value="6">6 months</option>
+      <option value="12">12 months</option>
+    </select>
+    <p class="adm-modal-note">Active Pro access is extended from its current expiry date.</p>
+    <div class="adm-modal-actions">
+      <button type="button" class="btn btn-primary" id="adm-access-grant">Grant or extend Pro</button>
+      <button type="button" class="btn btn-outline adm-downgrade-btn" id="adm-access-downgrade">Downgrade to Free</button>
+    </div>
+  </section>
+</div>
+
 <script src="/js/auth.js"></script>
 <script>
   var searchTimer = null;
+  var allUsers = [];
+  var activePlan = 'all';
+  var accessUser = null;
 
   function authHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') };
@@ -116,15 +233,56 @@
     document.getElementById('st-pro').textContent   = s.pro;
     document.getElementById('st-free').textContent  = s.free;
     document.getElementById('st-new').textContent   = s.newThisWeek;
+    updateScannerStatus(s.scanner);
+    document.getElementById('adm-last-sync').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     return true;
+  }
+
+  function updateScannerStatus(scanner) {
+    var badge = document.getElementById('st-scan');
+    var title = document.getElementById('adm-scan-title');
+    var copy = document.getElementById('adm-scan-copy');
+    var panel = document.getElementById('adm-scan-status');
+    panel.classList.remove('running', 'complete', 'idle');
+
+    if (!scanner) {
+      badge.textContent = 'Idle';
+      title.textContent = 'No completed scan saved yet';
+      copy.textContent = 'The scheduled scanner will create the first market ranking automatically.';
+      panel.classList.add('idle');
+      return;
+    }
+
+    if (scanner.running) {
+      var isNews = scanner.phase === 'news';
+      var completed = isNews ? scanner.newsEnrichedCount : scanner.scannedCount;
+      var total = isNews ? (scanner.technicalResults || scanner.scannedCount) : 682;
+      badge.textContent = 'Running';
+      title.textContent = isNews ? 'Enriching full-universe news scores' : 'Scanning technical signals';
+      copy.textContent = completed + ' / ' + total + ' complete · the final ranking publishes when both phases finish.';
+      panel.classList.add('running');
+      return;
+    }
+
+    badge.textContent = 'Ready';
+    title.textContent = 'Latest full market ranking is available';
+    var updated = scanner.scannedAt ? new Date(scanner.scannedAt).toLocaleString() : 'unknown time';
+    copy.textContent = (scanner.scannedCount || 0) + ' tickers scanned · ' + (scanner.duration || 0) + 's duration · updated ' + updated + '. Weekday schedule: every 4 hours.';
+    panel.classList.add('complete');
   }
 
   async function loadUsers() {
     var q = document.getElementById('adm-search').value.trim();
     var res = await fetch('/api/admin/users' + (q ? '?search=' + encodeURIComponent(q) : ''), { headers: authHeaders() });
     if (res.status === 403 || res.status === 401) { denied(); return; }
-    var users = await res.json();
+    allUsers = await res.json();
+    renderUsers();
+  }
+
+  function renderUsers() {
     var rows = document.getElementById('adm-rows');
+    var users = activePlan === 'all' ? allUsers : allUsers.filter(function(u) { return u.plan === activePlan; });
+    document.getElementById('adm-user-count').textContent = users.length + (users.length === 1 ? ' user' : ' users');
     if (!users.length) {
       rows.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px;">No users found</td></tr>';
       return;
@@ -144,26 +302,27 @@
         '<td class="sub-until">' + usage + '</td>' +
         '<td class="sub-until">' + joined + '</td>' +
         '<td>' +
-          (isPro
-            ? '<button class="adm-btn up" onclick="upgrade(\'' + u._id + '\', 1)">+1m</button>' +
-              '<button class="adm-btn down" onclick="downgrade(\'' + u._id + '\', \'' + esc(u.email) + '\')">⬇ Free</button>'
-            : '<button class="adm-btn up" onclick="upgrade(\'' + u._id + '\', 1)">⚡ 1 mo</button>' +
-              '<button class="adm-btn up" onclick="upgrade(\'' + u._id + '\', 3)">⚡ 3 mo</button>' +
-              '<button class="adm-btn up" onclick="upgrade(\'' + u._id + '\', 12)">⚡ 1 yr</button>'
-          ) +
-          (u.isAdmin ? '' : '<button class="adm-btn del" onclick="deleteUser(\'' + u._id + '\', \'' + esc(u.email) + '\')">🗑</button>') +
+          '<button class="adm-btn up" onclick="openAccessModal(\'' + u._id + '\', \'' + esc(u.email) + '\', ' + isPro + ')">Manage access</button>' +
+          (u.isAdmin ? '' : '<button class="adm-btn del" onclick="deleteUser(\'' + u._id + '\', \'' + esc(u.email) + '\')" aria-label="Delete user" title="Delete user">Delete</button>') +
         '</td>';
       rows.appendChild(tr);
     });
   }
 
+  function setPlanFilter(plan, button) {
+    activePlan = plan;
+    document.querySelectorAll('.adm-filter').forEach(function(el) { el.classList.remove('active'); });
+    button.classList.add('active');
+    renderUsers();
+  }
+
   function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
   async function upgrade(userId, months) {
-    if (!confirm('Upgrade this user to PRO for ' + months + ' month(s)?')) return;
     var res = await fetch('/api/admin/upgrade', { method:'POST', headers: authHeaders(), body: JSON.stringify({ userId: userId, months: months }) });
     var d = await res.json();
     showMsg(res.ok ? '✅ ' + d.message + ' until ' + new Date(d.subscriptionEnd).toLocaleDateString() : '❌ ' + d.message, res.ok);
+    closeAccessModal();
     loadAll();
   }
 
@@ -172,8 +331,40 @@
     var res = await fetch('/api/admin/downgrade', { method:'POST', headers: authHeaders(), body: JSON.stringify({ userId: userId }) });
     var d = await res.json();
     showMsg(res.ok ? '✅ ' + d.message : '❌ ' + d.message, res.ok);
+    if (res.ok) closeAccessModal();
     loadAll();
   }
+
+  function openAccessModal(userId, email, isPro) {
+    accessUser = { userId: userId, email: email, isPro: isPro };
+    document.getElementById('adm-access-user').textContent = email;
+    document.getElementById('adm-access-title').textContent = isPro ? 'Extend Pro access' : 'Grant Pro access';
+    document.getElementById('adm-access-downgrade').style.display = isPro ? 'inline-flex' : 'none';
+    var modal = document.getElementById('adm-access-modal');
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeAccessModal() {
+    var modal = document.getElementById('adm-access-modal');
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    accessUser = null;
+  }
+
+  document.getElementById('adm-access-grant').addEventListener('click', function() {
+    if (!accessUser) return;
+    upgrade(accessUser.userId, parseInt(document.getElementById('adm-access-months').value, 10));
+  });
+
+  document.getElementById('adm-access-downgrade').addEventListener('click', function() {
+    if (!accessUser) return;
+    downgrade(accessUser.userId, accessUser.email);
+  });
+
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && accessUser) closeAccessModal();
+  });
 
   async function deleteUser(userId, email) {
     if (!confirm('⚠️ DELETE user ' + email + '?\n\nThis permanently removes the account, their calls, chats and notifications.\nThe email and username become free to register again.')) return;

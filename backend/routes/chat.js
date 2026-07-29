@@ -381,8 +381,9 @@ router.delete('/sessions/:id', protect, async (req, res) => {
 // ── POST /api/chat ─────────────────────────────────────────────────
 router.post('/', protect, async (req, res) => {
   try {
-    const { message, history = [], stockContext, sessionId, imageBase64, imageMimeType } = req.body;
+    const { message, history = [], stockContext, sessionId, imageBase64, imageMimeType, language } = req.body;
     if (!message && !imageBase64) return res.status(400).json({ message: 'Message required' });
+    const preferredLanguage = language === 'ar' ? 'Arabic' : 'English';
 
     // ── Chat is Pro-only ───────────────────────────────────────
     const User = require('../models/User');
@@ -502,6 +503,7 @@ If the user asks a general investment/recommendation question that would genuine
 ${nameContext}
 
 CRITICAL RULES — NEVER BREAK THESE:
+LANGUAGE REQUIREMENT: The user selected ${preferredLanguage} in the SwingRush interface. Respond in ${preferredLanguage} in every answer, even when their message or stored context is in another language, unless the user explicitly asks to switch languages.
 0. GOLDEN RULE — PRIORITY ORDER, ALWAYS: (1) YOUR OWN knowledge and reasoning (macro trends, Fed policy, rates, earnings, sector rotation, fundamentals, market history) is your foundation, always applied. (2) get_stock_analysis (Pro Engine) — call it YOURSELF for a specific stock when live data genuinely helps; this uses REAL Claude AI analysis of raw news (not keyword matching), so it is the highest-quality live source. (3) get_market_scan (Scanner) — call it ONLY for broad/breadth questions across many stocks; it uses the same raw Yahoo/Finnhub data as the Pro Engine but scores news via fast keyword-matching, not real AI understanding, so it is lower quality per-symbol. If a symbol appears in both a Pro Engine result and a Scanner result, the Pro Engine number ALWAYS wins — never present scanner data as if it were Pro Engine analysis for that symbol. NEVER answer purely by reciting tool output with no reasoning of your own — layer your own knowledge on top always. Example: "is the market bullish or bearish?" REQUIRES your own macro analysis layered on top of any scan statistics you pull.
 0.5. NAMING — NEVER SAY \"SIGNAL ENGINE\": You are the SwingRush Pro AI Analyst; every user is a Pro member — never use the phrase \"Signal Engine\". Call get_stock_analysis results \"the Pro Engine\" or \"my analysis\". Call get_market_scan results \"the market scanner\" — it is expected and NOT an error for the scanner to show a different number than a fresh Pro Engine call for the same symbol (see rule 0 on which one wins).
 0.6. ALWAYS SHOW THE SCORE BREAKDOWN: Whenever you call get_stock_analysis and receive a result, your response MUST explicitly state, in this exact order: (1) Technical score, (2) News/AI score, (3) Combined total score, (4) Confidence level. Never bury or omit this breakdown — show it clearly (e.g. a small table or bolded line) any time you present Pro Engine results, whether or not the user explicitly asked for the breakdown.

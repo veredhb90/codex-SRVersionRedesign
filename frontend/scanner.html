@@ -41,17 +41,6 @@
     }
     .scan-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 
-    /* Scan button */
-    .scan-btn {
-      display:inline-flex; align-items:center; gap:8px;
-      padding:11px 22px; border-radius:9px; border:none; cursor:pointer;
-      font-weight:700; font-size:14px; transition:all .2s;
-      background:var(--green); color:#000;
-    }
-    .scan-btn:hover { background:var(--green2); transform:translateY(-1px); }
-    .scan-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
-    .scan-btn.refresh { background:var(--bg3); color:var(--text); border:1.5px solid var(--border); margin-left:10px; }
-
     /* Stock card */
     .stock-card {
       background:#fff; border:1.5px solid var(--border);
@@ -134,8 +123,9 @@
       .scanner-title { font-size:24px; }
     }
   </style>
+  <link rel="stylesheet" href="/css/redesign.css"/>
 </head>
-<body>
+<body class="scanner-page">
 
 <nav class="navbar">
   <a class="navbar-brand" href="/feed.html">
@@ -144,8 +134,8 @@
   </a>
   <div class="navbar-actions">
     <span style="color:var(--muted);font-size:14px;" class="nav-username"></span>
-    <a href="/feed.html" class="btn btn-outline btn-sm">← Feed</a>
-    <button onclick="Auth.logout()" class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1.5px solid var(--red);">Logout</button>
+    <a href="/feed.html" class="btn btn-outline btn-sm" data-i18n="nav.back_feed">← Feed</a>
+    <button onclick="Auth.logout()" class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1.5px solid var(--red);" data-i18n="nav.logout">Logout</button>
   </div>
 </nav>
 
@@ -153,34 +143,34 @@
 
   <!-- Header -->
   <div class="scanner-header">
-    <div class="scanner-title">⚡ SWINGRUSH <span>SCANNER</span></div>
-    <div class="scanner-sub">AI-powered scan of 682 US stocks — best opportunities ranked by composite score · Results cached in database</div>
+    <div class="scanner-title" data-i18n="scanner.title">SWINGRUSH SCANNER</div>
+    <div class="scanner-sub" data-i18n="scanner.sub">AI-powered scan of 682 US stocks — best opportunities ranked by composite score · Results cached in database</div>
     <div class="scanner-meta" id="scanner-meta" style="display:none;">
-      <div class="scanner-meta-item">📊 Scanned: <strong id="meta-count">—</strong> stocks</div>
-      <div class="scanner-meta-item">⏱ Duration: <strong id="meta-duration">—</strong>s</div>
-      <div class="scanner-meta-item">🕐 Updated: <strong id="meta-time">—</strong></div>
+      <div class="scanner-meta-item"><span data-i18n="scanner.scanned">Scanned:</span> <strong id="meta-count">—</strong></div>
+      <div class="scanner-meta-item"><span data-i18n="scanner.duration">Duration:</span> <strong id="meta-duration">—</strong>s</div>
+      <div class="scanner-meta-item"><span data-i18n="scanner.updated">Updated:</span> <strong id="meta-time">—</strong></div>
+      <div class="scanner-meta-item scanner-next-scan"><span data-i18n="scanner.next_scan">Next automatic scan:</span> <strong id="meta-next-scan">—</strong></div>
     </div>
   </div>
 
-  <!-- Controls -->
+  <!-- Result views -->
   <div style="display:flex;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
     <div class="scan-tabs">
-      <button class="scan-tab active" onclick="switchTab('all')" id="tab-all">🏆 Top 20 Overall</button>
-      <button class="scan-tab" onclick="switchTab('buy')"  id="tab-buy">▲ Top 10 BUY</button>
-      <button class="scan-tab" onclick="switchTab('sell')" id="tab-sell">▼ Top 10 SELL</button>
+      <button class="scan-tab active" onclick="switchTab('all')" id="tab-all" data-i18n="scanner.tab_all">Top 20 Overall</button>
+      <button class="scan-tab" onclick="switchTab('buy')"  id="tab-buy" data-i18n="scanner.tab_buy">Top 10 BUY</button>
+      <button class="scan-tab" onclick="switchTab('sell')" id="tab-sell" data-i18n="scanner.tab_sell">Top 10 SELL</button>
     </div>
-    <button class="scan-btn" id="scan-btn" onclick="runScan(false)">⚡ Run Scanner</button>
-    
-    <span class="cache-notice" id="cache-notice" style="display:none;">📦 Cached result</span>
+    <button type="button" class="btn btn-outline btn-sm" onclick="runScan()" data-i18n="scanner.latest_result">Latest Result</button>
+    <span class="cache-notice" id="cache-notice" style="display:none;" data-i18n="scanner.cached">Cached result</span>
   </div>
 
   <!-- Results -->
   <div id="scan-results">
     <div class="scan-empty">
       <div class="big-icon">⚡</div>
-      <div style="font-size:16px;font-weight:700;margin-bottom:8px;">Ready to Scan</div>
-      <div style="font-size:14px;">Click "Run Scanner" to analyze top US stocks and find the best opportunities right now.</div>
-      <div style="font-size:12px;margin-top:8px;color:var(--muted);">Scans 50 stocks · Takes ~30 seconds · Cached for 30 minutes</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;" data-i18n="scanner.ready_title">Automatic Scan</div>
+      <div style="font-size:14px;" data-i18n="scanner.ready_copy">The scanner loads the latest completed market ranking automatically.</div>
+      <div style="font-size:12px;margin-top:8px;color:var(--muted);" data-i18n="scanner.ready_meta">Scans all 682 tickers with technical and news scoring · Takes ~45–60 minutes · Weekdays every 4 hours</div>
     </div>
   </div>
 
@@ -188,8 +178,8 @@
 
 
   <!-- Score Legend -->
-  <div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow-sm);">
-    <div style="font-family:var(--font-disp);font-size:12px;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;">📊 SCORE GUIDE — HOW TO READ THE SIGNALS</div>
+  <div class="score-guide" style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow-sm);">
+    <div style="font-family:var(--font-disp);font-size:12px;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;" data-i18n="scanner.score_title">SCORE GUIDE — HOW TO READ THE SIGNALS</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;">
       <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg2);border-radius:8px;">
         <span style="font-family:var(--font-mono);font-weight:900;color:#00c853;font-size:15px;">+14 to +24</span>
@@ -229,12 +219,13 @@
       </div>
     </div>
     <div style="margin-top:10px;font-size:12px;color:var(--muted);padding:8px 12px;background:var(--bg2);border-radius:8px;">
-      ⚡ Score is built from 12 indicators: RSI · EMA · MACD · Bollinger · ADX · Stochastic · Williams %R · ROC · 50MA · Volume · Multi-Timeframe · News Sentiment
+      <span data-i18n="scanner.score_copy">Score is built from 12 indicators: RSI · EMA · MACD · Bollinger · ADX · Stochastic · Williams %R · ROC · 50MA · Volume · Multi-Timeframe · News Sentiment</span>
     </div>
   </div>
 
 <script src="/js/api.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/i18n.js"></script>
 <script>
   if (!Auth.require()) {}
   const me = Auth.user();
@@ -252,63 +243,69 @@
 
   let pollTimer = null;
 
-  async function runScan(forceRefresh = false) {
-    const btn = document.getElementById('scan-btn');
+  async function runScan() {
     const resultsEl = document.getElementById('scan-results');
 
-    btn.disabled = true;
-    btn.textContent = '⏳ Loading…';
-
     try {
-      const url = forceRefresh ? '/api/scanner/top5?refresh=true' : '/api/scanner/top5';
-      const res  = await fetch(url, { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
+      const res  = await fetch('/api/scanner/top5', { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
+      updateMeta(data);
 
       if (!data.top5 || !data.top5.length) {
         // Still scanning — show loading, poll until done
-        showScanningProgress(data.scannedCount || 0, data.message);
+        showScanningProgress(data);
         startPolling();
       } else {
-        // Scan complete — show results
         scanData = data;
         renderResults();
-        updateMeta(data);
-        
-        document.getElementById('cache-notice').style.display = data.cached ? 'inline-flex' : 'none';
+        if (data.scanning) {
+          showScanningBanner(scanActivityText(data));
+          startPolling();
+        }
       }
     } catch (err) {
       resultsEl.innerHTML = `<div class="scan-empty"><div class="big-icon">⚠️</div><div>${err.message}</div></div>`;
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '⚡ Run Scanner';
     }
   }
 
-  function showScanningProgress(scannedCount, msg) {
-    const pct = scannedCount ? Math.round(scannedCount / UNIVERSE_SIZE * 100) : 0;
+  function showScanningProgress(data) {
+    const t = (key, fallback) => window.SRLang ? SRLang.t(key, fallback) : fallback;
+    const total = data.universeSize || UNIVERSE_SIZE;
+    const isNewsPhase = data.phase === 'news';
+    const completed = isNewsPhase ? (data.newsEnrichedCount || 0) : (data.scannedCount || 0);
+    const phaseTotal = isNewsPhase ? (data.technicalResults || total) : total;
+    const pct = completed ? Math.round(completed / phaseTotal * 100) : 0;
+    const title = isNewsPhase ? t('scanner.enriching', 'Enriching all tickers with live news…') : t('scanner.technical_scanning', 'Scanning technical signals…');
+    const progressText = isNewsPhase
+      ? t('scanner.news_progress', `Technical scan complete · ${data.technicalResults || total} / ${total} tickers ready for news · ${completed} / ${phaseTotal} news scores complete`)
+          .replace('{technical}', data.technicalResults || total).replace('{total}', total).replace('{done}', completed).replace('{ready}', phaseTotal)
+      : t('scanner.technical_progress', `${completed} / ${total} tickers technically analyzed`)
+          .replace('{done}', completed).replace('{total}', total);
     document.getElementById('scan-results').innerHTML = `
       <div class="scan-empty">
         <div class="spinner" style="margin:0 auto 20px;"></div>
-        <div style="font-size:18px;font-weight:700;margin-bottom:8px;">Scanning ${UNIVERSE_SIZE} Stocks…</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:8px;">${title}</div>
         <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">
-          ${scannedCount ? `${scannedCount} / ${UNIVERSE_SIZE} stocks analyzed` : 'Starting scan…'}
+          ${completed ? progressText : t('scanner.starting', 'Starting full-universe scan…')}
         </div>
         <!-- Progress bar -->
         <div style="width:280px;height:8px;background:var(--bg3);border-radius:4px;margin:0 auto 12px;overflow:hidden;">
           <div style="height:100%;width:${pct}%;background:var(--green);border-radius:4px;transition:width .5s ease;"></div>
         </div>
-        <div style="font-size:12px;color:var(--muted);">${pct}% complete</div>
+        <div style="font-size:12px;color:var(--muted);">${isNewsPhase ? t('scanner.news_enrichment', 'News enrichment ') : t('scanner.technical_scan', 'Technical scan ')}${pct}% ${t('scanner.complete', 'complete')}</div>
         <div style="margin-top:16px;padding:10px 20px;background:var(--bg2);border-radius:8px;font-size:12px;color:var(--muted);">
-          ⚡ Analyzing RSI · EMA · MACD · Bollinger · ADX · News for each stock<br>
-          Results will appear automatically when scan finishes
+          ⚡ ${t('scanner.progress_note', 'Every ticker receives technical and news scoring before final ranking')}<br>
+          ${t('scanner.progress_wait', 'Results appear after the complete scan finishes')}
         </div>
       </div>`;
   }
 
   function showScanningBanner(msg) {
     const existing = document.getElementById('scan-banner');
-    if (!existing) {
+    if (existing) {
+      existing.textContent = msg;
+    } else {
       const banner = document.createElement('div');
       banner.id = 'scan-banner';
       banner.style.cssText = 'background:var(--accent);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;margin-bottom:14px;';
@@ -317,53 +314,83 @@
     }
   }
 
+  function scanActivityText(data) {
+    const t = (key, fallback) => window.SRLang ? SRLang.t(key, fallback) : fallback;
+    return t('scanner.refreshing', 'Showing the latest saved result while the scheduled refresh continues automatically.');
+  }
+
   function startPolling() {
     if (pollTimer) return; // already polling
     let attempts = 0;
     pollTimer = setInterval(async () => {
       attempts++;
-      if (attempts > 60) { clearInterval(pollTimer); pollTimer = null; return; } // stop after 10 min
+      if (attempts > 1080) { clearInterval(pollTimer); pollTimer = null; return; } // stop after 90 min
       try {
         const res  = await fetch('/api/scanner/top5', { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
         const data = await res.json();
         if (!res.ok) return;
+        updateMeta(data);
         if (!data.top5 || !data.top5.length) {
-          // Still scanning — update progress bar
-          showScanningProgress(data.scannedCount || 0, '');
+          showScanningProgress(data);
         } else {
-          // Done! Show results
           scanData = data;
           renderResults();
-          updateMeta(data);
-          
-          const banner = document.getElementById('scan-banner');
-          if (banner) banner.remove();
-          clearInterval(pollTimer);
-          pollTimer = null;
+          if (data.scanning) {
+            showScanningBanner(scanActivityText(data));
+          } else {
+            const banner = document.getElementById('scan-banner');
+            if (banner) banner.remove();
+            clearInterval(pollTimer);
+            pollTimer = null;
+          }
         }
       } catch (_) {}
     }, 5000); // poll every 5 seconds
   }
 
-  const UNIVERSE_SIZE = 500;
+  const UNIVERSE_SIZE = 682;
+  let nextScanAt = null;
+
+  function formatRemaining(milliseconds) {
+    const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+  }
+
+  function updateNextScanCountdown() {
+    const element = document.getElementById('meta-next-scan');
+    if (!element || !nextScanAt) return;
+    const nextDate = new Date(nextScanAt);
+    if (Number.isNaN(nextDate.getTime())) return;
+    const locale = document.documentElement.lang === 'ar' ? 'ar' : 'en-GB';
+    const clock = nextDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+    element.textContent = clock + ' · ' + formatRemaining(nextDate.getTime() - Date.now());
+  }
+  setInterval(updateNextScanCountdown, 1000);
 
   function updateMeta(data) {
     document.getElementById('scanner-meta').style.display = 'flex';
     document.getElementById('meta-count').textContent    = data.scannedCount;
     document.getElementById('meta-duration').textContent = data.duration || '—';
-    document.getElementById('meta-time').textContent     = data.cached
-      ? 'cached · ' + timeAgo(data.cachedAt)
-      : new Date(data.scannedAt).toLocaleTimeString();
+    const refreshedAt = data.cachedAt || data.scannedAt;
+    const locale = document.documentElement.lang === 'ar' ? 'ar' : 'en-GB';
+    document.getElementById('meta-time').textContent = refreshedAt
+      ? new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(refreshedAt))
+      : '—';
+    nextScanAt = data.nextScheduledAt || nextScanAt;
+    updateNextScanCountdown();
     const marketEl = document.getElementById('meta-market');
     if (marketEl) {
       if (data.weekend) {
-        marketEl.textContent = '📅 Weekend — cached 6h';
+        marketEl.textContent = '📅 ' + SRLang.t('scanner.weekend', 'Weekend') + ' · ' + SRLang.t('scanner.cached_short', 'Cached result (1h)');
         marketEl.style.color = 'rgba(255,200,0,0.8)';
       } else if (data.marketOpen) {
-        marketEl.textContent = '🟢 Market Open';
+        marketEl.textContent = '🟢 ' + SRLang.t('scanner.market_open', 'Market Open');
         marketEl.style.color = 'rgba(0,230,118,0.8)';
       } else {
-        marketEl.textContent = '🔴 Market Closed';
+        marketEl.textContent = '🔴 ' + SRLang.t('scanner.market_closed', 'Market Closed');
         marketEl.style.color = 'rgba(255,100,100,0.8)';
       }
     }
@@ -372,8 +399,8 @@
     if (cacheEl) {
       cacheEl.style.display = data.cached ? 'inline-flex' : 'none';
       cacheEl.textContent = data.weekend
-        ? '📦 Weekend cache (6h)'
-        : '📦 Cached result (1h)';
+        ? '📦 ' + SRLang.t('scanner.weekend_cache', 'Weekend cache (6h)')
+        : '📦 ' + SRLang.t('scanner.cached_short', 'Cached result (1h)');
     }
   }
 
@@ -383,7 +410,7 @@
 
     if (!list || !list.length) {
       document.getElementById('scan-results').innerHTML =
-        `<div class="scan-empty"><div class="big-icon">🔍</div><div>No results for this filter</div></div>`;
+        `<div class="scan-empty"><div class="big-icon">🔍</div><div>${SRLang.t('scanner.no_results', 'No results for this filter')}</div></div>`;
       return;
     }
 
@@ -392,20 +419,42 @@
 
   function buildStockCard(r, rank) {
     const isBuy    = r.direction === 'BUY';
+    const isSell   = r.direction === 'SELL';
     const scoreCol = r.score > 0 ? 'var(--green)' : 'var(--red)';
     const scoreLabel = r.score > 0 ? '+' + r.score : r.score;
-    const maxScore = 18;
+    const maxScore = 24;
     const barWidth = Math.min(100, Math.abs(r.score) / maxScore * 100);
     const chgCol   = (r.change || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+    const t = (key, fallback) => window.SRLang ? SRLang.t(key, fallback) : fallback;
+    const techScore = Number.isFinite(Number(r.technicalScore))
+      ? Number(r.technicalScore)
+      : Number(r.score || 0) - Number(r.newsScore || 0);
+    const newsScore = Number(r.newsScore || 0);
+    const signed = (value) => (value > 0 ? '+' : '') + value;
+    const scoreTone = (value) => value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral';
 
     const confColor = r.confidence === 'Very High' ? 'var(--green)' :
                       r.confidence === 'High'      ? 'var(--green2)' :
                       r.confidence === 'Medium'    ? 'var(--gold)' : 'var(--muted)';
 
-    const topSignals = (r.signals || []).slice(0, 3).join(' · ');
+    const topSignals = (r.signals || []).slice(0, 4);
+    const signalChips = topSignals.map(signal => `<span>${signal}</span>`).join('');
+    const allSignals = (r.signals || []).map(signal => `<li>${signal}</li>`).join('');
+    const newsItems = (r.news || []).slice(0, 3).map(item =>
+      `<li>${item.url ? `<a href="${item.url}" target="_blank" rel="noopener">${item.headline || t('scanner.news_item', 'Market news')}</a>` : (item.headline || t('scanner.news_item', 'Market news'))}</li>`
+    ).join('');
+
+    const level = (value) => {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return '—';
+      return '$' + number.toFixed(number < 0.01 ? 6 : number < 1 ? 4 : 2);
+    };
+    const riskReward = Number.isFinite(Number(r.riskReward)) ? '1:' + Number(r.riskReward).toFixed(2) : '—';
+    const rangePosition = Number.isFinite(Number(r.rangePct)) ? Math.round(Number(r.rangePct)) + '%' : '—';
+    const articleCount = Number(r.newsArticleCount || (r.news || []).length || 0);
 
     return `
-    <div class="stock-card ${isBuy ? 'buy' : 'sell'}">
+    <article class="stock-card ${isBuy ? 'buy' : isSell ? 'sell' : ''}" style="--card-order:${Math.min(rank, 10)}">
       <div class="stock-card-top">
         <div class="stock-rank" style="background:${rank===1?'#FFD700':rank===2?'#C0C0C0':rank===3?'#CD7F32':'var(--accent)'}">
           ${rank}
@@ -414,11 +463,11 @@
           <div class="stock-sym">${r.symbol}</div>
           <div class="stock-name">${r.name || r.symbol}</div>
         </div>
-        <span class="${isBuy ? 'badge-buy' : 'badge-sell'}" style="margin-left:8px;">
-          ${isBuy ? '▲' : '▼'} ${r.direction}
+        <span class="scanner-direction ${isBuy ? 'buy' : isSell ? 'sell' : 'neutral'}">
+          ${isBuy ? '▲' : isSell ? '▼' : '•'} ${r.direction}
         </span>
-        <div style="margin-left:auto;text-align:right;">
-          <div class="stock-price">$${Number(r.price).toFixed(2)}</div>
+        <div class="scanner-quote">
+          <div class="stock-price">${level(r.price)}</div>
           <div class="stock-change" style="color:${chgCol};">
             ${(r.change||0)>=0?'▲':'▼'} ${Math.abs(r.change||0).toFixed(2)}%
           </div>
@@ -427,41 +476,66 @@
 
       <div class="stock-levels">
         <div class="sl-box">
-          <div class="lbl">ENTRY</div>
-          <div class="val">$${Number(r.price).toFixed(2)}</div>
+          <div class="lbl">${t('scanner.entry', 'Entry')}</div>
+          <div class="val">${level(r.price)}</div>
         </div>
-        <div class="sl-box" style="border-color:var(--green);">
-          <div class="lbl">TAKE PROFIT</div>
-          <div class="val" style="color:var(--green);">$${r.takeProfit}</div>
+        <div class="sl-box target">
+          <div class="lbl">${t('scanner.take_profit', 'Take Profit')}</div>
+          <div class="val">${level(r.takeProfit)}</div>
         </div>
-        <div class="sl-box" style="border-color:var(--red);">
-          <div class="lbl">STOP LOSS</div>
-          <div class="val" style="color:var(--red);">$${r.stopLoss}</div>
+        <div class="sl-box stop">
+          <div class="lbl">${t('scanner.stop_loss', 'Stop Loss')}</div>
+          <div class="val">${level(r.stopLoss)}</div>
         </div>
       </div>
 
-      <div class="stock-score-row">
-        <span class="score-badge" style="background:${scoreCol}22;color:${scoreCol};">
-          Score: ${scoreLabel}
-        </span>
-        <span class="confidence-badge" style="color:${confColor};">
-          ${r.confidence} Confidence
-        </span>
-        <span style="font-size:12px;color:var(--muted);">R:R 1:${r.riskReward}</span>
-        <span class="news-label-badge">${r.newsLabel || '—'}</span>
-        <div class="score-bar-wrap">
-          <div class="score-bar">
-            <div class="score-bar-fill" style="width:${barWidth}%;background:${scoreCol};"></div>
+      <section class="scanner-score-deck" aria-label="${t('scanner.score_breakdown', 'Score breakdown')}">
+        <div class="scanner-score-cell ${scoreTone(techScore)}">
+          <span>${t('scanner.technical', 'Technical')}</span><strong>${signed(techScore)}</strong>
+        </div>
+        <div class="scanner-score-operator">+</div>
+        <div class="scanner-score-cell ${scoreTone(newsScore)}">
+          <span>${t('scanner.news', 'News')}</span><strong>${signed(newsScore)}</strong>
+        </div>
+        <div class="scanner-score-operator">=</div>
+        <div class="scanner-score-total" style="--score-color:${scoreCol}">
+          <span>${t('scanner.total_score', 'Total Score')}</span><strong>${scoreLabel}</strong>
+          <div class="score-bar"><div class="score-bar-fill" style="width:${barWidth}%;background:${scoreCol};"></div></div>
+        </div>
+      </section>
+
+      <div class="scanner-context-row">
+        <span class="confidence-badge" style="color:${confColor};">${r.confidence} ${t('scanner.confidence', 'confidence')}</span>
+        <span>${t('scanner.trend', 'Trend')}: <strong>${r.trend || '—'}</strong></span>
+        <span>${t('scanner.timeframe', 'Timeframe')}: <strong>${r.timeframe || '—'}</strong></span>
+        <span>${t('scanner.risk_reward', 'Risk / reward')}: <strong>${riskReward}</strong></span>
+        <span>${t('scanner.range_position', 'Range position')}: <strong>${rangePosition}</strong></span>
+      </div>
+
+      <div class="scanner-signal-line">
+        <span class="scanner-news-state ${scoreTone(newsScore)}">${t('scanner.news', 'News')}: ${r.newsLabel || '—'}${articleCount ? ' · ' + articleCount : ''}</span>
+        <div class="scanner-signal-chips">${signalChips}</div>
+      </div>
+
+      <details class="scanner-card-details">
+        <summary><span>${t('scanner.research_details', 'Research details')}</span><span>${(r.signals || []).length} ${t('scanner.signals', 'signals')}</span></summary>
+        <div class="scanner-detail-grid">
+          <div><h4>${t('scanner.technical_evidence', 'Technical evidence')}</h4><ul>${allSignals || '<li>—</li>'}</ul></div>
+          <div><h4>${t('scanner.news_evidence', 'News evidence')}</h4><ul>${newsItems || '<li>' + t('scanner.no_news', 'No recent news items') + '</li>'}</ul></div>
+          <div class="scanner-indicator-grid">
+            <span>RSI <strong>${r.indicators?.rsi ?? '—'}</strong></span>
+            <span>ADX <strong>${r.indicators?.adx ?? '—'}</strong></span>
+            <span>ROC <strong>${r.indicators?.roc ?? '—'}%</strong></span>
+            <span>${t('scanner.analyst', 'Analyst')} <strong>${r.analystLabel || '—'}</strong></span>
           </div>
         </div>
-      </div>
+      </details>
 
-      ${topSignals ? `<div class="stock-signals-preview">${topSignals}</div>` : ''}
-      <div style="margin-top:10px;">
-        <button onclick="scannerProAnalyze('${r.symbol}', this)" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;cursor:pointer;font-size:12.5px;">🧠 Analyze with Pro Engine</button>
-        <div class="scanner-pro-result" style="margin-top:8px;"></div>
+      <div class="scanner-action-row">
+        <button class="scanner-pro-button" onclick="scannerProAnalyze('${r.symbol}', this)">🧠 ${t('scanner.pro_analyze', 'Analyze with Pro Engine')}</button>
+        <div class="scanner-pro-result"></div>
       </div>
-    </div>`;
+    </article>`;
   }
 
   window.scannerProAnalyze = async function(symbol, btn) {
@@ -538,6 +612,9 @@
       container.innerHTML = '<p style="color:#C62828;font-size:12px;text-align:center;">Analysis failed to load.</p>';
     }
   };
+
+  // The scanner is schedule-driven. This page only loads the latest saved result.
+  runScan();
 </script>
 <script src="/js/chat.js?v=1784900698"></script>
 <script src="/js/paywall.js"></script>

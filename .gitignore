@@ -3,6 +3,7 @@ node_modules/
 *.log
 .DS_Store
 mongodb/
+.local/
 *.backup
 __pycache__/
 *.pyc

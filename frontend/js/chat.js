@@ -8,8 +8,31 @@
 
   var pendingStockData = null;
 
+  function isArabicChat() {
+    return document.documentElement.lang === 'ar' ||
+      (window.SRLang && window.SRLang.lang === 'ar');
+  }
+
+  function chatCopy(english, arabic) {
+    return isArabicChat() ? arabic : english;
+  }
+
+  function stockSymbol(stockData) {
+    return String((stockData && (stockData.symbol || stockData.ticker)) || '').trim().toUpperCase();
+  }
+
+  function signalLabel(direction) {
+    var labels = isArabicChat()
+      ? { BUY: 'شراء', SELL: 'بيع', NEUTRAL: 'محايد' }
+      : { BUY: 'BUY', SELL: 'SELL', NEUTRAL: 'NEUTRAL' };
+    return labels[direction] || labels.NEUTRAL;
+  }
+
   window.setChatStockContext = function(stockData) {
     // Don't auto-open chat. Just prepare context and show a subtle prompt bubble.
+    var symbol = stockSymbol(stockData);
+    if (!symbol) return;
+    stockData = Object.assign({}, stockData, { symbol: symbol });
     pendingStockData = stockData;
     currentStock = null; // not yet loaded into chat until user opens it
     chatHistory  = [];
@@ -21,7 +44,7 @@
     var stockData = pendingStockData;
     currentStock = stockData;
     var statusEl = document.getElementById('sr-chat-status');
-    if (statusEl) statusEl.textContent = 'Analyzing ' + stockData.symbol;
+    if (statusEl) statusEl.textContent = chatCopy('Analyzing ', 'جار تحليل ') + stockData.symbol;
     var suggestEl = document.getElementById('sr-chat-suggestions');
     if (suggestEl) {
       var isBuy = stockData.direction === 'BUY';
@@ -29,14 +52,14 @@
       var sym = stockData.symbol;
       var sc  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
       suggestEl.innerHTML =
-        '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' signal right now?\')">'+  (isBuy?'▲':'▼') + ' Why ' + dir + '?</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'Explain each indicator for ' + sym + ' and why score is ' + sc + '\')">📊 Explain score</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'Show me the chart for ' + sym + '\')">📈 Show Chart</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'Show me latest news with links for ' + sym + '\')">📰 News links</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'What are the main risks for this ' + sym + ' trade?\')">🔍 Risks</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'Who is the CEO of ' + sym + ' and what were last earnings?\')">🏢 Company info</button>';
+        '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' signal right now?\')">'+  (isBuy?'▲':'▼') + chatCopy(' Why ' + dir + '?', ' لماذا ' + signalLabel(dir) + '؟') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Explain each indicator for ' + sym + ' and why score is ' + sc + '\')">📊 ' + chatCopy('Explain score', 'اشرح النتيجة') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Show me the chart for ' + sym + '\')">📈 ' + chatCopy('Show chart', 'اعرض الرسم البياني') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Show me latest news with links for ' + sym + '\')">📰 ' + chatCopy('News links', 'روابط الأخبار') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'What are the main risks for this ' + sym + ' trade?\')">🔍 ' + chatCopy('Risks', 'المخاطر') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Who is the CEO of ' + sym + ' and what were last earnings?\')">🏢 ' + chatCopy('Company info', 'معلومات الشركة') + '</button>';
     }
-    var dir2 = stockData.direction === 'BUY' ? '▲ BUY' : stockData.direction === 'SELL' ? '▼ SELL' : '● NEUTRAL';
+    var dir2 = stockData.direction === 'BUY' ? '▲ ' + signalLabel('BUY') : stockData.direction === 'SELL' ? '▼ ' + signalLabel('SELL') : '● ' + signalLabel('NEUTRAL');
     var sc2  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
 
     var breakdownLines = (stockData.technicalBreakdown || []).map(function(b) {
@@ -49,22 +72,26 @@
       ? stockData.upcomingEarnings.map(function(e) { return e.date; }).join(', ')
       : '';
 
-    var msg = 'Loaded full Pro Engine analysis for ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
-      dir2 + ' | Combined Score: ' + sc2 + '/24 | ' + stockData.confidence + ' Confidence\n';
+    var msg = isArabicChat()
+      ? 'تم تحميل تحليل Pro Engine الكامل لـ ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
+        dir2 + ' | النتيجة الإجمالية: ' + sc2 + '/24 | الثقة: ' + stockData.confidence + '\n'
+      : 'Loaded full Pro Engine analysis for ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
+        dir2 + ' | Combined Score: ' + sc2 + '/24 | ' + stockData.confidence + ' Confidence\n';
 
     if (stockData.takeProfit) {
-      msg += 'TP: $' + stockData.takeProfit + ' | SL: $' + stockData.stopLoss + ' | R:R 1:' + stockData.riskReward + '\n';
+      msg += (isArabicChat() ? 'الهدف: $' : 'TP: $') + stockData.takeProfit +
+        (isArabicChat() ? ' | وقف الخسارة: $' : ' | SL: $') + stockData.stopLoss + ' | R:R 1:' + stockData.riskReward + '\n';
     }
 
-    msg += '\nTechnical (' + stockData.technicalScore + ' pts):\n' + breakdownLines + '\n';
-    msg += '\nNews/AI (' + (stockData.newsScore > 0 ? '+' : '') + stockData.newsScore + ' pts) \u2014 ' + stockData.newsLabel + ':\n' + (stockData.newsSummary || '') + '\n';
+    msg += '\n' + chatCopy('Technical (', 'التحليل الفني (') + stockData.technicalScore + chatCopy(' pts):\n', ' نقطة):\n') + breakdownLines + '\n';
+    msg += '\n' + chatCopy('News/AI (', 'الأخبار والذكاء الاصطناعي (') + (stockData.newsScore > 0 ? '+' : '') + stockData.newsScore + chatCopy(' pts) — ', ' نقطة) — ') + stockData.newsLabel + ':\n' + (stockData.newsSummary || '') + '\n';
 
-    if (catalystLines) msg += '\nCatalysts:\n' + catalystLines + '\n';
-    if (riskLines) msg += '\nRisks:\n' + riskLines + '\n';
-    if (stockData.holdingPeriod) msg += '\n\u23f3 Suggested holding period: ' + stockData.holdingPeriod;
-    if (earningsLine) msg += '\n\ud83d\udcc5 Next earnings: ' + earningsLine;
+    if (catalystLines) msg += '\n' + chatCopy('Catalysts:', 'المحفزات:') + '\n' + catalystLines + '\n';
+    if (riskLines) msg += '\n' + chatCopy('Risks:', 'المخاطر:') + '\n' + riskLines + '\n';
+    if (stockData.holdingPeriod) msg += '\n\u23f3 ' + chatCopy('Suggested holding period: ', 'مدة الاحتفاظ المقترحة: ') + stockData.holdingPeriod;
+    if (earningsLine) msg += '\n\ud83d\udcc5 ' + chatCopy('Next earnings: ', 'موعد الأرباح القادم: ') + earningsLine;
 
-    msg += '\n\nAsk me anything about ' + stockData.symbol + ' \u2014 I have the full analysis above!';
+    msg += '\n\n' + chatCopy('Ask me anything about ', 'اسألني أي شيء عن ') + stockData.symbol + chatCopy(' — I have the full analysis above!', ' — التحليل الكامل جاهز لدي.');
 
     addMessage('ai', msg);
     pendingStockData = null;
@@ -79,15 +106,29 @@
   function showAskAiPrompt(stockData) {
     var old = document.getElementById('sr-ask-prompt');
     if (old) old.remove();
-    var bubble = document.createElement('div');
-    bubble.id = 'sr-ask-prompt';
-    bubble.style.cssText = 'position:fixed; bottom:112px; right:26px; z-index:9999; background:#0d1f3c; color:#F5D061; padding:10px 16px; border-radius:20px; font-size:12.5px; font-weight:600; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,0.35), 0 0 12px rgba(245,208,97,0.4); display:flex; align-items:center; gap:8px; animation:srMsgIn .3s ease;';
-    bubble.innerHTML = '💬 Ask AI about ' + stockData.symbol + '<span style="opacity:0.6;font-size:11px;" onclick="event.stopPropagation();document.getElementById(\'sr-ask-prompt\').remove();">✕</span>';
-    bubble.addEventListener('click', function() {
-      bubble.remove();
+    var overlay = document.createElement('div');
+    overlay.id = 'sr-ask-prompt';
+    overlay.className = 'sr-ask-overlay';
+    var score = Number(stockData.score || 0);
+    var direction = stockData.direction || 'NEUTRAL';
+    var scoreText = score > 0 ? '+' + score : String(score);
+    var signalIcon = direction === 'BUY' ? '▲' : direction === 'SELL' ? '▼' : '●';
+    overlay.innerHTML =
+      '<div class="sr-ask-card" role="dialog" aria-modal="true" aria-label="' + chatCopy('Ask AI about ', 'اسأل الذكاء الاصطناعي عن ') + stockData.symbol + '">' +
+        '<button type="button" class="sr-ask-close" aria-label="' + chatCopy('Dismiss', 'إغلاق') + '">✕</button>' +
+        '<div class="sr-ask-kicker">' + chatCopy('PRO ANALYSIS READY', 'تحليل Pro جاهز') + '</div>' +
+        '<div class="sr-ask-symbol">$' + stockData.symbol + '</div>' +
+        '<div class="sr-ask-signal ' + direction.toLowerCase() + '"><span>' + signalIcon + ' ' + signalLabel(direction) + '</span><strong>' + chatCopy('Score ', 'النتيجة ') + scoreText + '/24</strong></div>' +
+        '<p>' + chatCopy('Open the AI analyst with this ticker, live signal context, and your full Pro Engine analysis ready to discuss.', 'افتح محلل الذكاء الاصطناعي لهذا الرمز مع سياق الإشارة المباشر وتحليل Pro الكامل الجاهز للنقاش.') + '</p>' +
+        '<button type="button" class="sr-ask-action">' + chatCopy('Ask AI about $', 'اسأل الذكاء الاصطناعي عن $') + stockData.symbol + '</button>' +
+      '</div>';
+    overlay.querySelector('.sr-ask-action').addEventListener('click', function() {
+      overlay.remove();
       showNewOrContinueChoice();
     });
-    document.body.appendChild(bubble);
+    overlay.querySelector('.sr-ask-close').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
     var badge = document.getElementById('sr-chat-badge');
     if (badge) { badge.style.display = 'flex'; badge.textContent = '1'; }
     setTimeout(function() {
@@ -247,13 +288,21 @@
 
   var pendingImage = null; // { base64, mimeType }
 
+  btn.setAttribute('aria-label', 'Open AI analyst');
+  input.setAttribute('aria-label', 'Message the AI analyst');
+  sendBtn.setAttribute('aria-label', 'Send message');
+
   // Welcome message
   (function() {
     var u = null;
     try { u = Auth.user(); } catch (e) {}
     var name = u ? (u.fullName ? u.fullName.split(' ')[0] : (u.username || '')) : '';
-    var greeting = name ? ('Hi ' + name + '! ') : 'Hi! ';
-    addMessage('ai', greeting + 'I am SwingRush AI, your Pro Engine analyst.\n\nAsk me anything:\n- "Analyze NVDA" — full Pro Engine analysis\n- "Best stocks under $50" — market scanner results\n- "Who is Tesla CEO?" — company info\n- "Latest news for AAPL" — real-time news\n\nTip: Upload a chart 📎 for AI analysis!');
+    var greeting = isArabicChat()
+      ? (name ? ('أهلا ' + name + '! ') : 'أهلا! ')
+      : (name ? ('Hi ' + name + '! ') : 'Hi! ');
+    addMessage('ai', isArabicChat()
+      ? greeting + 'أنا SwingRush AI، محللك في Pro Engine.\n\nاسألني عن أي شيء:\n- "حلل NVDA" — تحليل Pro Engine كامل\n- "أفضل الأسهم تحت 50 دولار" — نتائج ماسح السوق\n- "من هو الرئيس التنفيذي لتسلا؟" — معلومات الشركة\n- "أحدث أخبار AAPL" — أخبار فورية\n\nنصيحة: ارفع رسما بيانيا 📎 ليحلله الذكاء الاصطناعي.'
+      : greeting + 'I am SwingRush AI, your Pro Engine analyst.\n\nAsk me anything:\n- "Analyze NVDA" — full Pro Engine analysis\n- "Best stocks under $50" — market scanner results\n- "Who is Tesla CEO?" — company info\n- "Latest news for AAPL" — real-time news\n\nTip: Upload a chart 📎 for AI analysis!');
   })();
 
   // ── Open / Close ────────────────────────────────────────────────
@@ -316,7 +365,7 @@
     chatHistory = [];
     messages.innerHTML = '';
     historyPanel.style.display = 'none';
-    addMessage('ai', 'New chat started! What would you like to discuss?');
+    addMessage('ai', chatCopy('New chat started! What would you like to discuss?', 'بدأت محادثة جديدة. ما الذي تريد مناقشته؟'));
     input.focus();
   }
 
@@ -445,6 +494,18 @@
   sendBtn.addEventListener('click', sendMessage);
   window.srSuggest = function(text) { input.value = text; sendMessage(); };
 
+  document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && !e.shiftKey) {
+      e.preventDefault();
+      if (!isOpen) openChat();
+      else input.focus();
+    }
+    if (e.key === 'Escape' && isOpen && historyPanel.style.display === 'block') {
+      historyPanel.style.display = 'none';
+      input.focus();
+    }
+  });
+
   // ── Text selection popup ────────────────────────────────────────
   document.addEventListener('mouseup', function() {
     setTimeout(function() {
@@ -503,6 +564,7 @@
   // ── Register prompt — close chat and scroll to register ─────────
   function handleRegisterClick() {
     closeChat();
+    if (window.Paywall) Paywall.remove();
     // Scroll to register section on page
     var regSection = document.getElementById('register') || document.querySelector('.register-section') || document.querySelector('[data-section="register"]');
     if (regSection) {
@@ -512,6 +574,13 @@
       window.location.href = '/#register';
     }
   }
+
+  document.addEventListener('click', function(event) {
+    var link = event.target.closest && event.target.closest('[data-paywall-link][href*="#register"]');
+    if (!link) return;
+    event.preventDefault();
+    handleRegisterClick();
+  }, true);
 
   // ── Send message ────────────────────────────────────────────────
   function sendMessage() {
@@ -527,17 +596,6 @@
     if (!Auth.token()) {
       if (window.Paywall) {
         Paywall.showRegisterPrompt();
-        // Override the register button in paywall to close chat first
-        setTimeout(function() {
-          var regBtn = document.querySelector('.paywall-register-btn, [onclick*="register"], [onclick*="Register"]');
-          if (regBtn) {
-            var oldOnclick = regBtn.onclick;
-            regBtn.onclick = function(e) {
-              closeChat();
-              if (oldOnclick) oldOnclick.call(this, e);
-            };
-          }
-        }, 100);
       }
       return;
     }
@@ -551,15 +609,17 @@
     var typingEl = addTyping();
 
     var stockContextStr = '';
-    if (currentStock) {
-      stockContextStr = currentStock.symbol + ' @ $' + currentStock.price + ' | ' + currentStock.direction + ' | Score: ' + currentStock.score + ' | TP: $' + currentStock.takeProfit + ' | SL: $' + currentStock.stopLoss;
+    var currentSymbol = stockSymbol(currentStock);
+    if (currentSymbol) {
+      stockContextStr = currentSymbol + ' @ $' + currentStock.price + ' | ' + currentStock.direction + ' | Score: ' + currentStock.score + ' | TP: $' + currentStock.takeProfit + ' | SL: $' + currentStock.stopLoss;
     }
 
     // Build request body
     var requestBody = {
-      message: text || 'Please analyze this chart/image',
+      message: text || chatCopy('Please analyze this chart/image', 'يرجى تحليل هذا الرسم أو الصورة'),
       history: chatHistory.slice(-6),
       stockContext: stockContextStr,
+      language: isArabicChat() ? 'ar' : 'en',
       sessionId: currentSessionId // null = continue recent, 'NEW' = create new, ID = specific session
     };
 
@@ -752,7 +812,7 @@
     if (old) old.remove();
     var overlay = document.createElement('div');
     overlay.id = 'sr-chat-choice';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:29500;background:rgba(8,15,36,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:40001;background:rgba(8,15,36,0.55);display:flex;align-items:center;justify-content:center;padding:20px;';
     overlay.innerHTML =
       '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.3);">' +
       '<div style="font-size:32px;margin-bottom:10px;">\ud83d\udcac</div>' +
@@ -776,5 +836,3 @@
     });
   }
 })();
-
-

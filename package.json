@@ -5,7 +5,9 @@
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
-    "dev": "nodemon backend/server.js"
+    "dev": "nodemon backend/server.js",
+    "local": "lsof -iTCP:27018 -sTCP:LISTEN >/dev/null 2>&1 || ./.local/mongodb-7.0.26/bin/mongod --dbpath /Users/wardbisharat/mongodb/data --port 27018 --bind_ip 127.0.0.1 --logpath /private/tmp/swingrush-old-mongodb.log --fork; npm start",
+    "dev:local": "lsof -iTCP:27018 -sTCP:LISTEN >/dev/null 2>&1 || ./.local/mongodb-7.0.26/bin/mongod --dbpath /Users/wardbisharat/mongodb/data --port 27018 --bind_ip 127.0.0.1 --logpath /private/tmp/swingrush-old-mongodb.log --fork; npm run dev"
   },
   "engines": {
     "node": ">=18.0.0"

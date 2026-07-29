@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const commentSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   text: { type: String, required: true, maxlength: 500 },
+  parentCommentId: { type: mongoose.Schema.Types.ObjectId, default: null },
 }, { timestamps: true });
 
 const recommendationSchema = new mongoose.Schema({
@@ -15,10 +16,14 @@ const recommendationSchema = new mongoose.Schema({
   direction:    { type: String, enum: ['BUY', 'SELL'], required: true },
   note:         { type: String, maxlength: 280 },
   currentPrice: { type: Number },
+  closePrice:   { type: Number },
   isOpen:       { type: Boolean, default: true },
   outcome:      { type: String, enum: ['WIN', 'LOSS', 'OPEN'], default: 'OPEN' },
   returnPct:    { type: Number, default: 0 },
+  openedAt:     { type: Date },
   closedAt:     { type: Date },
+  manualClose:  { type: Boolean, default: false },
+  customEntryPrice: { type: Boolean, default: false },
   likes:        [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   comments:     [commentSchema],
 

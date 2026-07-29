@@ -141,8 +141,9 @@
     }
     .rec-box-count { margin-left:auto; font-size:12px; color:var(--muted); font-family:var(--font-body); letter-spacing:0; }
   </style>
+  <link rel="stylesheet" href="/css/redesign.css"/>
 </head>
-<body>
+<body class="profile-page">
 
 <nav class="navbar">
   <a class="navbar-brand" href="/feed.html">
@@ -151,47 +152,72 @@
   </a>
   <div class="navbar-actions">
     <span style="color:var(--muted);font-size:14px;" class="nav-username"></span>
-    <a href="/scanner.html" class="btn btn-outline btn-sm">🏆 Scanner</a>
-    <a href="/feed.html" class="btn btn-outline btn-sm">← Feed</a>
-    <button onclick="Auth.logout()" class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1.5px solid var(--red);">Logout</button>
+    <a href="/scanner.html" class="btn btn-outline btn-sm" data-i18n="nav.scanner">Scanner</a>
+    <a href="/feed.html" class="btn btn-outline btn-sm" data-i18n="nav.back_feed">← Feed</a>
+    <button onclick="Auth.logout()" class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1.5px solid var(--red);" data-i18n="nav.logout">Logout</button>
   </div>
 </nav>
 
-<!-- Share Call Modal -->
+<!-- Share Trade Modal -->
 <div id="share-overlay">
   <div id="share-box">
-    <h2>📤 SHARE A CALL <button class="close-modal" onclick="closeShareForm()">✕</button></h2>
-    <p class="sub">Live entry price fetched automatically. Followers notified instantly.</p>
+    <h2><span data-i18n="profile.share_title">SHARE A TRADE</span> <button class="close-modal" onclick="closeShareForm()">✕</button></h2>
+    <p class="sub" data-i18n="profile.share_copy">Live entry price fetched automatically. Followers notified instantly.</p>
     <form id="share-form">
       <div class="dir-toggle">
         <label class="dir-opt"><input type="radio" name="direction" value="BUY" checked/><span class="dir-span buy-s">▲ BUY</span></label>
         <label class="dir-opt"><input type="radio" name="direction" value="SELL"/><span class="dir-span sell-s">▼ SELL</span></label>
       </div>
       <div class="form-group">
-        <label class="form-label">Symbol</label>
+        <label class="form-label" data-i18n="profile.symbol">Symbol</label>
         <input id="share-symbol" type="text" class="form-input" placeholder="AAPL · GLD · SLV · USO…" autocomplete="off" style="text-transform:uppercase;" required/>
         <div class="price-disp" id="share-price-disp"></div>
       </div>
+      <div class="form-group">
+        <label class="form-label">Entry Price <span style="font-weight:400;color:var(--muted);">optional</span></label>
+        <input id="share-entry" type="number" class="form-input" placeholder="Uses live price when empty" step="0.01" min="0"/>
+        <div style="margin-top:5px;font-size:11px;color:var(--muted);">For a custom entry, the opened date uses the latest trading day whose range reached that price.</div>
+      </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Take Profit ($)</label>
+          <label class="form-label" data-i18n="profile.take_profit">Take Profit ($)</label>
           <input id="share-tp" type="number" class="form-input" placeholder="e.g. 200.00" step="0.01" min="0" required/>
         </div>
         <div class="form-group">
-          <label class="form-label">Stop Loss ($) <span style="font-weight:400;color:var(--muted);">optional</span></label>
+          <label class="form-label"><span data-i18n="profile.stop_loss">Stop Loss ($)</span> <span style="font-weight:400;color:var(--muted);" data-i18n="profile.optional">optional</span></label>
           <input id="share-sl" type="number" class="form-input" placeholder="e.g. 170.00" step="0.01" min="0"/>
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Note <span style="font-weight:400;color:var(--muted);">optional · 280 chars</span></label>
-        <input id="share-note" type="text" class="form-input" placeholder="Your thesis…" maxlength="280"/>
+        <label class="form-label"><span data-i18n="profile.note">Note</span> <span style="font-weight:400;color:var(--muted);" data-i18n="profile.optional">optional</span></label>
+        <input id="share-note" type="text" class="form-input" placeholder="Your thesis…" data-i18n-placeholder="profile.note_hint" maxlength="280"/>
       </div>
       <div class="form-error" id="share-error"></div>
       <div style="display:flex;gap:10px;margin-top:4px;">
-        <button type="button" onclick="closeShareForm()" class="btn btn-outline" style="flex:1;justify-content:center;">Cancel</button>
-        <button type="submit" class="btn btn-green" style="flex:2;justify-content:center;">🚀 Post to Feed</button>
+        <button type="button" onclick="closeShareForm()" class="btn btn-outline" style="flex:1;justify-content:center;" data-i18n="login.cancel">Cancel</button>
+        <button type="submit" class="btn btn-green" style="flex:2;justify-content:center;" data-i18n="profile.post_feed">Post to Feed</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Close Trade Modal -->
+<div id="close-call-overlay" style="display:none;position:fixed;inset:0;z-index:31000;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px;">
+  <div id="close-call-box" style="width:min(420px,100%);padding:22px;">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:start;">
+      <div><div style="font:800 10px var(--font-mono);color:var(--gold);">CLOSE TRADE</div><h2 id="close-call-title" style="margin:6px 0 0;font:800 22px var(--font-disp);">Close position</h2></div>
+      <button type="button" class="close-modal" onclick="closeCallModal()" aria-label="Close">✕</button>
+    </div>
+    <p id="close-call-summary" style="margin:14px 0;color:var(--text2);font-size:13px;line-height:1.5;"></p>
+    <div class="form-group">
+      <label class="form-label" for="close-call-price">Exit Price</label>
+      <input id="close-call-price" type="number" class="form-input" step="0.01" min="0" placeholder="Uses latest live price when empty"/>
+    </div>
+    <div class="form-error" id="close-call-error"></div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button type="button" class="btn btn-outline" onclick="closeCallModal()" style="flex:1;justify-content:center;">Cancel</button>
+      <button type="button" class="btn btn-primary" id="close-call-submit" style="flex:1.4;justify-content:center;">Close Trade</button>
+    </div>
   </div>
 </div>
 
@@ -212,8 +238,10 @@
 
   <!-- Banner -->
   <div class="prof-banner">
+    <div class="profile-grid-mark" aria-hidden="true"></div>
     <div class="prof-av" id="prof-avatar">?</div>
     <div class="prof-info">
+      <div class="profile-kicker"><span class="profile-presence"></span><span id="prof-context" data-i18n="profile.workspace">TRADING WORKSPACE</span></div>
       <h1 id="prof-name" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Loading…<span id="prof-plan-badge" style="display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px;border-radius:12px;vertical-align:middle;"></span></h1>
       <div id="prof-username" style="color:rgba(255,255,255,0.4);font-size:13px;margin-bottom:2px;"></div>
       <div id="prof-email"></div>
@@ -229,47 +257,61 @@
         </div>
       </div>
     </div>
-    <div class="prof-actions">
-      <button id="share-call-btn" class="btn btn-green" style="display:none;" onclick="openShareForm()">📤 Share a Call</button>
-      <button id="trader-profile-btn" class="btn btn-sm" style="display:none;background:#00897B;color:#fff;border:none;" onclick="Onboarding.show()">🎯 My Profile</button>
-      <button id="change-pwd-btn" class="btn btn-outline btn-sm" style="display:none;" onclick="openChangePwd()">🔑 Password</button>
-      <button id="follow-btn" class="btn btn-primary" style="display:none;">+ Follow</button>
+    <div class="prof-actions" aria-label="Profile actions">
+      <button id="share-call-btn" class="btn btn-green profile-primary-action" style="display:none;" onclick="openShareForm()" data-i18n="profile.share_call">Share a Trade</button>
+      <button id="trader-profile-btn" class="btn btn-sm" style="display:none;background:#00897B;color:#fff;border:none;" onclick="Onboarding.show()" data-i18n="profile.trader_profile">My Profile</button>
+      <button id="change-pwd-btn" class="btn btn-outline btn-sm" style="display:none;" onclick="openChangePwd()" data-i18n="profile.password">Password</button>
+      <button id="follow-btn" class="btn btn-primary" style="display:none;" data-i18n="profile.follow">+ Follow</button>
     </div>
+  </div>
+
+  <div class="profile-snapshot" aria-label="Trading profile summary">
+    <div class="snapshot-item"><span data-i18n="profile.snapshot_status">Account status</span><strong id="profile-snapshot-status">ACTIVE</strong></div>
+    <div class="snapshot-item"><span data-i18n="profile.snapshot_calls">Tracked trades</span><strong id="profile-snapshot-calls">—</strong></div>
+    <div class="snapshot-item"><span data-i18n="profile.snapshot_return">Net trade return</span><strong id="profile-snapshot-return">—</strong></div>
+    <div class="snapshot-item snapshot-live"><span class="profile-presence"></span><strong data-i18n="profile.snapshot_live">LIVE MARKET DATA</strong></div>
   </div>
 
   <!-- Stats -->
   <div class="stats-wrap">
-    <div class="section-title">📊 PERFORMANCE STATS</div>
+    <div class="section-title" data-i18n="profile.performance">PERFORMANCE STATS</div>
     <div class="stats-grid">
-      <div class="stat-box"><div class="stat-val" id="stat-total">—</div><div class="stat-lbl">Total Calls</div></div>
-      <div class="stat-box"><div class="stat-val" id="stat-winrate">—</div><div class="stat-lbl">Win Rate</div></div>
-      <div class="stat-box"><div class="stat-val" id="stat-return">—</div><div class="stat-lbl">Total Return</div></div>
-      <div class="stat-box"><div class="stat-val" id="stat-open">—</div><div class="stat-lbl">Open Calls</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-total">—</div><div class="stat-lbl" data-i18n="profile.total_calls">Total Trades</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-winrate">—</div><div class="stat-lbl" data-i18n="profile.win_rate">Win Rate</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-return">—</div><div class="stat-lbl" data-i18n="profile.overall_pl">Overall P/L</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-open-return">—</div><div class="stat-lbl" data-i18n="profile.open_pl">Open P/L</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-closed-return">—</div><div class="stat-lbl" data-i18n="profile.closed_pl">Closed P/L</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-open">—</div><div class="stat-lbl" data-i18n="profile.open_calls">Open Trades</div></div>
     </div>
   </div>
 
   <!-- Trader Profile Section -->
   <div class="stats-wrap" id="trader-profile-section" style="display:none;">
-    <div class="section-title">🎯 TRADER PROFILE</div>
+    <div class="section-title" data-i18n="profile.trader_profile">TRADER PROFILE</div>
     <div id="trader-profile-display" style="padding:4px 0;"></div>
   </div>
 
   <!-- Box 1: My Recommendations -->
   <div class="rec-box">
-    <div class="rec-box-title">📈 MY RECOMMENDATIONS <span class="rec-box-count" id="count-my">—</span></div>
+    <div class="rec-box-title"><span data-i18n="profile.my_trades">MY TRADES</span> <span class="rec-box-count" id="count-my">—</span></div>
+    <div class="profile-trade-filters" role="tablist" aria-label="Trade history filters">
+      <button type="button" class="profile-trade-filter active" data-trade-filter="all" data-i18n="profile.filter_all">All Trades</button>
+      <button type="button" class="profile-trade-filter" data-trade-filter="open" data-i18n="profile.filter_open">Open Trades</button>
+      <button type="button" class="profile-trade-filter" data-trade-filter="closed" data-i18n="profile.filter_closed">Closed Trades</button>
+    </div>
     <div id="profile-recs"><div class="spinner"></div></div>
   </div>
 
   <!-- Box 2: Reposts (own profile only) -->
   <div class="rec-box" id="reposts-box" style="display:none;">
-    <div class="rec-box-title">↩ REPOSTED CALLS <span class="rec-box-count" id="count-reposts">—</span></div>
+    <div class="rec-box-title"><span data-i18n="profile.reposts">REPOSTED TRADES</span> <span class="rec-box-count" id="count-reposts">—</span></div>
     <div id="profile-reposts"></div>
   </div>
 
   <!-- Watchlist Box (own profile only) -->
   <div class="rec-box" id="watchlist-box" style="display:none;">
     <div class="rec-box-title">
-      🔔 FOLLOWED INSTRUMENTS
+      <span data-i18n="profile.watchlist">FOLLOWED INSTRUMENTS</span>
       <span class="rec-box-count" id="count-watchlist">—</span>
     </div>
     <div id="watchlist-list"></div>
@@ -278,8 +320,8 @@
   <!-- Box 3: Engine Signals (own profile only) -->
   <div class="rec-box" id="engine-box" style="display:none;">
     <div class="rec-box-title">
-      ⚡ ENGINE SIGNALS
-      <span style="font-size:10px;color:var(--muted);font-family:var(--font-body);letter-spacing:0;font-weight:400;">· private</span>
+      <span data-i18n="profile.engine_signals">ENGINE SIGNALS</span>
+      <span style="font-size:10px;color:var(--muted);font-family:var(--font-body);letter-spacing:0;font-weight:400;" data-i18n="profile.private">· private</span>
       <span class="rec-box-count" id="count-engine">—</span>
     </div>
     <div id="profile-engine-recs"></div>
@@ -289,6 +331,7 @@
 
 <script src="/js/api.js?v=1784445641"></script>
 <script src="/js/auth.js?v=1784445641"></script>
+<script src="/js/i18n.js"></script>
 <script src="/js/profile.js?v=1784445641"></script>
 <script>
   const me = Auth.user();
@@ -404,25 +447,25 @@ setInterval(refreshProfilePrices, 30000);
 <div id="pwd-overlay" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(8,15,36,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
   <div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,0.3);animation:modalIn .25s ease;">
     <h2 style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:var(--accent);margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
-      🔑 CHANGE PASSWORD
+      <span data-i18n="profile.change_password">CHANGE PASSWORD</span>
       <button onclick="closeChangePwd()" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--bg2);cursor:pointer;font-size:16px;color:var(--muted);">✕</button>
     </h2>
     <div class="form-group">
-      <label class="form-label">Current Password</label>
+      <label class="form-label" data-i18n="profile.current_password">Current Password</label>
       <input id="pwd-current" type="password" class="form-input" placeholder="Your current password"/>
     </div>
     <div class="form-group">
-      <label class="form-label">New Password</label>
+      <label class="form-label" data-i18n="profile.new_password">New Password</label>
       <input id="pwd-new" type="password" class="form-input" placeholder="Min 6 characters"/>
     </div>
     <div class="form-group">
-      <label class="form-label">Confirm New Password</label>
+      <label class="form-label" data-i18n="profile.confirm_password">Confirm New Password</label>
       <input id="pwd-confirm" type="password" class="form-input" placeholder="Repeat new password"/>
     </div>
     <div class="form-error" id="pwd-err"></div>
     <div style="display:flex;gap:10px;margin-top:8px;">
-      <button onclick="closeChangePwd()" class="btn btn-outline" style="flex:1;justify-content:center;">Cancel</button>
-      <button onclick="submitChangePwd()" class="btn btn-primary" style="flex:2;justify-content:center;" id="pwd-submit-btn">Update Password</button>
+      <button onclick="closeChangePwd()" class="btn btn-outline" style="flex:1;justify-content:center;" data-i18n="login.cancel">Cancel</button>
+      <button onclick="submitChangePwd()" class="btn btn-primary" style="flex:2;justify-content:center;" id="pwd-submit-btn" data-i18n="profile.update_password">Update Password</button>
     </div>
   </div>
 </div>

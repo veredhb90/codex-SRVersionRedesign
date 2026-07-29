@@ -40,7 +40,22 @@ router.get('/stats', protect, adminOnly, async (req, res) => {
     const pro    = await col.countDocuments({ plan: 'pro' });
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const newThisWeek = await col.countDocuments({ createdAt: { $gte: weekAgo } });
-    res.json({ total, pro, free: total - pro, newThisWeek });
+    const scan = await mongoose.connection.db.collection('scanresults').findOne(
+      { key: 'latest' },
+      { projection: { scannedAt: 1, scannedCount: 1, technicalResults: 1, newsEnrichedCount: 1, phase: 1, duration: 1, running: 1 } }
+    );
+    res.json({
+      total, pro, free: total - pro, newThisWeek,
+      scanner: scan ? {
+        scannedAt: scan.scannedAt,
+        scannedCount: scan.scannedCount || 0,
+        technicalResults: scan.technicalResults || 0,
+        newsEnrichedCount: scan.newsEnrichedCount || 0,
+        phase: scan.phase || 'idle',
+        duration: scan.duration || 0,
+        running: Boolean(scan.running),
+      } : null,
+    });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
@@ -70,13 +85,22 @@ router.post('/upgrade', protect, adminOnly, async (req, res) => {
   try {
     const { userId, months } = req.body;
     const m = Math.max(1, Math.min(24, parseInt(months) || 1));
-    const end = new Date(Date.now() + m * 30 * 24 * 60 * 60 * 1000);
+    const oid = new mongoose.Types.ObjectId(userId);
+    const target = await mongoose.connection.db.collection('users').findOne(
+      { _id: oid },
+      { projection: { subscriptionEnd: 1 } }
+    );
+    if (!target) return res.status(404).json({ message: 'User not found' });
+    const base = target.subscriptionEnd && new Date(target.subscriptionEnd) > new Date()
+      ? new Date(target.subscriptionEnd)
+      : new Date();
+    const end = new Date(base.getTime() + m * 30 * 24 * 60 * 60 * 1000);
     const r = await mongoose.connection.db.collection('users').updateOne(
-      { _id: new mongoose.Types.ObjectId(userId) },
+      { _id: oid },
       { $set: { plan: 'pro', subscriptionEnd: end } }
     );
     if (!r.matchedCount) return res.status(404).json({ message: 'User not found' });
-    res.json({ message: 'Upgraded to PRO', subscriptionEnd: end });
+    res.json({ message: 'PRO access extended', subscriptionEnd: end });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
