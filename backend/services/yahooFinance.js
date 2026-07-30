@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { DefaultApi } = require('finnhub');
 const https = require('https');
+const { enqueueFinnhubCall } = require('./finnhubQueue');
 
 const client = new DefaultApi();
 client.apiKey = process.env.FINNHUB_API_KEY;
@@ -102,34 +103,36 @@ const getQuote = (symbol) => new Promise((resolve, reject) => {
       resolve(result);
     }).catch(() => {
       // Fallback to Finnhub if Yahoo fails
-      client.quote(resolved, (err, data) => {
-        if (err || !data || !data.c) return reject(new Error(`Symbol not found: ${symbol}`));
-        const result = {
-          symbol: DISPLAY_MAP[resolved] || resolved,
-          shortName: REAL_NAMES[resolved] || resolved,
-          price: data.c, change: data.d || 0, changePct: data.dp || 0,
-          high: data.h || data.c, low: data.l || data.c,
-          open: data.o || data.c, prevClose: data.pc || data.c,
-        };
-        toCache(resolved, result);
-        resolve(result);
-      });
+      enqueueFinnhubCall(() => new Promise(res => client.quote(resolved, (err, data) => res({ err, data }))))
+        .then(({ err, data }) => {
+          if (err || !data || !data.c) return reject(new Error(`Symbol not found: ${symbol}`));
+          const result = {
+            symbol: DISPLAY_MAP[resolved] || resolved,
+            shortName: REAL_NAMES[resolved] || resolved,
+            price: data.c, change: data.d || 0, changePct: data.dp || 0,
+            high: data.h || data.c, low: data.l || data.c,
+            open: data.o || data.c, prevClose: data.pc || data.c,
+          };
+          toCache(resolved, result);
+          resolve(result);
+        });
     });
     return;
   }
 
-  client.quote(resolved, (err, data) => {
-    if (err || !data || !data.c) return reject(new Error(`Symbol not found: ${symbol}. Try: GLD, SLV, USO, AAPL, NVDA`));
-    const result = {
-      symbol: DISPLAY_MAP[resolved] || resolved,
-      shortName: REAL_NAMES[resolved] || DISPLAY_MAP[resolved] || resolved,
-      price: data.c, change: data.d || 0, changePct: data.dp || 0,
-      high: data.h || data.c, low: data.l || data.c,
-      open: data.o || data.c, prevClose: data.pc || data.c,
-    };
-    toCache(resolved, result);
-    resolve(result);
-  });
+  enqueueFinnhubCall(() => new Promise(res => client.quote(resolved, (err, data) => res({ err, data }))))
+    .then(({ err, data }) => {
+      if (err || !data || !data.c) return reject(new Error(`Symbol not found: ${symbol}. Try: GLD, SLV, USO, AAPL, NVDA`));
+      const result = {
+        symbol: DISPLAY_MAP[resolved] || resolved,
+        shortName: REAL_NAMES[resolved] || DISPLAY_MAP[resolved] || resolved,
+        price: data.c, change: data.d || 0, changePct: data.dp || 0,
+        high: data.h || data.c, low: data.l || data.c,
+        open: data.o || data.c, prevClose: data.pc || data.c,
+      };
+      toCache(resolved, result);
+      resolve(result);
+    });
 });
 
 // ── Candles via Yahoo Finance (daily) ──────────────────────────────
@@ -236,8 +239,8 @@ const getNewsSentiment = async (symbol) => {
 
     // Fetch news and analyst recommendation in parallel
     const [newsData, recData] = await Promise.allSettled([
-      fetchJSON(`https://finnhub.io/api/v1/company-news?symbol=${resolved}&from=${fromDate}&to=${toDate}&token=${apiKey}`),
-      fetchJSON(`https://finnhub.io/api/v1/stock/recommendation?symbol=${resolved}&token=${apiKey}`),
+      enqueueFinnhubCall(() => fetchJSON(`https://finnhub.io/api/v1/company-news?symbol=${resolved}&from=${fromDate}&to=${toDate}&token=${apiKey}`)),
+      enqueueFinnhubCall(() => fetchJSON(`https://finnhub.io/api/v1/stock/recommendation?symbol=${resolved}&token=${apiKey}`)),
     ]);
 
     // ── News keyword scoring ───────────────────────────────────────

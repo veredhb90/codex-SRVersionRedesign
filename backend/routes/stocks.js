@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const yf      = require('../services/yahooFinance');
 const { protect } = require('../middleware/authMiddleware');
+const { enqueueFinnhubCall } = require('../services/finnhubQueue');
 
 // GET /api/stocks/quote/:symbol
 router.get('/quote/:symbol', async (req, res) => {
@@ -97,13 +98,13 @@ router.get('/news', async (req, res) => {
     const key = process.env.FINNHUB_API_KEY || process.env.FINNHUB_KEY || process.env.FINNHUB || '';
     const https = require('https');
     const url = 'https://finnhub.io/api/v1/news?category=general&token=' + key;
-    const raw = await new Promise((resolve) => {
+    const raw = await enqueueFinnhubCall(() => new Promise((resolve) => {
       https.get(url, (r) => {
         let d = '';
         r.on('data', c => d += c);
         r.on('end', () => resolve(d));
       }).on('error', () => resolve('[]'));
-    });
+    }));
     let items = [];
     try { items = JSON.parse(raw); } catch (e) { items = []; }
     const news = (Array.isArray(items) ? items : []).slice(0, 20).map(n => ({

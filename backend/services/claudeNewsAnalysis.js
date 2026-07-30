@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 const https = require('https');
+const { enqueueFinnhubCall } = require('./finnhubQueue');
 
 // ── 3-hour cache (per symbol) ────────────────────────────────────────
 const newsCache = new Map();
@@ -173,10 +174,10 @@ const getClaudeNewsAnalysis = async (symbol, companyName) => {
 
   try {
     const [articles, ratings, upcomingEarnings, earningsHistory] = await Promise.all([
-      fetchFinnhubNews(symbol),
-      fetchAnalystRatings(symbol),
-      fetchUpcomingEarnings(symbol),
-      fetchEarningsHistory(symbol),
+      enqueueFinnhubCall(() => fetchFinnhubNews(symbol)),
+      enqueueFinnhubCall(() => fetchAnalystRatings(symbol)),
+      enqueueFinnhubCall(() => fetchUpcomingEarnings(symbol)),
+      enqueueFinnhubCall(() => fetchEarningsHistory(symbol)),
     ]);
 
     let analystSummary = 'No analyst rating data available.';
