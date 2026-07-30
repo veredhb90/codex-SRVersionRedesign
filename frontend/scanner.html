@@ -148,7 +148,7 @@
     <div class="scanner-meta" id="scanner-meta" style="display:none;">
       <div class="scanner-meta-item"><span data-i18n="scanner.scanned">Scanned:</span> <strong id="meta-count">—</strong></div>
       <div class="scanner-meta-item"><span data-i18n="scanner.duration">Duration:</span> <strong id="meta-duration">—</strong>s</div>
-      <div class="scanner-meta-item"><span data-i18n="scanner.updated">Updated:</span> <strong id="meta-time">—</strong></div>
+      <div class="scanner-meta-item scanner-last-scan"><span><i class="scanner-live-dot" aria-hidden="true"></i><span data-i18n="scanner.last_scan">Last completed scan:</span></span><strong id="meta-time">—</strong></div>
       <div class="scanner-meta-item scanner-next-scan"><span data-i18n="scanner.next_scan">Next automatic scan:</span> <strong id="meta-next-scan">—</strong></div>
     </div>
   </div>
@@ -161,7 +161,7 @@
       <button class="scan-tab" onclick="switchTab('sell')" id="tab-sell" data-i18n="scanner.tab_sell">Top 10 SELL</button>
     </div>
     <button type="button" class="btn btn-outline btn-sm" onclick="runScan()" data-i18n="scanner.latest_result">Latest Result</button>
-    <span class="cache-notice" id="cache-notice" style="display:none;" data-i18n="scanner.cached">Cached result</span>
+    <span class="cache-notice" id="cache-notice" style="display:none;" data-i18n="scanner.cached">Latest completed scan</span>
   </div>
 
   <!-- Results -->
@@ -233,6 +233,7 @@
 
   let scanData   = null;
   let activeTab  = 'all';
+  let renderedResultVersion = null;
 
   function switchTab(tab) {
     activeTab = tab;
@@ -242,6 +243,23 @@
   }
 
   let pollTimer = null;
+  let pollActive = false;
+  let pollInFlight = false;
+
+  function resultVersion(data) {
+    if (!data || !data.top5 || !data.top5.length) return null;
+    const ranks = data.top5.map(item => `${item.symbol}:${item.score}:${item.direction}`).join('|');
+    return `${data.cachedAt || data.scannedAt || ''}:${ranks}`;
+  }
+
+  function applyCachedResults(data, forceRender = false) {
+    const nextVersion = resultVersion(data);
+    scanData = data;
+    if (forceRender || nextVersion !== renderedResultVersion) {
+      renderResults();
+      renderedResultVersion = nextVersion;
+    }
+  }
 
   async function runScan() {
     const resultsEl = document.getElementById('scan-results');
@@ -257,8 +275,7 @@
         showScanningProgress(data);
         startPolling();
       } else {
-        scanData = data;
-        renderResults();
+        applyCachedResults(data, true);
         if (data.scanning) {
           showScanningBanner(scanActivityText(data));
           startPolling();
@@ -320,11 +337,26 @@
   }
 
   function startPolling() {
-    if (pollTimer) return; // already polling
+    if (pollActive) return;
+    pollActive = true;
     let attempts = 0;
-    pollTimer = setInterval(async () => {
+
+    const stopPolling = () => {
+      pollActive = false;
+      if (pollTimer !== null) clearTimeout(pollTimer);
+      pollTimer = null;
+    };
+
+    const scheduleNextPoll = () => {
+      if (pollActive) pollTimer = setTimeout(poll, 5000);
+    };
+
+    const poll = async () => {
+      pollTimer = null;
+      if (!pollActive || pollInFlight) return;
       attempts++;
-      if (attempts > 1080) { clearInterval(pollTimer); pollTimer = null; return; } // stop after 90 min
+      if (attempts > 1080) { stopPolling(); return; } // stop after 90 min
+      pollInFlight = true;
       try {
         const res  = await fetch('/api/scanner/top5', { headers: { 'Authorization': 'Bearer ' + Auth.token() } });
         const data = await res.json();
@@ -333,19 +365,25 @@
         if (!data.top5 || !data.top5.length) {
           showScanningProgress(data);
         } else {
-          scanData = data;
-          renderResults();
+          // A scheduled refresh keeps the last completed cache stable. Avoid
+          // rebuilding the cards on each poll; only render a new final result.
+          applyCachedResults(data);
           if (data.scanning) {
             showScanningBanner(scanActivityText(data));
           } else {
             const banner = document.getElementById('scan-banner');
             if (banner) banner.remove();
-            clearInterval(pollTimer);
-            pollTimer = null;
+            stopPolling();
           }
         }
       } catch (_) {}
-    }, 5000); // poll every 5 seconds
+      finally {
+        pollInFlight = false;
+        scheduleNextPoll();
+      }
+    };
+
+    scheduleNextPoll(); // wait five seconds between completed requests
   }
 
   const UNIVERSE_SIZE = 682;
@@ -376,15 +414,23 @@
     document.getElementById('meta-duration').textContent = data.duration || '—';
     const refreshedAt = data.cachedAt || data.scannedAt;
     const locale = document.documentElement.lang === 'ar' ? 'ar' : 'en-GB';
-    document.getElementById('meta-time').textContent = refreshedAt
-      ? new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(refreshedAt))
-      : '—';
+    const lastScanEl = document.getElementById('meta-time');
+    if (refreshedAt) {
+      const lastScan = new Date(refreshedAt);
+      lastScanEl.textContent = new Intl.DateTimeFormat(locale, {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      }).format(lastScan);
+      lastScanEl.title = lastScan.toLocaleString(locale);
+    } else {
+      lastScanEl.textContent = '—';
+      lastScanEl.removeAttribute('title');
+    }
     nextScanAt = data.nextScheduledAt || nextScanAt;
     updateNextScanCountdown();
     const marketEl = document.getElementById('meta-market');
     if (marketEl) {
       if (data.weekend) {
-        marketEl.textContent = '📅 ' + SRLang.t('scanner.weekend', 'Weekend') + ' · ' + SRLang.t('scanner.cached_short', 'Cached result (1h)');
+        marketEl.textContent = '📅 ' + SRLang.t('scanner.weekend', 'Weekend') + ' · ' + SRLang.t('scanner.cached_short', 'Latest completed scan');
         marketEl.style.color = 'rgba(255,200,0,0.8)';
       } else if (data.marketOpen) {
         marketEl.textContent = '🟢 ' + SRLang.t('scanner.market_open', 'Market Open');
@@ -398,9 +444,7 @@
     const cacheEl = document.getElementById('cache-notice');
     if (cacheEl) {
       cacheEl.style.display = data.cached ? 'inline-flex' : 'none';
-      cacheEl.textContent = data.weekend
-        ? '📦 ' + SRLang.t('scanner.weekend_cache', 'Weekend cache (6h)')
-        : '📦 ' + SRLang.t('scanner.cached_short', 'Cached result (1h)');
+      cacheEl.textContent = '📦 ' + SRLang.t('scanner.cached', 'Latest completed scan');
     }
   }
 
@@ -415,6 +459,7 @@
     }
 
     document.getElementById('scan-results').innerHTML = list.map((r, i) => buildStockCard(r, i + 1)).join('');
+    renderedResultVersion = resultVersion(scanData);
   }
 
   function buildStockCard(r, rank) {
@@ -452,13 +497,18 @@
     const riskReward = Number.isFinite(Number(r.riskReward)) ? '1:' + Number(r.riskReward).toFixed(2) : '—';
     const rangePosition = Number.isFinite(Number(r.rangePct)) ? Math.round(Number(r.rangePct)) + '%' : '—';
     const articleCount = Number(r.newsArticleCount || (r.news || []).length || 0);
+    const rankLimit = activeTab === 'all' ? 20 : 10;
+    const rankTone = rank === 1 ? 'rank-one' : rank === 2 ? 'rank-two' : rank === 3 ? 'rank-three' : '';
 
     return `
-    <article class="stock-card ${isBuy ? 'buy' : isSell ? 'sell' : ''}" style="--card-order:${Math.min(rank, 10)}">
+    <article class="stock-card ${isBuy ? 'buy' : isSell ? 'sell' : ''}" style="--card-order:${Math.min(rank, 10)};--pulse-delay:${rank * -0.28}s">
+      <aside class="scanner-rank-panel ${rankTone}" aria-label="${t('scanner.rank', 'Rank')} ${rank}">
+        <span>${t('scanner.rank', 'Rank')}</span>
+        <strong>#${String(rank).padStart(2, '0')}</strong>
+        <small>${t('scanner.of', 'of')} ${rankLimit}</small>
+      </aside>
+      <div class="scanner-card-main">
       <div class="stock-card-top">
-        <div class="stock-rank" style="background:${rank===1?'#FFD700':rank===2?'#C0C0C0':rank===3?'#CD7F32':'var(--accent)'}">
-          ${rank}
-        </div>
         <div>
           <div class="stock-sym">${r.symbol}</div>
           <div class="stock-name">${r.name || r.symbol}</div>
@@ -474,7 +524,9 @@
         </div>
       </div>
 
-      <div class="stock-levels">
+      <section class="scanner-card-section trade-plan-section">
+        <div class="scanner-section-heading"><span>${t('scanner.trade_plan', 'Trade plan')}</span><small>${t('scanner.current_price', 'Current price')} ${level(r.price)}</small></div>
+        <div class="stock-levels">
         <div class="sl-box">
           <div class="lbl">${t('scanner.entry', 'Entry')}</div>
           <div class="val">${level(r.price)}</div>
@@ -487,9 +539,12 @@
           <div class="lbl">${t('scanner.stop_loss', 'Stop Loss')}</div>
           <div class="val">${level(r.stopLoss)}</div>
         </div>
-      </div>
+        </div>
+      </section>
 
-      <section class="scanner-score-deck" aria-label="${t('scanner.score_breakdown', 'Score breakdown')}">
+      <section class="scanner-card-section score-section" aria-label="${t('scanner.score_breakdown', 'Score breakdown')}">
+        <div class="scanner-section-heading"><span>${t('scanner.score_summary', 'Composite score')}</span><small>${t('scanner.score_breakdown', 'Technical + news')}</small></div>
+        <div class="scanner-score-deck">
         <div class="scanner-score-cell ${scoreTone(techScore)}">
           <span>${t('scanner.technical', 'Technical')}</span><strong>${signed(techScore)}</strong>
         </div>
@@ -502,20 +557,26 @@
           <span>${t('scanner.total_score', 'Total Score')}</span><strong>${scoreLabel}</strong>
           <div class="score-bar"><div class="score-bar-fill" style="width:${barWidth}%;background:${scoreCol};"></div></div>
         </div>
+        </div>
       </section>
 
-      <div class="scanner-context-row">
-        <span class="confidence-badge" style="color:${confColor};">${r.confidence} ${t('scanner.confidence', 'confidence')}</span>
-        <span>${t('scanner.trend', 'Trend')}: <strong>${r.trend || '—'}</strong></span>
-        <span>${t('scanner.timeframe', 'Timeframe')}: <strong>${r.timeframe || '—'}</strong></span>
-        <span>${t('scanner.risk_reward', 'Risk / reward')}: <strong>${riskReward}</strong></span>
-        <span>${t('scanner.range_position', 'Range position')}: <strong>${rangePosition}</strong></span>
-      </div>
+      <section class="scanner-card-section market-snapshot-section">
+        <div class="scanner-section-heading"><span>${t('scanner.market_snapshot', 'Market snapshot')}</span><small>${r.direction || '—'} ${t('scanner.opportunity', 'opportunity')}</small></div>
+        <div class="scanner-context-grid">
+          <div class="scanner-context-item confidence" style="--context-color:${confColor};"><span>${t('scanner.confidence', 'Confidence')}</span><strong>${r.confidence || '—'}</strong></div>
+          <div class="scanner-context-item"><span>${t('scanner.trend', 'Trend')}</span><strong>${r.trend || '—'}</strong></div>
+          <div class="scanner-context-item"><span>${t('scanner.timeframe', 'Timeframe')}</span><strong>${r.timeframe || '—'}</strong></div>
+          <div class="scanner-context-item"><span>${t('scanner.risk_reward', 'Risk / reward')}</span><strong>${riskReward}</strong></div>
+          <div class="scanner-context-item"><span>${t('scanner.range_position', '52-week position')}</span><strong>${rangePosition}</strong></div>
+          <div class="scanner-context-item"><span>${t('scanner.daily_change', 'Daily change')}</span><strong style="color:${chgCol};">${(r.change || 0) >= 0 ? '+' : ''}${Number(r.change || 0).toFixed(2)}%</strong></div>
+          <div class="scanner-context-item"><span>${t('scanner.news_coverage', 'News coverage')}</span><strong>${articleCount || '—'} ${t('scanner.articles', 'articles')}</strong></div>
+        </div>
+      </section>
 
-      <div class="scanner-signal-line">
-        <span class="scanner-news-state ${scoreTone(newsScore)}">${t('scanner.news', 'News')}: ${r.newsLabel || '—'}${articleCount ? ' · ' + articleCount : ''}</span>
-        <div class="scanner-signal-chips">${signalChips}</div>
-      </div>
+      <section class="scanner-card-section scanner-signal-line">
+        <div class="scanner-section-heading"><span>${t('scanner.key_drivers', 'Key drivers')}</span><small class="scanner-news-state ${scoreTone(newsScore)}">${t('scanner.news', 'News')}: ${r.newsLabel || '—'}</small></div>
+        <div class="scanner-signal-chips">${signalChips || '<span>—</span>'}</div>
+      </section>
 
       <details class="scanner-card-details">
         <summary><span>${t('scanner.research_details', 'Research details')}</span><span>${(r.signals || []).length} ${t('scanner.signals', 'signals')}</span></summary>
@@ -534,6 +595,7 @@
       <div class="scanner-action-row">
         <button class="scanner-pro-button" onclick="scannerProAnalyze('${r.symbol}', this)">🧠 ${t('scanner.pro_analyze', 'Analyze with Pro Engine')}</button>
         <div class="scanner-pro-result"></div>
+      </div>
       </div>
     </article>`;
   }

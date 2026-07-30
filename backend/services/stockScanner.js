@@ -431,38 +431,43 @@ const getTop5 = async () => {
 };
 
 // ── Auto-start ─────────────────────────────────────────────────────
-setTimeout(() => {
-  ScanResult.findOne({ key: 'latest' }).then(doc => {
-    if (!doc || !doc.scannedAt) {
-      console.log('🚀 No scan data, running initial scan...');
-      runFullScan().catch(console.error);
-    } else if (doc.running) {
-      console.log('🔄 Recovering interrupted scanner run after restart...');
-      resumeNewsScan(doc).catch(console.error);
-    } else {
-      const age = Date.now() - new Date(doc.scannedAt).getTime();
-      const day = new Date().getUTCDay();
-      const maxAge = [0, 6].includes(day) ? 48*60*60*1000 : WEEKDAY_SCAN_INTERVAL_MS;
-      if (age > maxAge) {
-        console.log('🔄 Scan stale, refreshing...');
-        runFullScan().catch(console.error);
-      } else {
-        console.log(`📦 Using existing scan data (${Math.round(age/60000)}min old)`);
-      }
-    }
-  }).catch(() => runFullScan().catch(console.error));
-}, 10000);
-
-// Weekdays on each four-hour UTC boundary. Weekends keep the latest final cache.
-const scheduleNextAutomaticScan = () => {
-  const next = getNextWeekdayScanAt();
-  ScanResult.updateOne({ key: 'latest' }, { nextScheduledAt: next }).catch(() => {});
+// Local UI previews can opt out so they never consume the shared market-data quota.
+if (process.env.DISABLE_SCANNER_AUTOSTART !== 'true') {
   setTimeout(() => {
-    console.log('⏰ Scheduled scan...');
-    runFullScan().catch(console.error);
-    scheduleNextAutomaticScan();
-  }, Math.max(1000, next.getTime() - Date.now()));
-};
-scheduleNextAutomaticScan();
+    ScanResult.findOne({ key: 'latest' }).then(doc => {
+      if (!doc || !doc.scannedAt) {
+        console.log('🚀 No scan data, running initial scan...');
+        runFullScan().catch(console.error);
+      } else if (doc.running) {
+        console.log('🔄 Recovering interrupted scanner run after restart...');
+        resumeNewsScan(doc).catch(console.error);
+      } else {
+        const age = Date.now() - new Date(doc.scannedAt).getTime();
+        const day = new Date().getUTCDay();
+        const maxAge = [0, 6].includes(day) ? 48*60*60*1000 : WEEKDAY_SCAN_INTERVAL_MS;
+        if (age > maxAge) {
+          console.log('🔄 Scan stale, refreshing...');
+          runFullScan().catch(console.error);
+        } else {
+          console.log(`📦 Using existing scan data (${Math.round(age/60000)}min old)`);
+        }
+      }
+    }).catch(() => runFullScan().catch(console.error));
+  }, 10000);
+
+  // Weekdays on each four-hour UTC boundary. Weekends keep the latest final cache.
+  const scheduleNextAutomaticScan = () => {
+    const next = getNextWeekdayScanAt();
+    ScanResult.updateOne({ key: 'latest' }, { nextScheduledAt: next }).catch(() => {});
+    setTimeout(() => {
+      console.log('⏰ Scheduled scan...');
+      runFullScan().catch(console.error);
+      scheduleNextAutomaticScan();
+    }, Math.max(1000, next.getTime() - Date.now()));
+  };
+  scheduleNextAutomaticScan();
+} else {
+  console.log('⏸️ Scanner auto-start disabled for this local preview.');
+}
 
 module.exports = { getTop5, runFullScan, UNIVERSE };

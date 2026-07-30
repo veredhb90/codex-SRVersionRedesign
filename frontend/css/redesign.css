@@ -1875,3 +1875,170 @@ html[dir="rtl"] .rec-card.sell {
 @keyframes scannerCardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } } @keyframes scannerBarIn { from { transform:scaleX(.08); opacity:.35; } to { transform:scaleX(1); opacity:1; } }
 @media (max-width:700px) { .scanner-page .scanner-header { padding:22px 18px !important; }.scanner-page .scanner-title { font-size:23px !important; }.scanner-page .scanner-meta { display:grid !important; grid-template-columns:1fr 1fr; }.scanner-page .scanner-next-scan { grid-column:1/-1; }.scanner-score-deck { grid-template-columns:1fr 14px 1fr; }.scanner-score-operator:nth-of-type(2) { display:none; }.scanner-score-total { grid-column:1/-1; }.scanner-signal-line { display:grid; }.scanner-detail-grid { grid-template-columns:1fr; }.scanner-indicator-grid { grid-template-columns:1fr 1fr; }.scanner-page .stock-name { max-width:150px; }.scanner-page .scan-tabs { width:100%; overflow-x:auto; }.scanner-page .scan-tab { white-space:nowrap; } }
 @media (prefers-reduced-motion:reduce) { .scanner-page .stock-card,.scanner-page .score-bar-fill { animation:none !important; } }
+
+/* Scanner result cards: keep every recommendation scannable as a complete research unit. */
+.scanner-page .stock-card {
+  display:grid;
+  grid-template-columns:104px minmax(0,1fr);
+  padding:0 !important;
+  overflow:hidden;
+  border-color:rgba(151,170,204,.34) !important;
+  background:#111a2d !important;
+}
+.scanner-page .stock-card::before { left:0 !important; right:auto !important; width:4px; height:100% !important; opacity:1; }
+.scanner-page .stock-card:hover { border-color:rgba(188,207,239,.64) !important; }
+.scanner-rank-panel {
+  display:grid;
+  align-content:center;
+  justify-items:center;
+  gap:3px;
+  min-height:100%;
+  padding:22px 10px;
+  border-right:1px solid rgba(151,170,204,.26);
+  background:#17233b;
+  color:#aebed8;
+  text-align:center;
+}
+.scanner-rank-panel > span,.scanner-rank-panel small { font:800 9px var(--font-mono); letter-spacing:.9px; text-transform:uppercase; }
+.scanner-rank-panel small { color:#73839c; }
+.scanner-rank-panel strong { color:#f3f7ff; font:900 31px/1 var(--font-mono); letter-spacing:0; }
+.scanner-rank-panel.rank-one { background:linear-gradient(180deg,rgba(246,183,60,.25),rgba(246,183,60,.06)),#17233b; }.scanner-rank-panel.rank-one strong { color:#ffd66e; }
+.scanner-rank-panel.rank-two { background:linear-gradient(180deg,rgba(203,213,225,.17),rgba(203,213,225,.04)),#17233b; }.scanner-rank-panel.rank-two strong { color:#e4ecf7; }
+.scanner-rank-panel.rank-three { background:linear-gradient(180deg,rgba(215,137,74,.22),rgba(215,137,74,.05)),#17233b; }.scanner-rank-panel.rank-three strong { color:#f2ad73; }
+.scanner-card-main { min-width:0; padding:20px 22px 18px; }
+.scanner-page .stock-card-top { margin-bottom:18px !important; padding-bottom:16px; border-bottom:1px solid rgba(151,170,204,.22); }
+.scanner-page .stock-sym { font-size:25px !important; color:#f7faff !important; }
+.scanner-page .stock-name { color:#98a9c5 !important; font-size:12px; }
+.scanner-direction { min-height:30px; padding:0 10px; font-size:11px; }
+.scanner-page .stock-price { color:#f7faff; font-size:20px !important; }
+.scanner-page .stock-change { font-size:12px; }
+.scanner-card-section { margin-top:14px; padding-top:14px; border-top:1px solid rgba(151,170,204,.18); }
+.trade-plan-section { margin-top:0; padding-top:0; border-top:0; }
+.scanner-section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 9px; color:#d8e3f7; font:800 10px var(--font-mono); letter-spacing:.9px; text-transform:uppercase; }
+.scanner-section-heading > small { color:#8293ae; font:700 10px var(--font-mono); letter-spacing:0; text-transform:none; }
+.scanner-page .stock-levels { gap:9px !important; margin:0 !important; }
+.scanner-page .sl-box { min-height:69px; padding:12px !important; border-color:rgba(151,170,204,.28) !important; background:#0d1526 !important; }
+.scanner-page .sl-box .lbl { color:#8fa0bb !important; font-size:10px; }
+.scanner-page .sl-box .val { color:#edf4ff !important; font-size:16px !important; }
+.scanner-score-deck { padding:10px; border-color:rgba(151,170,204,.28); background:#0c1424; }
+.scanner-score-cell,.scanner-score-total { min-height:59px; padding:9px 11px; background:#17233b; }
+.scanner-score-cell span,.scanner-score-total span { color:#91a2be; font-size:10px; }
+.scanner-score-cell strong,.scanner-score-total strong { font-size:21px; }
+.scanner-context-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+.scanner-context-item { min-width:0; min-height:61px; padding:9px 10px; border:1px solid rgba(151,170,204,.24); border-radius:5px; background:#0d1526; }
+.scanner-context-item span { display:block; overflow:hidden; color:#8495b0; font:800 9px var(--font-mono); letter-spacing:.55px; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }
+.scanner-context-item strong { display:block; overflow:hidden; margin-top:6px; color:#edf4ff; font:800 12px/1.25 var(--font-mono); text-overflow:ellipsis; white-space:nowrap; }
+.scanner-context-item.confidence { border-color:color-mix(in srgb,var(--context-color) 60%,rgba(151,170,204,.24)); }.scanner-context-item.confidence strong { color:var(--context-color); }
+.scanner-signal-line { display:block; margin-top:14px; padding-top:14px; border-top:1px solid rgba(151,170,204,.18); }
+.scanner-signal-line .scanner-section-heading { margin-bottom:8px; }
+.scanner-signal-chips { gap:6px; }
+.scanner-signal-chips span { max-width:none; padding:6px 8px; border-color:rgba(151,170,204,.24); background:#17233b; color:#c0cee4; font-size:11px; }
+.scanner-card-details { border-color:rgba(151,170,204,.28); background:#0d1526; }
+.scanner-card-details summary { padding:11px 12px; color:#d9e5f7; font-size:11px; }
+.scanner-detail-grid { border-color:rgba(151,170,204,.18); padding:3px 12px 14px; }
+.scanner-detail-grid li { color:#bfcee4; font-size:12px; }
+.scanner-indicator-grid span { border-color:rgba(151,170,204,.24); background:#17233b; color:#91a2be; }
+.scanner-indicator-grid strong { color:#f1f6ff; }
+.scanner-page .scanner-pro-button { min-height:42px; background:rgba(54,197,240,.12); color:#8eddfd; font-size:12px; }
+@media (max-width:700px) {
+  .scanner-page .stock-card { grid-template-columns:1fr; }
+  .scanner-rank-panel { display:flex; min-height:auto; justify-content:flex-start; align-items:baseline; gap:8px; padding:10px 16px; border-right:0; border-bottom:1px solid rgba(151,170,204,.25); text-align:left; }
+  .scanner-rank-panel strong { font-size:22px; }.scanner-rank-panel small { margin-left:auto; }
+  .scanner-card-main { padding:16px; }
+  .scanner-context-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .scanner-page .stock-sym { font-size:22px !important; }
+}
+
+/* Keep the scanner detailed, but visually quiet: one clear boundary per result. */
+.scanner-page .stock-card {
+  grid-template-columns:76px minmax(0,1fr);
+  border-color:rgba(151,170,204,.24) !important;
+  background:rgba(17,26,45,.72) !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.10) !important;
+}
+.scanner-page .stock-card:hover { border-color:rgba(151,170,204,.44) !important; box-shadow:0 12px 30px rgba(0,0,0,.16) !important; }
+.scanner-page .stock-card::before { width:3px; opacity:.82; }
+.scanner-rank-panel { padding:20px 7px; border-right:1px solid rgba(151,170,204,.16); background:transparent; color:#8393ad; }
+.scanner-rank-panel strong { color:#e8eef9; font-size:24px; font-weight:800; }
+.scanner-rank-panel.rank-one,.scanner-rank-panel.rank-two,.scanner-rank-panel.rank-three { background:transparent; }
+.scanner-rank-panel.rank-one strong { color:#f6c85f; }.scanner-rank-panel.rank-two strong { color:#dce6f4; }.scanner-rank-panel.rank-three strong { color:#e5a46f; }
+.scanner-card-main { padding:19px 20px 17px; }
+.scanner-page .stock-card-top { margin-bottom:15px !important; padding-bottom:13px; border-bottom-color:rgba(151,170,204,.15); }
+.scanner-page .stock-sym { font-size:23px !important; font-weight:800; }.scanner-page .stock-price { font-size:19px !important; }
+.scanner-card-section { margin-top:13px; padding-top:13px; border-top-color:rgba(151,170,204,.13); }.trade-plan-section { margin-top:0; padding-top:0; border-top:0; }
+.scanner-section-heading { margin-bottom:7px; color:#cbd7e8; font-size:9px; letter-spacing:1px; }.scanner-section-heading > small { color:#7e8ea9; }
+.scanner-page .stock-levels { gap:5px !important; }.scanner-page .sl-box { min-height:58px; padding:8px 10px !important; border:0 !important; border-radius:4px !important; background:rgba(255,255,255,.035) !important; }
+.scanner-page .sl-box.target { background:rgba(37,208,111,.055) !important; }.scanner-page .sl-box.stop { background:rgba(255,76,91,.055) !important; }.scanner-page .sl-box .val { font-size:14px !important; }
+.scanner-score-deck { gap:0; padding:0; border:0; border-radius:0; background:transparent; }.scanner-score-cell,.scanner-score-total { min-height:49px; padding:5px 10px; border-radius:0; background:transparent; }.scanner-score-cell + .scanner-score-operator,.scanner-score-operator + .scanner-score-cell,.scanner-score-operator + .scanner-score-total { border-left:1px solid rgba(151,170,204,.16); }.scanner-score-cell strong,.scanner-score-total strong { font-size:18px; }
+.scanner-context-grid { gap:0; border-top:1px solid rgba(151,170,204,.13); border-bottom:1px solid rgba(151,170,204,.13); }.scanner-context-item { min-height:50px; padding:8px 9px; border:0; border-radius:0; background:transparent; }.scanner-context-item:not(:nth-child(4n + 1)) { border-left:1px solid rgba(151,170,204,.13); }.scanner-context-item span { font-size:8px; }.scanner-context-item strong { margin-top:4px; font-size:11px; }.scanner-context-item.confidence { border-color:transparent; }.scanner-context-item.confidence strong { color:var(--context-color); }
+.scanner-signal-line { border-top-color:rgba(151,170,204,.13); }.scanner-signal-chips { gap:5px; }.scanner-signal-chips span { padding:4px 7px; border-color:rgba(151,170,204,.18); border-radius:999px; background:rgba(255,255,255,.025); color:#b2c0d6; font-size:10px; }
+.scanner-card-details { margin-top:12px; border-color:rgba(151,170,204,.18); border-radius:5px; background:transparent; }.scanner-card-details summary { padding:9px 10px; color:#bdcbe0; }.scanner-detail-grid { border-top-color:rgba(151,170,204,.13); }.scanner-indicator-grid span { border:0; border-radius:0; background:transparent; }
+.scanner-page .scanner-pro-button { min-height:38px; border-color:rgba(54,197,240,.28); background:transparent; color:#8bd5f2; }
+@media (max-width:700px) {
+  .scanner-page .stock-card { grid-template-columns:1fr; }.scanner-rank-panel { padding:8px 16px; border-bottom-color:rgba(151,170,204,.16); }.scanner-card-main { padding:15px 16px; }
+  .scanner-context-item:not(:nth-child(4n + 1)) { border-left:0; }.scanner-context-item:not(:nth-child(odd)) { border-left:1px solid rgba(151,170,204,.13); }.scanner-context-item:nth-child(n + 3) { border-top:1px solid rgba(151,170,204,.13); }
+}
+
+/* Soft market activity: visible enough to feel live, quiet enough to keep prices readable. */
+.scanner-page .scanner-last-scan {
+  border-color:rgba(54,197,240,.32) !important;
+  background:rgba(54,197,240,.055) !important;
+}
+.scanner-live-dot {
+  display:inline-block;
+  width:6px;
+  height:6px;
+  margin:0 6px 1px 0;
+  border-radius:50%;
+  background:#61dfff;
+  box-shadow:0 0 0 0 rgba(97,223,255,.54);
+  animation:scannerLiveDot 2.5s ease-in-out infinite;
+}
+.scanner-page .scan-tab.active,
+.scanner-page .cache-notice {
+  animation:scannerControlGlow 3.8s ease-in-out infinite;
+}
+.scanner-page .stock-card.buy::before,
+.scanner-page .stock-card.sell::before {
+  animation:scannerRailPulse 3.6s ease-in-out var(--pulse-delay, 0s) infinite;
+}
+.scanner-page .stock-card.buy .scanner-direction,
+.scanner-page .stock-card.sell .scanner-direction {
+  animation:scannerSignalPulse 3.6s ease-in-out var(--pulse-delay, 0s) infinite;
+}
+.scanner-page .scanner-score-total {
+  animation:scannerScorePulse 4.4s ease-in-out var(--pulse-delay, 0s) infinite;
+}
+.scanner-page .score-bar-fill {
+  animation:scannerBarIn .75s ease-out both, scannerBarGlow 3.4s ease-in-out var(--pulse-delay, 0s) infinite !important;
+}
+@keyframes scannerLiveDot {
+  0%,100% { opacity:.72; box-shadow:0 0 0 0 rgba(97,223,255,.36); }
+  50% { opacity:1; box-shadow:0 0 0 6px rgba(97,223,255,0); }
+}
+@keyframes scannerControlGlow {
+  0%,100% { filter:brightness(1); box-shadow:none; }
+  50% { filter:brightness(1.13); box-shadow:0 0 17px rgba(54,197,240,.14); }
+}
+@keyframes scannerRailPulse {
+  0%,100% { opacity:.6; filter:brightness(.92); }
+  50% { opacity:1; filter:brightness(1.35); }
+}
+@keyframes scannerSignalPulse {
+  0%,100% { filter:brightness(1); box-shadow:0 0 0 rgba(255,255,255,0); }
+  50% { filter:brightness(1.2); box-shadow:0 0 15px currentColor; }
+}
+@keyframes scannerScorePulse {
+  0%,100% { background:transparent; }
+  50% { background:color-mix(in srgb, var(--score-color) 7%, transparent); }
+}
+@keyframes scannerBarGlow {
+  0%,100% { filter:brightness(1); opacity:.84; }
+  50% { filter:brightness(1.35); opacity:1; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .scanner-page .scanner-live-dot,.scanner-page .scan-tab.active,.scanner-page .cache-notice,
+  .scanner-page .stock-card.buy::before,.scanner-page .stock-card.sell::before,
+  .scanner-page .stock-card.buy .scanner-direction,.scanner-page .stock-card.sell .scanner-direction,
+  .scanner-page .scanner-score-total,.scanner-page .score-bar-fill { animation:none !important; }
+}
