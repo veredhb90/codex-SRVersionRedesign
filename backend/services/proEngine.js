@@ -61,9 +61,9 @@ const isRegularSessionNow = () => {
   return mins >= regularStart && mins < regularEnd;
 };
 
-const getQuote = async (symbol) => {
+const getQuote = async (symbol, opts = {}) => {
   const resolved = resolveSymbol(symbol);
-  const cached = fromProCache('quote_' + resolved);
+  const cached = opts.fresh ? null : fromProCache('quote_' + resolved);
   if (cached) return cached;
 
   const regular = isRegularSessionNow();

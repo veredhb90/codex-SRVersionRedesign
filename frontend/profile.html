@@ -209,9 +209,13 @@
       <button type="button" class="close-modal" onclick="closeCallModal()" aria-label="Close">✕</button>
     </div>
     <p id="close-call-summary" style="margin:14px 0;color:var(--text2);font-size:13px;line-height:1.5;"></p>
-    <div class="form-group">
-      <label class="form-label" for="close-call-price">Exit Price</label>
-      <input id="close-call-price" type="number" class="form-input" step="0.01" min="0" placeholder="Uses latest live price when empty"/>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label">Live close price</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);">
+        <strong id="close-call-price" style="font:800 22px var(--font-mono);color:var(--text);">—</strong>
+        <span id="close-call-market-state" style="font:800 10px var(--font-mono);letter-spacing:.4px;color:var(--accent2);text-align:right;">Fetching live price…</span>
+      </div>
+      <div style="margin-top:8px;color:var(--muted);font-size:11px;line-height:1.4;">The price is fetched again when you confirm. Manual price entry is disabled.</div>
     </div>
     <div class="form-error" id="close-call-error"></div>
     <div style="display:flex;gap:10px;margin-top:14px;">

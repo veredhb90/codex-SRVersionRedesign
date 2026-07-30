@@ -3,9 +3,26 @@ const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const Recommendation = require('../models/Recommendation');
 const yf   = require('../services/yahooFinance');
+const { getQuote: getLiveMarketQuote } = require('../services/proEngine');
 const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert } = require('../services/emailService');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+
+// Manual closes must use a server-side quote. For US equities, the Pro quote
+// keeps the freshest pre-market/after-hours price distinct from the regular close.
+// The main quote service remains a fallback for non-equity symbols it supports.
+const getCloseMarketQuote = async (symbol) => {
+  try {
+    const quote = await getLiveMarketQuote(symbol, { fresh: true });
+    if (Number.isFinite(Number(quote?.price)) && Number(quote.price) > 0) return quote;
+  } catch (_) {}
+
+  const quote = await yf.getQuote(symbol);
+  if (!Number.isFinite(Number(quote?.price)) || Number(quote.price) <= 0) {
+    throw new Error('Current market price is unavailable');
+  }
+  return { ...quote, marketState: 'Market price', regularSessionPrice: quote.price };
+};
 
 // Instrument subscriptions are stored in User.watchlist (persistent)
 
@@ -257,7 +274,28 @@ router.post('/', protect, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ message:err.message }); }
 });
 
-// POST /api/recommendations/:id/close — owner closes an open trade at the exit price
+// GET /api/recommendations/:id/close-quote — the live price shown before confirming a manual close
+router.get('/:id/close-quote', protect, async (req, res) => {
+  try {
+    const rec = await Recommendation.findById(req.params.id);
+    if (!rec) return res.status(404).json({ message:'Trade not found' });
+    if (String(rec.user) !== String(req.user._id)) return res.status(403).json({ message:'You can only close your own trades' });
+    if (!rec.isOpen) return res.status(400).json({ message:'This trade is already closed' });
+
+    const quote = await getCloseMarketQuote(rec.symbol);
+    res.json({
+      symbol: rec.symbol,
+      price: Number(quote.price),
+      marketState: quote.marketState || 'Market price',
+      regularSessionPrice: Number(quote.regularSessionPrice || quote.price),
+      priceTime: quote.priceTime || null,
+    });
+  } catch (err) {
+    res.status(503).json({ message: err.message || 'Current market price is unavailable' });
+  }
+});
+
+// POST /api/recommendations/:id/close — owner closes at the current server-side market price
 router.post('/:id/close', protect, async (req, res) => {
   try {
     const rec = await Recommendation.findById(req.params.id);
@@ -265,15 +303,8 @@ router.post('/:id/close', protect, async (req, res) => {
     if (String(rec.user) !== String(req.user._id)) return res.status(403).json({ message:'You can only close your own trades' });
     if (!rec.isOpen) return res.status(400).json({ message:'This trade is already closed' });
 
-    let closePrice = req.body?.closePrice;
-    if (closePrice === undefined || closePrice === null || String(closePrice).trim() === '') {
-      const quote = await yf.getQuote(rec.symbol);
-      closePrice = quote?.price;
-    }
-    closePrice = Number(closePrice);
-    if (!Number.isFinite(closePrice) || closePrice <= 0) {
-      return res.status(400).json({ message:'A valid close price is required' });
-    }
+    const quote = await getCloseMarketQuote(rec.symbol);
+    const closePrice = Number(quote.price);
 
     const rawReturn = rec.direction === 'BUY'
       ? ((closePrice - rec.entryPrice) / rec.entryPrice * 100)
@@ -291,7 +322,7 @@ router.post('/:id/close', protect, async (req, res) => {
       recId:rec._id, symbol:rec.symbol, returnPct:rec.returnPct, outcome:rec.outcome,
     });
     res.json(rec);
-  } catch (err) { res.status(500).json({ message:err.message }); }
+  } catch (err) { res.status(503).json({ message:err.message || 'Current market price is unavailable' }); }
 });
 
 // POST /api/recommendations/engine-save

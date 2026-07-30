@@ -2042,3 +2042,49 @@ html[dir="rtl"] .rec-card.sell {
   .scanner-page .stock-card.buy .scanner-direction,.scanner-page .stock-card.sell .scanner-direction,
   .scanner-page .scanner-score-total,.scanner-page .score-bar-fill { animation:none !important; }
 }
+
+/* Profile performance: gains and losses get a gentle, legible market pulse. */
+.profile-page .stat-box.metric-positive { --metric-rgb:37,208,111; border-color:rgba(var(--metric-rgb),.42) !important; }
+.profile-page .stat-box.metric-negative { --metric-rgb:255,76,91; border-color:rgba(var(--metric-rgb),.42) !important; }
+.profile-page .stat-box.metric-positive::before,
+.profile-page .stat-box.metric-negative::before { height:3px; background:rgb(var(--metric-rgb)) !important; }
+.profile-page .stat-box.metric-positive::after,
+.profile-page .stat-box.metric-negative::after {
+  content:"";
+  position:absolute;
+  z-index:0;
+  inset:-45%;
+  pointer-events:none;
+  opacity:.1;
+  background:radial-gradient(circle,rgba(var(--metric-rgb),.28),transparent 58%);
+  animation:profileMetricGlow 4.4s ease-in-out infinite;
+}
+.profile-page .stat-box.metric-positive .stat-val,
+.profile-page .stat-box.metric-negative .stat-val {
+  position:relative;
+  z-index:1;
+  color:rgb(var(--metric-rgb)) !important;
+  animation:profileMetricValue 4.4s ease-in-out infinite;
+}
+.profile-page .stat-box.metric-positive .stat-lbl,
+.profile-page .stat-box.metric-negative .stat-lbl { position:relative; z-index:1; }
+.profile-snapshot .snapshot-item.metric-positive { --metric-rgb:37,208,111; background:rgba(37,208,111,.045); }
+.profile-snapshot .snapshot-item.metric-negative { --metric-rgb:255,76,91; background:rgba(255,76,91,.045); }
+.profile-snapshot .snapshot-item.metric-positive strong,
+.profile-snapshot .snapshot-item.metric-negative strong {
+  color:rgb(var(--metric-rgb)) !important;
+  animation:profileMetricValue 4.4s ease-in-out infinite;
+}
+@keyframes profileMetricGlow {
+  0%,100% { opacity:.09; transform:scale(.92); }
+  50% { opacity:.48; transform:scale(1.06); }
+}
+@keyframes profileMetricValue {
+  0%,100% { filter:brightness(1); text-shadow:0 0 0 rgba(var(--metric-rgb),0); }
+  50% { filter:brightness(1.16); text-shadow:0 0 15px rgba(var(--metric-rgb),.52); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .profile-page .stat-box.metric-positive::after,.profile-page .stat-box.metric-negative::after,
+  .profile-page .stat-box.metric-positive .stat-val,.profile-page .stat-box.metric-negative .stat-val,
+  .profile-snapshot .snapshot-item.metric-positive strong,.profile-snapshot .snapshot-item.metric-negative strong { animation:none !important; }
+}

@@ -29,6 +29,7 @@ const API = {
   symbolRecs:          (sym)     => API._req('/recommendations/symbol/' + encodeURIComponent(sym)),
   postRec:             (b)       => API._req('/recommendations',      { method:'POST', body:JSON.stringify(b) }),
   closeRec:            (id,b)    => API._req('/recommendations/' + id + '/close', { method:'POST', body:JSON.stringify(b || {}) }),
+  closeQuote:          (id)      => API._req('/recommendations/' + id + '/close-quote'),
   engineSave:          (b)       => API._req('/recommendations/engine-save', { method:'POST', body:JSON.stringify(b) }),
   unsaveEngine:        (id)      => API._req('/recommendations/' + id + '/engine-save', { method:'DELETE' }),
   repost:              (id,c)    => API._req('/recommendations/'+id+'/repost', { method:'POST', body:JSON.stringify({ comment:c }) }),

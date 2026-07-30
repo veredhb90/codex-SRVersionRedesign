@@ -112,11 +112,22 @@
   // ── Stats ─────────────────────────────────────────────────────
   function renderStats(s) {
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const setPerformanceTone = (id, value) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const container = el.closest('.stat-box, .snapshot-item');
+      const tone = value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral';
+      el.style.color = '';
+      if (container) {
+        container.classList.remove('metric-positive', 'metric-negative', 'metric-neutral');
+        container.classList.add('metric-' + tone);
+      }
+    };
     const setReturn = (id, value) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.textContent = (value >= 0 ? '+' : '') + value + '%';
-      el.style.color = value >= 0 ? 'var(--green)' : 'var(--red)';
+      el.textContent = (value > 0 ? '+' : '') + value + '%';
+      setPerformanceTone(id, value);
     };
     set('stat-total',   s.total);
     set('stat-winrate', s.winRate + '%');
@@ -127,14 +138,14 @@
     set('profile-snapshot-calls', s.total);
     const snapshotReturn = document.getElementById('profile-snapshot-return');
     if (snapshotReturn) {
-      snapshotReturn.textContent = (s.totalReturn >= 0 ? '+' : '') + s.totalReturn + '%';
-      snapshotReturn.classList.toggle('is-positive', s.totalReturn >= 0);
+      snapshotReturn.textContent = (s.totalReturn > 0 ? '+' : '') + s.totalReturn + '%';
+      snapshotReturn.classList.toggle('is-positive', s.totalReturn > 0);
       snapshotReturn.classList.toggle('is-negative', s.totalReturn < 0);
+      setPerformanceTone('profile-snapshot-return', s.totalReturn);
     }
-    const wr  = document.getElementById('stat-winrate');
-    if (wr)  wr.style.color  = s.winRate >= 55 ? 'var(--green)' : s.winRate >= 40 ? 'var(--gold)' : 'var(--red)';
-    const ret = document.getElementById('stat-return');
-    if (ret) ret.style.color = s.totalReturn >= 0 ? 'var(--green)' : 'var(--red)';
+    // A win rate is only meaningful after a trade has actually closed.
+    // At 50% or more it is shown as a win; below 50% it is shown as a loss.
+    setPerformanceTone('stat-winrate', s.closed > 0 ? (s.winRate >= 50 ? 1 : -1) : 0);
   }
 
   // ── Render 3 boxes ─────────────────────────────────────────────
@@ -529,17 +540,33 @@ async function unfollowInstrument(sym) {
 
 let activeCloseCall = null;
 
-function openCloseCall(recId, symbol, entryPrice, direction, currentPrice) {
-  activeCloseCall = { recId, symbol, entryPrice, direction, currentPrice };
+async function openCloseCall(recId, symbol, entryPrice, direction) {
+  activeCloseCall = { recId, symbol, entryPrice, direction };
   const overlay = document.getElementById('close-call-overlay');
-  const priceInput = document.getElementById('close-call-price');
+  const priceEl = document.getElementById('close-call-price');
+  const stateEl = document.getElementById('close-call-market-state');
+  const submit = document.getElementById('close-call-submit');
   const summary = document.getElementById('close-call-summary');
   document.getElementById('close-call-title').textContent = 'Close $' + symbol + ' ' + direction + ' trade';
-  summary.textContent = 'Entry: $' + Number(entryPrice).toFixed(2) + ' · Live: $' + Number(currentPrice || entryPrice).toFixed(2) + '. Your realized return will be recorded in your trader statistics.';
-  priceInput.value = currentPrice ? Number(currentPrice).toFixed(2) : '';
+  summary.textContent = 'Checking the current market price. Your realized return will be recorded at the live quote when you confirm.';
+  priceEl.textContent = '—';
+  stateEl.textContent = 'Fetching live price…';
+  submit.disabled = true;
   document.getElementById('close-call-error').textContent = '';
   overlay.style.display = 'flex';
-  priceInput.focus();
+  try {
+    const quote = await API.closeQuote(recId);
+    if (!activeCloseCall || activeCloseCall.recId !== recId) return;
+    activeCloseCall.quote = quote;
+    priceEl.textContent = fmtPrice(quote.price);
+    stateEl.textContent = quote.marketState || 'Market price';
+    summary.textContent = 'Entry: ' + fmtPrice(entryPrice) + ' · This is the latest ' + (quote.marketState || 'market price') + ' quote. The price is refreshed once more when you confirm.';
+    submit.disabled = false;
+  } catch (err) {
+    if (!activeCloseCall || activeCloseCall.recId !== recId) return;
+    stateEl.textContent = 'Price unavailable';
+    document.getElementById('close-call-error').textContent = err.message || 'Could not retrieve the current market price. Please try again.';
+  }
 }
 
 function closeCallModal() {
@@ -555,17 +582,12 @@ document.getElementById('close-call-submit')?.addEventListener('click', async fu
   if (!activeCloseCall) return;
   const btn = this;
   const error = document.getElementById('close-call-error');
-  const rawPrice = document.getElementById('close-call-price').value;
-  const closePrice = rawPrice ? Number(rawPrice) : undefined;
-  if (rawPrice && (!Number.isFinite(closePrice) || closePrice <= 0)) {
-    error.textContent = 'Enter a valid exit price.';
-    return;
-  }
+  if (!activeCloseCall.quote) return;
   btn.disabled = true;
   btn.textContent = 'Closing…';
   try {
-    const rec = await API.closeRec(activeCloseCall.recId, { closePrice });
-    toast((rec.returnPct >= 0 ? 'Profit closed: +' : 'Loss closed: ') + rec.returnPct.toFixed(2) + '%', rec.returnPct >= 0 ? 'success' : 'info');
+    const rec = await API.closeRec(activeCloseCall.recId);
+    toast((rec.returnPct >= 0 ? 'Profit closed: +' : 'Loss closed: ') + rec.returnPct.toFixed(2) + '% at ' + fmtPrice(rec.closePrice), rec.returnPct >= 0 ? 'success' : 'info');
     closeCallModal();
     window.reloadSwingRushProfile && window.reloadSwingRushProfile();
   } catch (err) {
@@ -644,7 +666,7 @@ function buildProfileCard(r, isOwn) {
       </button>` : ''}
       ${isOwn && r.source==='engine' ? `<button class="btn btn-sm btn-outline" data-action="unsave-engine" data-recid="${r._id}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--gold);border-color:rgba(246,183,60,.5);">Unsave Signal</button>` : ''}
-      ${isOwn && r.isOpen && (!r.source || r.source === 'manual') ? `<button type="button" class="btn btn-sm btn-outline" onclick="openCloseCall('${r._id}','${r.symbol}',${Number(r.entryPrice)},'${r.direction}',${Number(r.currentPrice||r.entryPrice)})" style="font-size:12px;padding:5px 10px;color:var(--gold);border-color:rgba(246,183,60,.5);">Close Trade</button>` : ''}
+      ${isOwn && r.isOpen && (!r.source || r.source === 'manual') ? `<button type="button" class="btn btn-sm btn-outline" onclick="openCloseCall('${r._id}','${r.symbol}',${Number(r.entryPrice)},'${r.direction}')" style="font-size:12px;padding:5px 10px;color:var(--gold);border-color:rgba(246,183,60,.5);">Close Trade</button>` : ''}
     </div>
     ${r.note?`<div class="rec-note">"${r.note}"</div>`:''}
     <div id="pcs-${r._id}" style="display:none;margin-top:10px;border-top:1px solid var(--bg3);padding-top:10px;">
