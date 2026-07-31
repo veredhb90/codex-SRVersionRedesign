@@ -7,8 +7,11 @@ const client = new DefaultApi();
 client.apiKey = process.env.FINNHUB_API_KEY;
 
 // ── Cache ──────────────────────────────────────────────────────────
+// 45s (was 30s) gives the shared Finnhub queue enough time to actually
+// finish refreshing all the ticker/live-market symbols in one pass
+// before their cache entries go stale again (see finnhubQueue.js).
 const cache = new Map();
-const TTL   = 30000;
+const TTL   = 45000;
 const fromCache = (k) => { const e = cache.get(k); if (!e) return null; if (Date.now()-e.ts > TTL) { cache.delete(k); return null; } return e.data; };
 const toCache   = (k, d) => cache.set(k, { data: d, ts: Date.now() });
 

@@ -6,20 +6,31 @@
 // CLAUDE.md).
 //
 // Token bucket, not strict serial spacing: up to BURST calls can fire
-// concurrently right away (so a single Pro Engine request's 4 parallel
+// concurrently right away (so a single Pro Engine request's parallel
 // Finnhub calls aren't artificially delayed), then tokens refill at
-// 30/min — the same average ceiling already proven safe in
-// stockScanner.js's Phase 2 throttle (4 calls per 8s batch).
+// RATE_PER_MIN.
 //
 // Two lanes, same shared budget: the scanner's background enrichment can
 // have hundreds of calls queued at once, which would otherwise make an
 // interactive user request (Pro Engine) wait behind all of them. Calls
 // passed `{ priority: true }` (Pro Engine) are drained before normal-lane
-// calls (scanner), so a live user is never stuck behind a background scan.
+// calls (scanner, ticker, live market widget), so a live user is never
+// stuck behind background work.
+//
+// RATE_PER_MIN was originally 30 (half of Finnhub's real 60/min limit,
+// leaving headroom for local dev sharing the same key). In production,
+// the ticker + live market widget alone touch ~30 unique symbols that
+// need refreshing every 30-60s from real concurrent users - at 30/min
+// that refresh cycle takes a full 60s to drain, longer than the quote
+// cache's own TTL, so the queue could never catch up and stayed
+// permanently backlogged, starving interactive requests behind it even
+// with priority. Raised to 50/min (still 10/min under the real ceiling)
+// so background polling can actually finish a cycle before it goes
+// stale again, instead of backlogging forever.
 // ═══════════════════════════════════════════════════════════════════
 
-const RATE_PER_MIN = 30;
-const BURST = 4;
+const RATE_PER_MIN = 50;
+const BURST = 8;
 const REFILL_MS = 60000 / RATE_PER_MIN; // ~2000ms per token
 
 let tokens = BURST;
