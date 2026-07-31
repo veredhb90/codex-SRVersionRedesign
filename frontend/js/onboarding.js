@@ -10,7 +10,7 @@ const Onboarding = {
     modal.id = 'sr-onboarding';
     modal.style.cssText = 'position:fixed;inset:0;z-index:20000;background:rgba(8,15,36,0.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
     modal.innerHTML = `
-      <div class="sr-ob-card" style="background:#fff;border-radius:24px;padding:0;max-width:520px;width:100%;box-shadow:0 32px 80px rgba(0,0,0,0.3);overflow:hidden;animation:obIn .4s cubic-bezier(.34,1.56,.64,1);margin:auto;">
+      <div class="sr-ob-card" style="border-radius:24px;padding:0;max-width:520px;width:100%;box-shadow:0 32px 80px rgba(0,0,0,0.3);overflow:hidden;animation:obIn .4s cubic-bezier(.34,1.56,.64,1);margin:auto;">
         <style>
           @keyframes obIn{from{opacity:0;transform:scale(.9) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
           @media(max-width:480px){
@@ -39,25 +39,25 @@ const Onboarding = {
 
         <!-- Form -->
         <div style="padding:28px 32px;" id="ob-form">
-          <div id="ob-err" style="display:none;background:#FFEBEE;color:#C62828;font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin-bottom:12px;"></div>
+          <div id="ob-err" style="display:none;background:var(--red-bg);color:var(--red);font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin-bottom:12px;"></div>
           
           <!-- Step indicator -->
           <div style="display:flex;gap:6px;margin-bottom:24px;justify-content:center;">
-            <div id="ob-step-1" style="width:32px;height:4px;border-radius:2px;background:#0D47A1;"></div>
-            <div id="ob-step-2" style="width:32px;height:4px;border-radius:2px;background:#E3EEFF;"></div>
-            <div id="ob-step-3" style="width:32px;height:4px;border-radius:2px;background:#E3EEFF;"></div>
+            <div id="ob-step-1" style="width:32px;height:4px;border-radius:2px;background:var(--accent);"></div>
+            <div id="ob-step-2" style="width:32px;height:4px;border-radius:2px;background:var(--surface2);"></div>
+            <div id="ob-step-3" style="width:32px;height:4px;border-radius:2px;background:var(--surface2);"></div>
           </div>
 
           <!-- Step 1 -->
           <div id="ob-page-1">
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.age_q','How old are you?')}</label>
+              <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:8px;">${T('ob.age_q','How old are you?')}</label>
               <input id="ob-age" type="number" min="18" max="100" placeholder="${T('ob.age_ph','e.g. 35')}"
-                style="width:100%;padding:12px 16px;border:1.5px solid #E3EEFF;border-radius:12px;font-size:14px;outline:none;transition:border .2s;"
-                onfocus="this.style.borderColor='#1565C0'" onblur="this.style.borderColor='#E3EEFF'"/>
+                style="width:100%;padding:12px 16px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text);border-radius:12px;font-size:14px;outline:none;transition:border .2s;"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"/>
             </div>
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.invest_q','How much are you planning to invest? (USD)')}</label>
+              <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:8px;">${T('ob.invest_q','How much are you planning to invest? (USD)')}</label>
               <div class="sr-ob-amt-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
                 ${[
                   {val:'Under $1,000',      label:T('ob.amt_1','Under $1,000')},
@@ -68,7 +68,7 @@ const Onboarding = {
                   {val:'$100,000+',         label:T('ob.amt_6','$100,000+')},
                 ].map(a =>
                   `<button class="ob-option" data-group="amount" data-val="${a.val}" onclick="Onboarding.select(this)"
-                    style="padding:10px;border-radius:10px;border:1.5px solid #E3EEFF;background:#F8FAFF;font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all .2s;">
+                    style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg2);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .2s;">
                     ${a.label}
                   </button>`
                 ).join('')}
@@ -82,7 +82,7 @@ const Onboarding = {
           <!-- Step 2 -->
           <div id="ob-page-2" style="display:none;">
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.style_q','What type of trader are you?')}</label>
+              <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:8px;">${T('ob.style_q','What type of trader are you?')}</label>
               <div style="display:flex;flex-direction:column;gap:8px;">
                 ${[
                   {val:'day', label:T('profile.tp_style_day','⚡ Day Trader'), desc:T('ob.style_day_d','Open and close trades within the same day')},
@@ -90,15 +90,15 @@ const Onboarding = {
                   {val:'longterm', label:T('profile.tp_style_longterm','📈 Long-Term Investor'), desc:T('ob.style_longterm_d','Hold for months or years')},
                 ].map(o =>
                   `<button class="ob-option" data-group="style" data-val="${o.val}" onclick="Onboarding.select(this)"
-                    style="padding:12px 16px;border-radius:12px;border:1.5px solid #E3EEFF;background:#F8FAFF;text-align:left;cursor:pointer;transition:all .2s;">
-                    <div style="font-size:14px;font-weight:700;color:#1a1a2e;">${o.label}</div>
-                    <div style="font-size:12px;color:#94a3b8;margin-top:2px;">${o.desc}</div>
+                    style="padding:12px 16px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg2);text-align:left;cursor:pointer;transition:all .2s;">
+                    <div style="font-size:14px;font-weight:700;color:var(--text);">${o.label}</div>
+                    <div style="font-size:12px;color:var(--muted);margin-top:2px;">${o.desc}</div>
                   </button>`
                 ).join('')}
               </div>
             </div>
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.exp_q','Your experience level?')}</label>
+              <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:8px;">${T('ob.exp_q','Your experience level?')}</label>
               <div class="sr-ob-3col" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
                 ${[
                   {val:'beginner', label:T('profile.tp_exp_beginner','🌱 Beginner')},
@@ -106,14 +106,14 @@ const Onboarding = {
                   {val:'advanced', label:T('profile.tp_exp_advanced','🚀 Advanced')},
                 ].map(o =>
                   `<button class="ob-option" data-group="experience" data-val="${o.val}" onclick="Onboarding.select(this)"
-                    style="padding:10px;border-radius:10px;border:1.5px solid #E3EEFF;background:#F8FAFF;font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all .2s;text-align:center;">
+                    style="padding:10px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg2);font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .2s;text-align:center;">
                     ${o.label}
                   </button>`
                 ).join('')}
               </div>
             </div>
             <div style="display:flex;gap:10px;">
-              <button onclick="Onboarding.nextStep(1)" style="flex:1;padding:14px;background:#F0F4FF;color:#0D47A1;border:none;border-radius:14px;font-weight:600;font-size:14px;cursor:pointer;">${T('ob.back','← Back')}</button>
+              <button onclick="Onboarding.nextStep(1)" style="flex:1;padding:14px;background:var(--surface2);color:var(--text);border:none;border-radius:14px;font-weight:600;font-size:14px;cursor:pointer;">${T('ob.back','← Back')}</button>
               <button onclick="Onboarding.nextStep(3)" style="flex:2;padding:14px;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;">${T('ob.continue','Continue →')}</button>
             </div>
           </div>
@@ -121,7 +121,7 @@ const Onboarding = {
           <!-- Step 3 -->
           <div id="ob-page-3" style="display:none;">
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.risk_q','Risk tolerance?')}</label>
+              <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:8px;">${T('ob.risk_q','Risk tolerance?')}</label>
               <div class="sr-ob-3col" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
                 ${[
                   {val:'low', label:T('ob.risk_low','🛡️ Low'), desc:T('ob.risk_low_d','Safety first')},
@@ -129,22 +129,22 @@ const Onboarding = {
                   {val:'high', label:T('ob.risk_high','🔥 High'), desc:T('ob.risk_high_d','Aggressive')},
                 ].map(o =>
                   `<button class="ob-option" data-group="risk" data-val="${o.val}" onclick="Onboarding.select(this)"
-                    style="padding:12px;border-radius:12px;border:1.5px solid #E3EEFF;background:#F8FAFF;cursor:pointer;transition:all .2s;text-align:center;">
+                    style="padding:12px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg2);cursor:pointer;transition:all .2s;text-align:center;">
                     <div style="font-size:16px;">${o.label.split(' ')[0]}</div>
-                    <div style="font-size:12px;font-weight:700;color:#1a1a2e;">${o.label.split(' ').slice(1).join(' ')}</div>
-                    <div style="font-size:10px;color:#94a3b8;">${o.desc}</div>
+                    <div style="font-size:12px;font-weight:700;color:var(--text);">${o.label.split(' ').slice(1).join(' ')}</div>
+                    <div style="font-size:10px;color:var(--muted);">${o.desc}</div>
                   </button>`
                 ).join('')}
               </div>
             </div>
             <div style="margin-bottom:20px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.goals_q','What are your trading goals? (optional)')}</label>
+              <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:8px;">${T('ob.goals_q','What are your trading goals? (optional)')}</label>
               <textarea id="ob-goals" placeholder="${T('ob.goals_ph','e.g. Save for retirement, generate passive income, grow my portfolio by 20% this year...')}"
-                style="width:100%;padding:12px 16px;border:1.5px solid #E3EEFF;border-radius:12px;font-size:13px;outline:none;resize:none;height:80px;font-family:inherit;transition:border .2s;"
-                onfocus="this.style.borderColor='#1565C0'" onblur="this.style.borderColor='#E3EEFF'"></textarea>
+                style="width:100%;padding:12px 16px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text);border-radius:12px;font-size:13px;outline:none;resize:none;height:80px;font-family:inherit;transition:border .2s;"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
             </div>
             <div style="display:flex;gap:10px;">
-              <button onclick="Onboarding.nextStep(2)" style="flex:1;padding:14px;background:#F0F4FF;color:#0D47A1;border:none;border-radius:14px;font-weight:600;font-size:14px;cursor:pointer;">${T('ob.back','← Back')}</button>
+              <button onclick="Onboarding.nextStep(2)" style="flex:1;padding:14px;background:var(--surface2);color:var(--text);border:none;border-radius:14px;font-weight:600;font-size:14px;cursor:pointer;">${T('ob.back','← Back')}</button>
               <button onclick="Onboarding.save()" id="ob-save-btn" style="flex:2;padding:14px;background:linear-gradient(135deg,#00C853,#00897B);color:#fff;border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;">
                 ${T('ob.start','🚀 Start Trading!')}
               </button>
@@ -153,7 +153,7 @@ const Onboarding = {
 
           <!-- Skip -->
           <div style="text-align:center;margin-top:14px;">
-            <button onclick="Onboarding.skip()" style="background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;">${T('ob.skip','Skip for now')}</button>
+            <button onclick="Onboarding.skip()" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;">${T('ob.skip','Skip for now')}</button>
           </div>
         </div>
       </div>`;
@@ -169,13 +169,13 @@ const Onboarding = {
     this.selections[group] = val;
     // Update UI
     document.querySelectorAll('.ob-option[data-group="' + group + '"]').forEach(function(b) {
-      b.style.borderColor = '#E3EEFF';
-      b.style.background  = '#F8FAFF';
-      b.style.color       = '#475569';
+      b.style.borderColor = 'var(--border)';
+      b.style.background  = 'var(--bg2)';
+      b.style.color       = 'var(--text2)';
     });
-    btn.style.borderColor = '#1565C0';
-    btn.style.background  = '#EEF4FF';
-    btn.style.color       = '#0D47A1';
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.background  = 'rgba(255,255,255,0.08)';
+    btn.style.color       = 'var(--text)';
   },
 
   showErr(msg) {
@@ -220,9 +220,9 @@ const Onboarding = {
     document.getElementById('ob-page-1').style.display = step === 1 ? 'block' : 'none';
     document.getElementById('ob-page-2').style.display = step === 2 ? 'block' : 'none';
     document.getElementById('ob-page-3').style.display = step === 3 ? 'block' : 'none';
-    document.getElementById('ob-step-1').style.background = step >= 1 ? '#0D47A1' : '#E3EEFF';
-    document.getElementById('ob-step-2').style.background = step >= 2 ? '#0D47A1' : '#E3EEFF';
-    document.getElementById('ob-step-3').style.background = step >= 3 ? '#0D47A1' : '#E3EEFF';
+    document.getElementById('ob-step-1').style.background = step >= 1 ? 'var(--accent)' : 'var(--surface2)';
+    document.getElementById('ob-step-2').style.background = step >= 2 ? 'var(--accent)' : 'var(--surface2)';
+    document.getElementById('ob-step-3').style.background = step >= 3 ? 'var(--accent)' : 'var(--surface2)';
   },
 
   async save() {

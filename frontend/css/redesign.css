@@ -1479,7 +1479,9 @@ textarea:focus {
 #pwd-overlay > div,
 #sr-likes-modal > div,
 #repost-modal > div,
-#sr-pro-engine-modal > div {
+#sr-pro-engine-modal > div,
+.why-box,
+.sr-ob-card {
   background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018)), var(--surface) !important;
   border: 1px solid var(--border2) !important;
   color: var(--text) !important;
@@ -2278,7 +2280,9 @@ body.rtl .why-link-arrow { transform: scaleX(-1); }
 .why-item-ic { font-size: 18px; flex-shrink: 0; }
 .why-item-p { font-size: 13px; line-height: 1.6; color: var(--text2); }
 
-/* Info popup shell */
+/* Info popup shell — background/border/shadow come from the shared dark-modal
+   rule above (same treatment as the "Share a Trade" #share-box), so this only
+   handles layout. */
 .why-overlay {
   display: none; position: fixed; inset: 0; z-index: 650;
   background: rgba(8,15,36,0.6); backdrop-filter: blur(4px);
@@ -2286,14 +2290,13 @@ body.rtl .why-link-arrow { transform: scaleX(-1); }
 }
 .why-overlay.open { display: flex; }
 .why-box {
-  position: relative; background: #fff;
-  border-radius: 18px; padding: 26px 24px;
+  position: relative; padding: 26px 24px;
   width: 100%; max-width: 760px; max-height: 88vh; overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.3); animation: modalIn .25s ease;
+  animation: modalIn .25s ease;
 }
 .why-close { position: absolute; top: 14px; right: 16px; }
 body.rtl .why-close { right: auto; left: 16px; }
-.why-box .section-title { margin-bottom: 16px; }
+.why-box .section-title { margin-bottom: 16px; color: var(--text); }
 
 /* Community sentiment bar (shared with the feed) */
 .sentiment-bar { display: flex; height: 20px; border-radius: 6px; overflow: hidden; background: var(--surface2); }
