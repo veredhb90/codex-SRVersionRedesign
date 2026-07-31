@@ -10,6 +10,12 @@
 // Finnhub calls aren't artificially delayed), then tokens refill at
 // 30/min — the same average ceiling already proven safe in
 // stockScanner.js's Phase 2 throttle (4 calls per 8s batch).
+//
+// Two lanes, same shared budget: the scanner's background enrichment can
+// have hundreds of calls queued at once, which would otherwise make an
+// interactive user request (Pro Engine) wait behind all of them. Calls
+// passed `{ priority: true }` (Pro Engine) are drained before normal-lane
+// calls (scanner), so a live user is never stuck behind a background scan.
 // ═══════════════════════════════════════════════════════════════════
 
 const RATE_PER_MIN = 30;
@@ -18,6 +24,7 @@ const REFILL_MS = 60000 / RATE_PER_MIN; // ~2000ms per token
 
 let tokens = BURST;
 let lastRefill = Date.now();
+let priorityQueue = [];
 let queue = [];
 let timer = null;
 
@@ -32,20 +39,22 @@ const refill = () => {
 
 const pump = () => {
   refill();
-  while (tokens > 0 && queue.length) {
+  while (tokens > 0 && (priorityQueue.length || queue.length)) {
     tokens--;
-    const { fn, resolve, reject } = queue.shift();
+    const { fn, resolve, reject } = priorityQueue.length ? priorityQueue.shift() : queue.shift();
     fn().then(resolve, reject);
   }
-  if (queue.length && !timer) {
+  if ((priorityQueue.length || queue.length) && !timer) {
     timer = setTimeout(() => { timer = null; pump(); }, REFILL_MS);
   }
 };
 
 // Queue a Finnhub call. `fn` must return a Promise. Resolves/rejects with
 // fn's own result — callers don't need to change their error handling.
-const enqueueFinnhubCall = (fn) => new Promise((resolve, reject) => {
-  queue.push({ fn, resolve, reject });
+// Pass `{ priority: true }` for interactive, user-waiting calls (Pro Engine)
+// so they skip ahead of background bulk work (scanner) in the same lane cap.
+const enqueueFinnhubCall = (fn, opts = {}) => new Promise((resolve, reject) => {
+  (opts.priority ? priorityQueue : queue).push({ fn, resolve, reject });
   pump();
 });
 

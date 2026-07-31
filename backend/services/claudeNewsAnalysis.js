@@ -174,10 +174,10 @@ const getClaudeNewsAnalysis = async (symbol, companyName) => {
 
   try {
     const [articles, ratings, upcomingEarnings, earningsHistory] = await Promise.all([
-      enqueueFinnhubCall(() => fetchFinnhubNews(symbol)),
-      enqueueFinnhubCall(() => fetchAnalystRatings(symbol)),
-      enqueueFinnhubCall(() => fetchUpcomingEarnings(symbol)),
-      enqueueFinnhubCall(() => fetchEarningsHistory(symbol)),
+      enqueueFinnhubCall(() => fetchFinnhubNews(symbol), { priority: true }),
+      enqueueFinnhubCall(() => fetchAnalystRatings(symbol), { priority: true }),
+      enqueueFinnhubCall(() => fetchUpcomingEarnings(symbol), { priority: true }),
+      enqueueFinnhubCall(() => fetchEarningsHistory(symbol), { priority: true }),
     ]);
 
     let analystSummary = 'No analyst rating data available.';
