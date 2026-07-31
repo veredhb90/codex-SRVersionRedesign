@@ -4,6 +4,8 @@ const Onboarding = {
   show() {
     if (document.getElementById('sr-onboarding')) return;
 
+    const T = (k, f) => (window.SRLang ? SRLang.t(k, f) : f);
+
     const modal = document.createElement('div');
     modal.id = 'sr-onboarding';
     modal.style.cssText = 'position:fixed;inset:0;z-index:20000;background:rgba(8,15,36,0.85);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
@@ -28,10 +30,10 @@ const Onboarding = {
         <!-- Header -->
         <div class="sr-ob-header" style="background:linear-gradient(135deg,#0D47A1,#1565C0,#1976D2);padding:28px 32px;color:#fff;text-align:center;">
           <div style="font-size:40px;margin-bottom:8px;">🎯</div>
-          <h2 style="font-size:22px;font-weight:800;margin:0 0 8px;letter-spacing:-0.5px;">Your Trader Profile</h2>
-          <p style="font-size:13px;opacity:0.9;margin:0;line-height:1.6;">At SwingRush, we care deeply about every investor's goals.<br>Our AI personalizes every signal and recommendation based on YOUR profile.<br><strong>Please fill this in carefully and accurately — it matters!</strong></p>
+          <h2 style="font-size:22px;font-weight:800;margin:0 0 8px;letter-spacing:-0.5px;">${T('ob.title','Your Trader Profile')}</h2>
+          <p style="font-size:13px;opacity:0.9;margin:0;line-height:1.6;">${T('ob.intro1','At SwingRush, we care deeply about every investor\'s goals.')}<br>${T('ob.intro2','Our AI personalizes every signal and recommendation based on YOUR profile.')}<br><strong>${T('ob.intro3','Please fill this in carefully and accurately — it matters!')}</strong></p>
           <div style="margin-top:12px;background:rgba(255,255,255,0.15);border-radius:10px;padding:8px 14px;font-size:12px;opacity:0.9;">
-            ⚠️ Tip: Don't update this frequently — your profile shapes all AI advice. Make it accurate from the start.
+            ${T('ob.tip','⚠️ Tip: Don\'t update this frequently — your profile shapes all AI advice. Make it accurate from the start.')}
           </div>
         </div>
 
@@ -49,36 +51,43 @@ const Onboarding = {
           <!-- Step 1 -->
           <div id="ob-page-1">
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">How old are you?</label>
-              <input id="ob-age" type="number" min="18" max="100" placeholder="e.g. 35"
+              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.age_q','How old are you?')}</label>
+              <input id="ob-age" type="number" min="18" max="100" placeholder="${T('ob.age_ph','e.g. 35')}"
                 style="width:100%;padding:12px 16px;border:1.5px solid #E3EEFF;border-radius:12px;font-size:14px;outline:none;transition:border .2s;"
                 onfocus="this.style.borderColor='#1565C0'" onblur="this.style.borderColor='#E3EEFF'"/>
             </div>
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">How much are you planning to invest? (USD)</label>
+              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.invest_q','How much are you planning to invest? (USD)')}</label>
               <div class="sr-ob-amt-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                ${['Under $1,000','$1,000–$5,000','$5,000–$20,000','$20,000–$50,000','$50,000–$100,000','$100,000+'].map(a =>
-                  `<button class="ob-option" data-group="amount" data-val="${a}" onclick="Onboarding.select(this)"
+                ${[
+                  {val:'Under $1,000',      label:T('ob.amt_1','Under $1,000')},
+                  {val:'$1,000–$5,000',     label:T('ob.amt_2','$1,000–$5,000')},
+                  {val:'$5,000–$20,000',    label:T('ob.amt_3','$5,000–$20,000')},
+                  {val:'$20,000–$50,000',   label:T('ob.amt_4','$20,000–$50,000')},
+                  {val:'$50,000–$100,000',  label:T('ob.amt_5','$50,000–$100,000')},
+                  {val:'$100,000+',         label:T('ob.amt_6','$100,000+')},
+                ].map(a =>
+                  `<button class="ob-option" data-group="amount" data-val="${a.val}" onclick="Onboarding.select(this)"
                     style="padding:10px;border-radius:10px;border:1.5px solid #E3EEFF;background:#F8FAFF;font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all .2s;">
-                    ${a}
+                    ${a.label}
                   </button>`
                 ).join('')}
               </div>
             </div>
             <button onclick="Onboarding.nextStep(2)" style="width:100%;padding:14px;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;margin-top:4px;">
-              Continue →
+              ${T('ob.continue','Continue →')}
             </button>
           </div>
 
           <!-- Step 2 -->
           <div id="ob-page-2" style="display:none;">
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">What type of trader are you?</label>
+              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.style_q','What type of trader are you?')}</label>
               <div style="display:flex;flex-direction:column;gap:8px;">
                 ${[
-                  {val:'day', label:'⚡ Day Trader', desc:'Open and close trades within the same day'},
-                  {val:'swing', label:'📊 Swing Trader', desc:'Hold trades for days to a few weeks'},
-                  {val:'longterm', label:'📈 Long-Term Investor', desc:'Hold for months or years'},
+                  {val:'day', label:T('profile.tp_style_day','⚡ Day Trader'), desc:T('ob.style_day_d','Open and close trades within the same day')},
+                  {val:'swing', label:T('profile.tp_style_swing','📊 Swing Trader'), desc:T('ob.style_swing_d','Hold trades for days to a few weeks')},
+                  {val:'longterm', label:T('profile.tp_style_longterm','📈 Long-Term Investor'), desc:T('ob.style_longterm_d','Hold for months or years')},
                 ].map(o =>
                   `<button class="ob-option" data-group="style" data-val="${o.val}" onclick="Onboarding.select(this)"
                     style="padding:12px 16px;border-radius:12px;border:1.5px solid #E3EEFF;background:#F8FAFF;text-align:left;cursor:pointer;transition:all .2s;">
@@ -89,12 +98,12 @@ const Onboarding = {
               </div>
             </div>
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">Your experience level?</label>
+              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.exp_q','Your experience level?')}</label>
               <div class="sr-ob-3col" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
                 ${[
-                  {val:'beginner', label:'🌱 Beginner'},
-                  {val:'intermediate', label:'📊 Intermediate'},
-                  {val:'advanced', label:'🚀 Advanced'},
+                  {val:'beginner', label:T('profile.tp_exp_beginner','🌱 Beginner')},
+                  {val:'intermediate', label:T('profile.tp_exp_intermediate','📊 Intermediate')},
+                  {val:'advanced', label:T('profile.tp_exp_advanced','🚀 Advanced')},
                 ].map(o =>
                   `<button class="ob-option" data-group="experience" data-val="${o.val}" onclick="Onboarding.select(this)"
                     style="padding:10px;border-radius:10px;border:1.5px solid #E3EEFF;background:#F8FAFF;font-size:12px;font-weight:600;color:#475569;cursor:pointer;transition:all .2s;text-align:center;">
@@ -104,20 +113,20 @@ const Onboarding = {
               </div>
             </div>
             <div style="display:flex;gap:10px;">
-              <button onclick="Onboarding.nextStep(1)" style="flex:1;padding:14px;background:#F0F4FF;color:#0D47A1;border:none;border-radius:14px;font-weight:600;font-size:14px;cursor:pointer;">← Back</button>
-              <button onclick="Onboarding.nextStep(3)" style="flex:2;padding:14px;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;">Continue →</button>
+              <button onclick="Onboarding.nextStep(1)" style="flex:1;padding:14px;background:#F0F4FF;color:#0D47A1;border:none;border-radius:14px;font-weight:600;font-size:14px;cursor:pointer;">${T('ob.back','← Back')}</button>
+              <button onclick="Onboarding.nextStep(3)" style="flex:2;padding:14px;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;">${T('ob.continue','Continue →')}</button>
             </div>
           </div>
 
           <!-- Step 3 -->
           <div id="ob-page-3" style="display:none;">
             <div style="margin-bottom:18px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">Risk tolerance?</label>
+              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.risk_q','Risk tolerance?')}</label>
               <div class="sr-ob-3col" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
                 ${[
-                  {val:'low', label:'🛡️ Low', desc:'Safety first'},
-                  {val:'medium', label:'⚖️ Medium', desc:'Balanced'},
-                  {val:'high', label:'🔥 High', desc:'Aggressive'},
+                  {val:'low', label:T('ob.risk_low','🛡️ Low'), desc:T('ob.risk_low_d','Safety first')},
+                  {val:'medium', label:T('ob.risk_medium','⚖️ Medium'), desc:T('ob.risk_medium_d','Balanced')},
+                  {val:'high', label:T('ob.risk_high','🔥 High'), desc:T('ob.risk_high_d','Aggressive')},
                 ].map(o =>
                   `<button class="ob-option" data-group="risk" data-val="${o.val}" onclick="Onboarding.select(this)"
                     style="padding:12px;border-radius:12px;border:1.5px solid #E3EEFF;background:#F8FAFF;cursor:pointer;transition:all .2s;text-align:center;">
@@ -129,22 +138,22 @@ const Onboarding = {
               </div>
             </div>
             <div style="margin-bottom:20px;">
-              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">What are your trading goals? (optional)</label>
-              <textarea id="ob-goals" placeholder="e.g. Save for retirement, generate passive income, grow my portfolio by 20% this year..."
+              <label style="font-size:13px;font-weight:700;color:#1a1a2e;display:block;margin-bottom:8px;">${T('ob.goals_q','What are your trading goals? (optional)')}</label>
+              <textarea id="ob-goals" placeholder="${T('ob.goals_ph','e.g. Save for retirement, generate passive income, grow my portfolio by 20% this year...')}"
                 style="width:100%;padding:12px 16px;border:1.5px solid #E3EEFF;border-radius:12px;font-size:13px;outline:none;resize:none;height:80px;font-family:inherit;transition:border .2s;"
                 onfocus="this.style.borderColor='#1565C0'" onblur="this.style.borderColor='#E3EEFF'"></textarea>
             </div>
             <div style="display:flex;gap:10px;">
-              <button onclick="Onboarding.nextStep(2)" style="flex:1;padding:14px;background:#F0F4FF;color:#0D47A1;border:none;border-radius:14px;font-weight:600;font-size:14px;cursor:pointer;">← Back</button>
+              <button onclick="Onboarding.nextStep(2)" style="flex:1;padding:14px;background:#F0F4FF;color:#0D47A1;border:none;border-radius:14px;font-weight:600;font-size:14px;cursor:pointer;">${T('ob.back','← Back')}</button>
               <button onclick="Onboarding.save()" id="ob-save-btn" style="flex:2;padding:14px;background:linear-gradient(135deg,#00C853,#00897B);color:#fff;border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;">
-                🚀 Start Trading!
+                ${T('ob.start','🚀 Start Trading!')}
               </button>
             </div>
           </div>
 
           <!-- Skip -->
           <div style="text-align:center;margin-top:14px;">
-            <button onclick="Onboarding.skip()" style="background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;">Skip for now</button>
+            <button onclick="Onboarding.skip()" style="background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;">${T('ob.skip','Skip for now')}</button>
           </div>
         </div>
       </div>`;
@@ -184,18 +193,20 @@ const Onboarding = {
     return 1;
   },
 
+  t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; },
+
   validatePage(p) {
     if (p === 1) {
       var age = parseInt(document.getElementById('ob-age').value);
-      if (!age || age < 13 || age > 100) return 'Please enter your age (13-100)';
-      if (!this.selections.amount) return 'Please select your investment amount';
+      if (!age || age < 13 || age > 100) return this.t('ob.v_age', 'Please enter your age (13-100)');
+      if (!this.selections.amount) return this.t('ob.v_amount', 'Please select your investment amount');
     }
     if (p === 2) {
-      if (!this.selections.style) return 'Please select your trading style';
-      if (!this.selections.experience) return 'Please select your experience level';
+      if (!this.selections.style) return this.t('ob.v_style', 'Please select your trading style');
+      if (!this.selections.experience) return this.t('ob.v_exp', 'Please select your experience level');
     }
     if (p === 3) {
-      if (!this.selections.risk) return 'Please select your risk tolerance';
+      if (!this.selections.risk) return this.t('ob.v_risk', 'Please select your risk tolerance');
     }
     return null;
   },
@@ -218,7 +229,7 @@ const Onboarding = {
     var err = this.validatePage(3);
     if (err) { this.showErr(err); return; }
     var btn = document.getElementById('ob-save-btn');
-    btn.textContent = 'Saving...';
+    btn.textContent = this.t('ob.saving', 'Saving...');
     btn.disabled = true;
     try {
       var result = await API.onboarding({
@@ -230,8 +241,8 @@ const Onboarding = {
         goals:            document.getElementById('ob-goals').value.trim(),
       });
       document.getElementById('sr-onboarding').remove();
-      // Instantly refresh the profile section without a page reload
-      if (result && result.traderProfile && document.getElementById('trader-profile-section')) {
+      // Instantly refresh the trader-profile chips in the banner, no page reload
+      if (result && result.traderProfile) {
         if (typeof displayTraderProfile === 'function') {
           displayTraderProfile(result.traderProfile, true);
         } else {
@@ -241,11 +252,11 @@ const Onboarding = {
       // Mark as done in localStorage
       var userId = Auth.userId ? Auth.userId() : 'user';
       localStorage.setItem('sr_onboarding_done_' + userId, '1');
-      if (typeof toast === 'function') toast('✅ Profile saved! SwingRush AI will now personalize all recommendations for you 🎯', 'success', 5000);
+      if (typeof toast === 'function') toast(this.t('ob.saved', '✅ Profile saved! SwingRush AI will now personalize all recommendations for you 🎯'), 'success', 5000);
     } catch(e) {
-      btn.textContent = '🚀 Start Trading!';
+      btn.textContent = this.t('ob.start', '🚀 Start Trading!');
       btn.disabled = false;
-      if (typeof toast === 'function') toast('Could not save profile', 'error');
+      if (typeof toast === 'function') toast(this.t('ob.save_err', 'Could not save profile'), 'error');
     }
   },
 

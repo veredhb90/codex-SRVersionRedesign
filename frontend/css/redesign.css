@@ -2254,26 +2254,48 @@ html[dir="rtl"] .rec-card.sell {
 .like-btn.liked .sr-ic-heart { fill: var(--red); stroke: var(--red); }
 
 /* ══════════════════════════════════════════════════════════════════════
-   PROFILE — "why share trades" explainer + community sentiment (2026-07-31)
+   PROFILE — "why" info popup + community sentiment bar (2026-07-31)
    ══════════════════════════════════════════════════════════════════════ */
-.explainer-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
-}
-@media (max-width: 720px) { .explainer-grid { grid-template-columns: 1fr; } }
-.explainer-card {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: var(--radius, 14px); padding: 16px;
-}
-.explainer-ic { font-size: 22px; margin-bottom: 8px; }
-.explainer-h { font-weight: 800; font-size: 14px; color: var(--text); margin-bottom: 6px; }
-.explainer-p { font-size: 12.5px; line-height: 1.55; color: var(--text2); }
 
-/* Community sentiment rows */
-.sentiment-row { padding: 11px 2px; border-bottom: 1px solid var(--border); }
-.sentiment-row:last-child { border-bottom: none; }
-.sentiment-row-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.sentiment-sym { font-family: var(--font-mono, monospace); font-weight: 800; color: var(--text); font-size: 14px; }
-.sentiment-meta { font-size: 11px; color: var(--muted); }
+/* Plain clickable "Why ...?" lines that open the info popup — no box,
+   with a soft attention flash (opacity only, cheap; respects reduced-motion). */
+.why-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: none; border: none; padding: 4px 0; cursor: pointer;
+  font-family: inherit; font-weight: 800; font-size: 16px;
+  color: var(--accent2, #1565C0);
+  animation: whySoftFlash 2.4s ease-in-out infinite;
+}
+.why-link:hover { text-decoration: underline; animation: none; }
+.why-link-arrow { font-size: 15px; }
+body.rtl .why-link-arrow { transform: scaleX(-1); }
+@keyframes whySoftFlash { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .why-link { animation: none; } }
+
+/* Plain (un-boxed) reason list inside the "Why" popup */
+.why-item + .why-item { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+.why-item-h { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--text); margin-bottom: 6px; }
+.why-item-ic { font-size: 18px; flex-shrink: 0; }
+.why-item-p { font-size: 13px; line-height: 1.6; color: var(--text2); }
+
+/* Info popup shell */
+.why-overlay {
+  display: none; position: fixed; inset: 0; z-index: 650;
+  background: rgba(8,15,36,0.6); backdrop-filter: blur(4px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+.why-overlay.open { display: flex; }
+.why-box {
+  position: relative; background: #fff;
+  border-radius: 18px; padding: 26px 24px;
+  width: 100%; max-width: 760px; max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.3); animation: modalIn .25s ease;
+}
+.why-close { position: absolute; top: 14px; right: 16px; }
+body.rtl .why-close { right: auto; left: 16px; }
+.why-box .section-title { margin-bottom: 16px; }
+
+/* Community sentiment bar (shared with the feed) */
 .sentiment-bar { display: flex; height: 20px; border-radius: 6px; overflow: hidden; background: var(--surface2); }
 .sentiment-buy  { background: linear-gradient(90deg, var(--green), var(--green2)); color: #04140b; }
 .sentiment-sell { background: linear-gradient(90deg, var(--red2), var(--red)); color: #fff; }

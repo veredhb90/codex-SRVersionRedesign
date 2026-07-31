@@ -292,6 +292,12 @@
   input.setAttribute('aria-label', 'Message the AI analyst');
   sendBtn.setAttribute('aria-label', 'Send message');
 
+  // AI avatar icon shown on every AI message bubble. MUST be defined before the
+  // welcome message below (the first addMessage call) — otherwise `var` hoisting
+  // leaves birdSvg undefined at that point and it renders literally as the text
+  // "undefined" in the first bubble's avatar.
+  var birdSvg = '<svg viewBox="0 0 500 460" width="18" height="17"><path d="M159,178 A105,105 0 0,1 341,178" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M159,282 A105,105 0 0,0 226,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M341,282 A105,105 0 0,1 274,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path fill="#F5D061" d="M250,160 C258,172 270,190 282,204 C310,193 345,187 372,189 C405,192 428,199 446,224 C430,232 410,233 394,236 C360,243 330,252 313,267 C300,277 290,283 282,292 C270,305 263,325 262,345 L262,398 Q262,408 250,408 Q238,408 238,398 L238,345 C237,325 230,305 218,292 C210,283 200,277 187,267 C170,252 140,243 106,236 C90,233 70,232 54,224 C72,199 95,192 128,189 C155,187 190,193 218,204 C230,190 242,172 250,160 Z"/></svg>';
+
   // Welcome message
   (function() {
     var u = null;
@@ -674,8 +680,6 @@
       input.focus();
     });
   }
-
-  var birdSvg = '<svg viewBox="0 0 500 460" width="18" height="17"><path d="M159,178 A105,105 0 0,1 341,178" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M159,282 A105,105 0 0,0 226,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M341,282 A105,105 0 0,1 274,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path fill="#F5D061" d="M250,160 C258,172 270,190 282,204 C310,193 345,187 372,189 C405,192 428,199 446,224 C430,232 410,233 394,236 C360,243 330,252 313,267 C300,277 290,283 282,292 C270,305 263,325 262,345 L262,398 Q262,408 250,408 Q238,408 238,398 L238,345 C237,325 230,305 218,292 C210,283 200,277 187,267 C170,252 140,243 106,236 C90,233 70,232 54,224 C72,199 95,192 128,189 C155,187 190,193 218,204 C230,190 242,172 250,160 Z"/></svg>';
 
   function addMessage(role, text, realTime) {
     var now = realTime

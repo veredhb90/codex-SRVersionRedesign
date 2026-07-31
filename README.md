@@ -7,6 +7,8 @@
 
 SwingRush is a bilingual trading intelligence network. It combines a community feed, transparent trade tracking, a market scanner, technical analysis, and an AI research desk in one responsive web application.
 
+At the center of the product is an **always-on AI chat analyst**. It runs on Anthropic's Claude and works around the clock: pulling fresh news, earnings, and analyst reports in real time, and turning them into well-studied, plain-language guidance on a single stock, on a user's open positions, or on the market in general. The assistant is designed to reason first from its own knowledge, then reach for the platform's engines when live data adds value — and, for Pro users, to personalize its answers using the user's own trader profile and posted trades (see [AI Research Desk](#ai-research-desk)).
+
 The product supports English and Arabic, including right-to-left layouts and Arabic AI chat responses. It is built as a single Node.js service that serves both the API and the frontend.
 
 > Market data and AI output are informational only. They are not investment advice, a recommendation to buy or sell securities, or a guarantee of future performance.
@@ -27,6 +29,43 @@ When the Pro Engine or Market Scanner identifies an actionable trade, the result
 - **Market Scanner:** Review the latest cached, combined technical-and-news ranking, trade-plan levels, and market context across the configured stock universe.
 - **Real-time experience:** Socket.IO notifications for social activity and trade events.
 - **Bilingual interface:** English and Arabic UI, with RTL support and language-aware AI responses.
+
+## AI Research Desk
+
+The AI chat is the centerpiece of the Pro experience. It is not a thin wrapper around a single data source — it is a reasoning agent that decides, per question, which tool best answers it. Every answer follows a deliberate priority order:
+
+1. **The assistant's own knowledge and judgment first.** For fundamentals, macro context, longer-term or general questions, it answers as a knowledgeable analyst would, without forcing engine data where it does not fit.
+2. **The Pro Engine, for a specific symbol.** When a question is about a concrete short-to-medium-term trade, it pulls the Pro Engine's objective read — technical indicators plus real Claude-powered news analysis, live pre/after-market pricing, catalysts, risks, and earnings dates.
+3. **The Market Scanner, for breadth.** For "what's moving" or market-wide questions, it draws on the latest ranked scan.
+
+When the Pro Engine and Scanner disagree on the same symbol, the Pro Engine always wins. The Pro Engine's score, direction, and trade-plan levels are **objective and identical for every user** — they are computed from technicals and news, with no awareness of any individual's position.
+
+**How it analyzes your profile and your trades.** Personalization is layered on top of that objective analysis, never baked into it:
+
+- **Trader profile.** If a user has completed their profile — age, capital, trading style, experience, risk tolerance, and goals — the assistant uses it to tailor every recommendation: position sizing, risk levels, and trade ideas that fit that specific user. If the profile is empty, it gives its best general answer and gently notes that filling it in unlocks more personalized advice. This is why accurate, real inputs matter — vague or empty inputs only get generic guidance.
+- **Your posted trades.** The assistant can look up the user's own open and closed positions — entry, take-profit, stop-loss, and WIN/LOSS/OPEN outcome — when it helps. Ask "how am I doing?" or "should I hold this?" and it reasons over what the user actually holds, with news, technicals, and risk specific to those positions.
+- **Community positioning.** For symbols in the conversation, it can factor in live community sentiment — the share of SwingRush traders currently BUY vs SELL on that ticker.
+
+Every response ends with the assistant's own combined recommendation: engine technicals plus its own knowledge, framed as guidance rather than a guarantee.
+
+## Plans and Pricing
+
+SwingRush is free to join, with a Pro subscription that unlocks the full AI research desk.
+
+| | **Free** — $0, forever | **Pro** — $75 / month |
+| --- | --- | --- |
+| Social feed — share trades & track stats | ✅ | ✅ |
+| Follow top traders + instant email alerts | ✅ | ✅ |
+| Market Scanner — all 682 stocks ranked | Top signals view | Full access |
+| Free Signal Engine analyses | 1 analysis | Unlimited |
+| Win rate & performance tracking | ✅ | ✅ |
+| **AI Pro Engine** (technical + real Claude AI news, live pre/after-market pricing, catalysts, risks) | ❌ | ✅ Unlimited, any stock |
+| **AI Chat analyst** (24/7, web search, live pricing, community sentiment, earnings calendar) | ❌ | ✅ Unlimited |
+| Personalized advice from your trader profile & trades | ❌ | ✅ |
+| Upcoming earnings dates & suggested holding periods | ❌ | ✅ |
+| Priority support | ❌ | ✅ |
+
+Free users get a genuinely useful product — the full social network, performance tracking, the ranked scanner view, and a single Signal Engine analysis to sample the intelligence layer. Pro removes the caps and turns on the AI Pro Engine and the always-on AI chat analyst, including the profile- and trade-aware personalization described above. Pro checkout is currently arranged directly with the SwingRush team.
 
 ## Business Model
 

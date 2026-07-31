@@ -12,10 +12,13 @@
     /* ── Banner ── */
     .prof-banner {
       background:linear-gradient(135deg,#080f24,#0a2560);
-      border-radius:18px; padding:32px 28px;
-      display:flex; align-items:center; gap:20px;
+      border-radius:18px; padding:28px;
+      display:flex; flex-direction:column;
       margin-bottom:20px; position:relative; overflow:hidden;
     }
+    /* Row 1: avatar + identity on the left, action buttons on the right */
+    .prof-header { position:relative; z-index:1; display:flex; align-items:center; gap:20px; }
+    .prof-header .prof-info { flex:1; min-width:0; }
     .prof-banner::before {
       content:''; position:absolute; inset:0;
       background:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(255,255,255,0.015) 24px,rgba(255,255,255,0.015) 25px);
@@ -32,7 +35,7 @@
     #prof-email { color:rgba(255,255,255,0.5); font-size:13px; margin-bottom:12px; }
 
     /* Following/Followers pills */
-    .follow-stats { display:flex; gap:16px; margin-top:8px; }
+    .follow-stats { position:relative; z-index:1; display:flex; gap:12px; margin-top:18px; }
     .follow-pill {
       display:flex; align-items:center; gap:6px;
       background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15);
@@ -43,7 +46,29 @@
     .follow-pill .fp-num { font-family:var(--font-disp); font-size:18px; color:#fff; line-height:1; }
     .follow-pill .fp-lbl { font-size:12px; color:rgba(255,255,255,0.6); }
 
-    .prof-actions { position:relative; z-index:1; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+    .prof-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:flex-end; flex-shrink:0; }
+    @media(max-width:600px){
+      .prof-header { flex-wrap:wrap; }
+      .prof-actions { width:100%; justify-content:flex-start; }
+    }
+
+    /* Trader profile traits — glass chips inside the banner card */
+    .prof-traits { position:relative; z-index:1; margin-top:16px; }
+    .prof-traits:empty { display:none; }
+    .prof-traits-row { display:flex; flex-wrap:wrap; gap:8px; }
+    .prof-trait {
+      display:inline-flex; align-items:center; gap:8px;
+      background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15);
+      border-radius:12px; padding:6px 12px;
+    }
+    .prof-trait .pt-ic { font-size:16px; line-height:1; flex-shrink:0; }
+    .prof-trait .pt-text { display:flex; flex-direction:column; line-height:1.15; }
+    .prof-trait .pt-val { color:#fff; font-weight:700; font-size:13px; }
+    .prof-trait .pt-lbl { color:rgba(255,255,255,0.55); font-size:10px; text-transform:uppercase; letter-spacing:.4px; }
+    .prof-goals { display:flex; gap:8px; align-items:flex-start; margin-top:10px; font-size:12.5px; color:rgba(255,255,255,0.82); line-height:1.5; }
+    .prof-goals .pt-ic { font-size:15px; line-height:1.3; flex-shrink:0; }
+    .prof-goals-lbl { color:rgba(255,255,255,0.5); font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:.4px; margin-inline-end:6px; }
+    .prof-hide-amount { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:11.5px; color:rgba(255,255,255,0.6); cursor:pointer; }
 
     /* ── Stats ── */
     .stats-wrap { margin-bottom:20px; }
@@ -141,7 +166,7 @@
     }
     .rec-box-count { margin-left:auto; font-size:12px; color:var(--muted); font-family:var(--font-body); letter-spacing:0; }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1785488533"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1785493929"/>
 </head>
 <body class="profile-page">
 
@@ -238,35 +263,105 @@
   </div>
 </div>
 
+<!-- "Why" info popup (why share trades / why real inputs) -->
+<div id="why-modal" class="why-overlay">
+  <div class="why-box">
+    <button class="close-modal why-close" onclick="closeWhyModal()" aria-label="Close">✕</button>
+
+    <!-- Why share your trades -->
+    <div id="why-share-content" class="why-content">
+      <div class="section-title" data-i18n="profile.why_share">WHY SHARE YOUR TRADES</div>
+      <div class="why-list">
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">📈</span><span data-i18n="profile.why_track">Build a real track record</span></div>
+          <div class="why-item-p" data-i18n="profile.why_track_p">Post the actual trades from your real trading account with entry, target and stop. Every position is tracked live and scored win/loss automatically — a transparent, verifiable history of how you trade.</div>
+        </div>
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">📊</span><span data-i18n="profile.why_improve">Improve your performance</span></div>
+          <div class="why-item-p" data-i18n="profile.why_improve_p">Every posted trade is scored win/loss and rolled into your live stats. Over time you — and the AI — can see exactly what's working and what isn't: the setups, tickers and timing behind your results, so you sharpen your edge with real data instead of memory.</div>
+        </div>
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">🧠</span><span data-i18n="profile.why_ai">Your 24/7 AI analyst</span></div>
+          <div class="why-item-p" data-i18n="profile.why_ai_p">The SwingRush AI works around the clock on the trades you post — pulling fresh news, earnings and analyst reports in real time to give well-studied recommendations on each open position, on your account as a whole, and on the market in general. Ask it any time whether to hold, close or adjust.</div>
+        </div>
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">👥</span><span data-i18n="profile.why_crowd">See the crowd's positioning</span></div>
+          <div class="why-item-p" data-i18n="profile.why_crowd_p">For every ticker you trade, see how the wider SwingRush community is positioned — the share of traders going BUY vs SELL — so you know whether you're with the crowd or against it.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Why your real inputs matter -->
+    <div id="why-inputs-content" class="why-content" style="display:none;">
+      <div class="section-title" data-i18n="profile.inputs_title">WHY YOUR REAL INPUTS MATTER</div>
+      <div class="why-list">
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">🎯</span><span data-i18n="profile.inputs_h">The more real your inputs, the smarter your advice</span></div>
+          <div class="why-item-p" data-i18n="profile.inputs_p">Your age, capital, trading style, experience, risk tolerance and goals are exactly what the AI uses to tailor every recommendation to you. Accurate inputs mean position sizing, risk levels and trade ideas that actually fit your situation — vague or empty inputs only get generic advice. Keep them real and up to date to get the best guidance on your trades and your whole account.</div>
+          <button class="btn btn-sm btn-outline" onclick="closeWhyModal(); Onboarding.show();" style="margin-top:14px;" data-i18n="profile.inputs_cta">Update my profile</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openWhyModal(which) {
+    var modal = document.getElementById('why-modal');
+    document.getElementById('why-share-content').style.display  = which === 'why-share'  ? 'block' : 'none';
+    document.getElementById('why-inputs-content').style.display = which === 'why-inputs' ? 'block' : 'none';
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeWhyModal() {
+    document.getElementById('why-modal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('why-modal').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('why-modal')) closeWhyModal();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('why-modal').classList.contains('open')) closeWhyModal();
+  });
+</script>
+
 <div class="profile-wrap">
 
   <!-- Banner -->
   <div class="prof-banner">
     <div class="profile-grid-mark" aria-hidden="true"></div>
-    <div class="prof-av" id="prof-avatar">?</div>
-    <div class="prof-info">
-      <div class="profile-kicker"><span class="profile-presence"></span><span id="prof-context" data-i18n="profile.workspace">TRADING WORKSPACE</span></div>
-      <h1 id="prof-name" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Loading…<span id="prof-plan-badge" style="display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px;border-radius:12px;vertical-align:middle;"></span></h1>
-      <div id="prof-username" style="color:rgba(255,255,255,0.4);font-size:13px;margin-bottom:2px;"></div>
-      <div id="prof-email"></div>
-      <!-- Following / Followers counts -->
-      <div class="follow-stats">
-        <div class="follow-pill" onclick="openFollowModal('following')" title="View Following">
-          <span class="fp-num" id="count-following">0</span>
-          <span class="fp-lbl">Following</span>
-        </div>
-        <div class="follow-pill" onclick="openFollowModal('followers')" title="View Followers">
-          <span class="fp-num" id="count-followers">0</span>
-          <span class="fp-lbl">Followers</span>
-        </div>
+
+    <!-- Row 1: identity (avatar + name) and action buttons -->
+    <div class="prof-header">
+      <div class="prof-av" id="prof-avatar">?</div>
+      <div class="prof-info">
+        <div class="profile-kicker"><span class="profile-presence"></span><span id="prof-context" data-i18n="profile.workspace">TRADING WORKSPACE</span></div>
+        <h1 id="prof-name" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Loading…<span id="prof-plan-badge" style="display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px;border-radius:12px;vertical-align:middle;"></span></h1>
+        <div id="prof-username" style="color:rgba(255,255,255,0.4);font-size:13px;margin-bottom:2px;"></div>
+        <div id="prof-email"></div>
+      </div>
+      <div class="prof-actions" aria-label="Profile actions">
+        <button id="share-call-btn" class="btn btn-green profile-primary-action" style="display:none;" onclick="openShareForm()" data-i18n="profile.share_call">Share a Trade</button>
+        <button id="trader-profile-btn" class="btn btn-sm" style="display:none;background:#00897B;color:#fff;border:none;" onclick="Onboarding.show()" data-i18n="profile.trader_profile">My Profile</button>
+        <button id="change-pwd-btn" class="btn btn-outline btn-sm" style="display:none;" onclick="openChangePwd()" data-i18n="profile.password">Password</button>
+        <button id="follow-btn" class="btn btn-primary" style="display:none;" data-i18n="profile.follow">+ Follow</button>
       </div>
     </div>
-    <div class="prof-actions" aria-label="Profile actions">
-      <button id="share-call-btn" class="btn btn-green profile-primary-action" style="display:none;" onclick="openShareForm()" data-i18n="profile.share_call">Share a Trade</button>
-      <button id="trader-profile-btn" class="btn btn-sm" style="display:none;background:#00897B;color:#fff;border:none;" onclick="Onboarding.show()" data-i18n="profile.trader_profile">My Profile</button>
-      <button id="change-pwd-btn" class="btn btn-outline btn-sm" style="display:none;" onclick="openChangePwd()" data-i18n="profile.password">Password</button>
-      <button id="follow-btn" class="btn btn-primary" style="display:none;" data-i18n="profile.follow">+ Follow</button>
+
+    <!-- Row 2: following / followers counts -->
+    <div class="follow-stats">
+      <div class="follow-pill" onclick="openFollowModal('following')" title="View Following">
+        <span class="fp-num" id="count-following">0</span>
+        <span class="fp-lbl">Following</span>
+      </div>
+      <div class="follow-pill" onclick="openFollowModal('followers')" title="View Followers">
+        <span class="fp-num" id="count-followers">0</span>
+        <span class="fp-lbl">Followers</span>
+      </div>
     </div>
+
+    <!-- Row 3: trader profile traits (age / capital / style / experience / risk) -->
+    <div id="prof-traits" class="prof-traits"></div>
   </div>
 
   <div class="profile-snapshot" aria-label="Trading profile summary">
@@ -276,26 +371,12 @@
     <div class="snapshot-item snapshot-live"><span class="profile-presence"></span><strong data-i18n="profile.snapshot_live">LIVE MARKET DATA</strong></div>
   </div>
 
-  <!-- Why share trades — explainer (own profile only) -->
-  <div class="stats-wrap profile-explainer" id="profile-explainer" style="display:none;">
-    <div class="section-title" data-i18n="profile.why_share">WHY SHARE YOUR TRADES</div>
-    <div class="explainer-grid">
-      <div class="explainer-card">
-        <div class="explainer-ic">📈</div>
-        <div class="explainer-h" data-i18n="profile.why_track">Build a real track record</div>
-        <div class="explainer-p" data-i18n="profile.why_track_p">Post the actual trades from your real trading account with entry, target and stop. Every position is tracked live and scored win/loss automatically — a transparent, verifiable history of how you trade.</div>
-      </div>
-      <div class="explainer-card">
-        <div class="explainer-ic">🧠</div>
-        <div class="explainer-h" data-i18n="profile.why_ai">Consult your AI analyst</div>
-        <div class="explainer-p" data-i18n="profile.why_ai_p">The SwingRush AI chat can see the trades you post. Ask it whether to hold, close or adjust a position and get tailored reasoning on your open trades — news, technicals and risk, specific to what you actually hold.</div>
-      </div>
-      <div class="explainer-card">
-        <div class="explainer-ic">👥</div>
-        <div class="explainer-h" data-i18n="profile.why_crowd">See the crowd's positioning</div>
-        <div class="explainer-p" data-i18n="profile.why_crowd_p">For every ticker you trade, see how the wider SwingRush community is positioned — the share of traders going BUY vs SELL — so you know whether you're with the crowd or against it.</div>
-      </div>
-    </div>
+  <!-- Why share trades — trigger (own profile only; opens popup) -->
+  <div class="stats-wrap" id="profile-explainer" style="display:none;">
+    <button type="button" class="why-link" onclick="openWhyModal('why-share')">
+      <span data-i18n="profile.why_share_q">Why share your trades?</span>
+      <span class="why-link-arrow" aria-hidden="true">→</span>
+    </button>
   </div>
 
   <!-- Stats -->
@@ -311,10 +392,12 @@
     </div>
   </div>
 
-  <!-- Trader Profile Section -->
-  <div class="stats-wrap" id="trader-profile-section" style="display:none;">
-    <div class="section-title" data-i18n="profile.trader_profile">TRADER PROFILE</div>
-    <div id="trader-profile-display" style="padding:4px 0;"></div>
+  <!-- Why real inputs matter — trigger (own profile only; opens popup) -->
+  <div class="stats-wrap" id="inputs-explainer" style="display:none;">
+    <button type="button" class="why-link" onclick="openWhyModal('why-inputs')">
+      <span data-i18n="profile.inputs_q">Why your real inputs matter?</span>
+      <span class="why-link-arrow" aria-hidden="true">→</span>
+    </button>
   </div>
 
   <!-- Box 1: My Recommendations -->
@@ -326,15 +409,6 @@
       <button type="button" class="profile-trade-filter" data-trade-filter="closed" data-i18n="profile.filter_closed">Closed Trades</button>
     </div>
     <div id="profile-recs"><div class="spinner"></div></div>
-  </div>
-
-  <!-- Community sentiment on this trader's tickers -->
-  <div class="rec-box" id="sentiment-box" style="display:none;">
-    <div class="rec-box-title">
-      <span data-i18n="profile.community_sentiment">COMMUNITY POSITIONING</span>
-      <span style="font-size:10px;color:var(--muted);font-family:var(--font-body);letter-spacing:0;font-weight:400;" data-i18n="profile.community_hint">· BUY vs SELL across SwingRush on these tickers</span>
-    </div>
-    <div id="sentiment-list"></div>
   </div>
 
   <!-- Box 2: Reposts (own profile only) -->
@@ -364,10 +438,10 @@
 
 </div>
 
-<script src="/js/api.js?v=1785488533"></script>
+<script src="/js/api.js?v=1785493929"></script>
 <script src="/js/auth.js?v=1784445641"></script>
 <script src="/js/i18n.js"></script>
-<script src="/js/profile.js?v=1785488533"></script>
+<script src="/js/profile.js?v=1785493929"></script>
 <script>
   const me = Auth.user();
   if (me) document.querySelectorAll('.nav-username').forEach(el => el.textContent = me.username ? '@'+me.username : me.fullName);
@@ -544,92 +618,58 @@ setInterval(refreshProfilePrices, 30000);
 </script>
 
 
-<script src="/js/chat.js?v=1784900698"></script>
+<script src="/js/chat.js?v=1785494762"></script>
 <script src="/js/paywall.js?v=1784445641"></script>
-<script src="/js/onboarding.js?v=1784445641"></script>
+<script src="/js/onboarding.js?v=1785492620"></script>
 <script>
-// ── Display trader profile ─────────────────────────────────────────
+// ── Display trader profile (compact chips inside the banner card) ──
 function displayTraderProfile(profile, isOwn) {
-  if (!profile || !profile.onboardingDone) return;
-  
-  const section = document.getElementById('trader-profile-section');
-  const display = document.getElementById('trader-profile-display');
-  if (!section || !display) return;
-  
-  section.style.display = 'block';
+  const traits = document.getElementById('prof-traits');
+  if (!traits) return;
+  if (!profile || !profile.onboardingDone) { traits.innerHTML = ''; return; }
+
+  // Remember inputs so we can re-render when the language toggle fires.
+  window._lastTraderProfile = { profile: profile, isOwn: isOwn };
+
+  const T = (key, fallback) => (window.SRLang ? SRLang.t(key, fallback) : fallback);
 
   const styleMap = {
-    day: '⚡ Day Trader',
-    swing: '📊 Swing Trader', 
-    longterm: '📈 Long-Term Investor'
+    day: T('profile.tp_style_day', '⚡ Day Trader'),
+    swing: T('profile.tp_style_swing', '📊 Swing Trader'),
+    longterm: T('profile.tp_style_longterm', '📈 Long-Term Investor')
   };
   const expMap = {
-    beginner: '🌱 Beginner',
-    intermediate: '📊 Intermediate',
-    advanced: '🚀 Advanced'
+    beginner: T('profile.tp_exp_beginner', '🌱 Beginner'),
+    intermediate: T('profile.tp_exp_intermediate', '📊 Intermediate'),
+    advanced: T('profile.tp_exp_advanced', '🚀 Advanced')
   };
   const riskMap = {
-    low: '🛡️ Low Risk',
-    medium: '⚖️ Medium Risk',
-    high: '🔥 High Risk'
+    low: T('profile.tp_risk_low', '🛡️ Low Risk'),
+    medium: T('profile.tp_risk_medium', '⚖️ Medium Risk'),
+    high: T('profile.tp_risk_high', '🔥 High Risk')
   };
 
-  const hideAmount = isOwn 
-    ? profile.hideAmount 
-    : profile.hideAmount;
+  // Split a "🛡️ Low Risk" style label into its leading emoji + the rest,
+  // so the emoji renders once as the chip icon (no more doubled emoji).
+  const split = s => { const p = String(s || '').trim().split(' '); return { ic: p[0] || '', txt: p.slice(1).join(' ') || (p[0] || '') }; };
+  const chip = (ic, val, lbl) =>
+    `<div class="prof-trait"><span class="pt-ic">${ic}</span><span class="pt-text"><span class="pt-val">${val}</span><span class="pt-lbl">${lbl}</span></span></div>`;
 
-  display.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:8px;">
-      ${profile.age ? `
-      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
-        <div style="font-size:22px;margin-bottom:4px;">🎂</div>
-        <div style="font-size:18px;font-weight:700;color:var(--accent);">${profile.age}</div>
-        <div style="font-size:11px;color:var(--muted);">Age</div>
-      </div>` : ''}
-      
-      ${profile.investmentAmount && !profile.hideAmount ? `
-      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
-        <div style="font-size:22px;margin-bottom:4px;">💰</div>
-        <div style="font-size:14px;font-weight:700;color:var(--green);">${profile.investmentAmount}</div>
-        <div style="font-size:11px;color:var(--muted);">Investing</div>
-      </div>` : ''}
-      
-      ${profile.tradingStyle ? `
-      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
-        <div style="font-size:22px;margin-bottom:4px;">${profile.tradingStyle === 'day' ? '⚡' : profile.tradingStyle === 'swing' ? '📊' : '📈'}</div>
-        <div style="font-size:13px;font-weight:700;color:var(--text);">${styleMap[profile.tradingStyle] || profile.tradingStyle}</div>
-        <div style="font-size:11px;color:var(--muted);">Style</div>
-      </div>` : ''}
-      
-      ${profile.experience ? `
-      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
-        <div style="font-size:22px;margin-bottom:4px;">${profile.experience === 'beginner' ? '🌱' : profile.experience === 'intermediate' ? '📊' : '🚀'}</div>
-        <div style="font-size:13px;font-weight:700;color:var(--text);">${expMap[profile.experience] || profile.experience}</div>
-        <div style="font-size:11px;color:var(--muted);">Experience</div>
-      </div>` : ''}
-      
-      ${profile.riskTolerance ? `
-      <div style="background:var(--bg2);border-radius:12px;padding:12px;text-align:center;">
-        <div style="font-size:22px;margin-bottom:4px;">${profile.riskTolerance === 'low' ? '🛡️' : profile.riskTolerance === 'medium' ? '⚖️' : '🔥'}</div>
-        <div style="font-size:13px;font-weight:700;color:var(--text);">${riskMap[profile.riskTolerance] || profile.riskTolerance}</div>
-        <div style="font-size:11px;color:var(--muted);">Risk</div>
-      </div>` : ''}
-    </div>
-    
-    ${profile.goals ? `
-    <div style="margin-top:10px;background:var(--bg2);border-radius:12px;padding:12px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">🎯 GOALS</div>
-      <div style="font-size:13px;color:var(--text);line-height:1.5;">${profile.goals}</div>
-    </div>` : ''}
-    
-    ${isOwn ? `
-    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
-      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;">
-        <input type="checkbox" id="hide-amount-toggle" ${profile.hideAmount ? 'checked' : ''} onchange="toggleHideAmount(this.checked)">
-        Hide investment amount from others
-      </label>
-    </div>` : ''}
-  `;
+  const chips = [];
+  if (profile.age) chips.push(chip('🎂', profile.age, T('profile.tp_age', 'Age')));
+  if (profile.investmentAmount && !profile.hideAmount) chips.push(chip('💰', profile.investmentAmount, T('profile.tp_investing', 'Investing')));
+  if (profile.tradingStyle) { const s = split(styleMap[profile.tradingStyle] || profile.tradingStyle); chips.push(chip(s.ic, s.txt, T('profile.tp_style', 'Style'))); }
+  if (profile.experience)   { const s = split(expMap[profile.experience]   || profile.experience);   chips.push(chip(s.ic, s.txt, T('profile.tp_experience', 'Experience'))); }
+  if (profile.riskTolerance){ const s = split(riskMap[profile.riskTolerance]|| profile.riskTolerance);chips.push(chip(s.ic, s.txt, T('profile.tp_risk', 'Risk'))); }
+
+  let html = chips.length ? `<div class="prof-traits-row">${chips.join('')}</div>` : '';
+  if (profile.goals) {
+    html += `<div class="prof-goals"><span class="pt-ic">🎯</span><span><span class="prof-goals-lbl">${T('profile.tp_goals','GOALS')}</span>${profile.goals}</span></div>`;
+  }
+  if (isOwn) {
+    html += `<label class="prof-hide-amount"><input type="checkbox" id="hide-amount-toggle" ${profile.hideAmount ? 'checked' : ''} onchange="toggleHideAmount(this.checked)"> ${T('profile.tp_hide_amount','Hide investment amount from others')}</label>`;
+  }
+  traits.innerHTML = html;
 }
 
 async function toggleHideAmount(hide) {
@@ -637,6 +677,14 @@ async function toggleHideAmount(hide) {
     await API.onboarding({ hideAmount: hide });
   } catch(e) { console.log('Could not update:', e.message); }
 }
+
+// Re-render the (JS-built) trader profile card when the language changes,
+// since its text isn't tagged with data-i18n attributes.
+window.addEventListener('sr:language_changed', function () {
+  if (window._lastTraderProfile) {
+    displayTraderProfile(window._lastTraderProfile.profile, window._lastTraderProfile.isOwn);
+  }
+});
 
 // Hook into existing profile load
 const origLoadProfile = window.loadProfile;

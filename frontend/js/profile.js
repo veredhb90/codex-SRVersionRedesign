@@ -79,6 +79,9 @@
       // Educational explainer — own profile only
       const explainer = document.getElementById('profile-explainer');
       if (explainer) explainer.style.display = 'block';
+      // "Why real inputs matter" nudge — own profile only
+      const inputsExpl = document.getElementById('inputs-explainer');
+      if (inputsExpl) inputsExpl.style.display = 'block';
       // Show and load watchlist
       const wlBox = document.getElementById('watchlist-box');
       if (wlBox) { wlBox.style.display = 'block'; loadWatchlist(); }
@@ -165,39 +168,6 @@
     renderProfileTrades();
     renderBox('profile-reposts',    reposts,    'No reposts yet.', isOwn);
     renderBox('profile-engine-recs',engineRecs, 'No engine signals saved yet.', isOwn);
-    loadCommunitySentiment(manualTrades);
-  }
-
-  // Community BUY/SELL positioning across SwingRush for this trader's tickers.
-  async function loadCommunitySentiment(trades) {
-    const box  = document.getElementById('sentiment-box');
-    const list = document.getElementById('sentiment-list');
-    if (!box || !list) return;
-    const symbols = [...new Set((trades || []).map(t => (t.symbol || '').toUpperCase()).filter(Boolean))].slice(0, 30);
-    if (!symbols.length) { box.style.display = 'none'; return; }
-    try {
-      const data = await API.sentiment(symbols.join(','));
-      const rows = symbols
-        .map(sym => ({ sym, ...(data[sym] || { total: 0, buys: 0, sells: 0 }) }))
-        .filter(r => r.total > 0)
-        .sort((a, b) => b.total - a.total);
-      if (!rows.length) { box.style.display = 'none'; return; }
-      list.innerHTML = rows.map(r => {
-        const buyPct  = Math.round((r.buys / r.total) * 100);
-        const sellPct = 100 - buyPct;
-        return `<div class="sentiment-row">
-          <div class="sentiment-row-top">
-            <span class="sentiment-sym">$${r.sym}</span>
-            <span class="sentiment-meta">${r.total} community trade${r.total !== 1 ? 's' : ''}</span>
-          </div>
-          <div class="sentiment-bar">
-            <div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct >= 12 ? buyPct + '% BUY' : ''}</div>
-            <div class="sentiment-sell" style="width:${sellPct}%;">${sellPct >= 12 ? sellPct + '% SELL' : ''}</div>
-          </div>
-        </div>`;
-      }).join('');
-      box.style.display = 'block';
-    } catch (_) { box.style.display = 'none'; }
   }
 
   function renderProfileTrades() {
@@ -722,40 +692,10 @@ function buildProfileCard(r, isOwn) {
 }
 
 
-// ── Live return % for OPEN calls: (live price - entry) / entry ─────
-(function() {
-  async function refreshProfileLive() {
-    var cards = document.querySelectorAll('.rec-card[data-isopen="true"]');
-    if (!cards.length) return;
-    var bySym = {};
-    cards.forEach(function(c) {
-      var s = c.dataset.symbol;
-      if (!s) return;
-      if (!bySym[s]) bySym[s] = [];
-      bySym[s].push(c);
-    });
-    for (var sym in bySym) {
-      try {
-        var q = await API.quote(sym);
-        if (!q || !q.price) continue;
-        bySym[sym].forEach(function(card) {
-          var entry = parseFloat(card.dataset.entry);
-          var dir   = card.dataset.direction;
-          var retEl = card.querySelector('.live-return');
-          if (retEl && entry) {
-            var ret = dir === 'BUY'
-              ? ((q.price - entry) / entry * 100)
-              : ((entry - q.price) / entry * 100);
-            retEl.textContent = (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%';
-            retEl.style.color = ret >= 0 ? 'var(--green)' : 'var(--red)';
-          }
-        });
-      } catch (e) {}
-    }
-  }
-  setTimeout(refreshProfileLive, 2500);
-  setInterval(refreshProfileLive, 30000);
-})();
+// NOTE: live return% for open trades is refreshed by refreshProfilePrices()
+// in profile.html (which already updates price, change AND return for the same
+// open cards on the same 30s tick). A second refresher here just duplicated the
+// API.quote calls, so it was removed.
 
 
 // ── Notification deep-link: /profile.html?rec=<id> scrolls to the trade ──

@@ -187,7 +187,8 @@ router.get('/sentiment', protect, async (req, res) => {
       .split(',').map(s => s.trim().toUpperCase()).filter(Boolean).slice(0, 60);
     if (!symbols.length) return res.json({});
     const rows = await Recommendation.aggregate([
-      { $match: { symbol: { $in: symbols }, profileOnly: { $ne: true } } },
+      // Open community calls only — closed positions are historical, not current positioning.
+      { $match: { symbol: { $in: symbols }, isOpen: true, profileOnly: { $ne: true } } },
       { $group: {
         _id: '$symbol',
         total: { $sum: 1 },
