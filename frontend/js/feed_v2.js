@@ -1087,6 +1087,35 @@ window.renderProEngineSection = function(containerId, afterElementId, symbol) {
     '</div>';
 };
 
+// ── Shared loading state: spinner + rotating status text so a 10-25s ──
+// AI analysis never looks stuck. Reuses the global `spin` keyframe from main.css.
+var SR_PE_STEPS = ['Fetching latest news…', 'Checking analyst ratings…', 'Reading technical indicators…', 'Reasoning with Claude AI…', 'Finalizing score…'];
+window.srProEngineLoadingHtml = function(stepElId, symbol) {
+  return '<div style="text-align:center;padding:20px 0;">' +
+    '<div style="width:30px;height:30px;margin:0 auto 12px;border:3px solid #E3EEFF;border-top-color:#0D2244;border-radius:50%;animation:spin 0.8s linear infinite;"></div>' +
+    '<div id="' + stepElId + '" style="color:#475569;font-size:13px;font-weight:600;">Analyzing ' + symbol + '…</div>' +
+    '<div style="color:#94a3b8;font-size:11px;margin-top:5px;">Real AI reasoning — usually 10-25 seconds</div>' +
+    '</div>';
+};
+window.srStartProEngineTicker = function(stepElId) {
+  var i = 0;
+  return setInterval(function() {
+    var e = document.getElementById(stepElId);
+    if (!e) return;
+    e.textContent = SR_PE_STEPS[i % SR_PE_STEPS.length];
+    i++;
+  }, 3000);
+};
+// A stuck/dead connection can leave fetch() pending forever with no error —
+// AbortController forces it to fail after `ms` so the UI (and its ticker
+// interval) always resolves instead of leaking indefinitely on a bad request.
+window.srFetchWithTimeout = function(url, opts, ms) {
+  var controller = new AbortController();
+  var timer = setTimeout(function() { controller.abort(); }, ms || 40000);
+  return fetch(url, Object.assign({}, opts, { signal: controller.signal }))
+    .finally(function() { clearTimeout(timer); });
+};
+
 window.runProEngineAnalysis = async function(containerId, symbol) {
   var container = document.getElementById(containerId);
   if (!container) return;
@@ -1096,13 +1125,15 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
     '<span style="font-size:18px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:14px;">AI Pro Analysis</span>' +
     '<span style="margin-left:auto;font-size:10px;background:#F5D061;color:#4A3B10;padding:2px 9px;border-radius:8px;font-weight:800;">PRO</span></div>' +
-    '<div style="text-align:center;padding:16px;color:#94a3b8;font-size:13px;">Analyzing with Claude AI...</div></div>';
+    window.srProEngineLoadingHtml('sr-pe-step-' + containerId, symbol) + '</div>';
+  var _peTimer = window.srStartProEngineTicker('sr-pe-step-' + containerId);
 
   try {
-    var res = await fetch('/api/pro-engine/' + symbol, {
+    var res = await window.srFetchWithTimeout('/api/pro-engine/' + symbol, {
       headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') }
-    });
+    }, 40000);
     var d = await res.json();
+    clearInterval(_peTimer);
     if (!res.ok) {
       container.querySelector('div > div:last-child').innerHTML =
         '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || 'Analysis unavailable') + '</p>';
@@ -1165,7 +1196,9 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       '</div>';
     if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
   } catch (err) {
-    container.innerHTML = '<p style="color:#C62828;font-size:13px;">AI Pro Analysis failed to load.</p>';
+    clearInterval(_peTimer);
+    var msg = err.name === 'AbortError' ? 'Analysis timed out — please try again.' : 'AI Pro Analysis failed to load.';
+    container.innerHTML = '<p style="color:#C62828;font-size:13px;">' + msg + '</p>';
   }
 };
 
@@ -1225,13 +1258,15 @@ window.runProEngineModal = async function() {
     return;
   }
 
-  resultEl.innerHTML = '<div style="text-align:center;padding:30px 0;color:#94a3b8;font-size:13px;">Analyzing ' + sym + ' with Claude AI...</div>';
+  resultEl.innerHTML = window.srProEngineLoadingHtml('sr-pe-step-modal', sym);
+  var _peModalTimer = window.srStartProEngineTicker('sr-pe-step-modal');
 
   try {
-    var res = await fetch('/api/pro-engine/' + sym, {
+    var res = await window.srFetchWithTimeout('/api/pro-engine/' + sym, {
       headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') }
-    });
+    }, 40000);
     var d = await res.json();
+    clearInterval(_peModalTimer);
     if (!res.ok) {
       resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || 'Analysis failed') + '</p>';
       return;
@@ -1294,7 +1329,9 @@ window.runProEngineModal = async function() {
       '</div>';
     if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
   } catch (err) {
-    resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">Analysis failed to load.</p>';
+    clearInterval(_peModalTimer);
+    var modalMsg = err.name === 'AbortError' ? 'Analysis timed out — please try again.' : 'Analysis failed to load.';
+    resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">' + modalMsg + '</p>';
   }
 };
 

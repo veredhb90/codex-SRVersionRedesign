@@ -19,9 +19,12 @@ const fromProCache = (k) => {
 const toProCache = (k, d) => proCache.set(k, { data: d, ts: Date.now() });
 
 // ── Yahoo fetch helper (standalone, mirrors main engine's approach) ──
+// A `timeout` on the request options only bounds the connect phase; a stalled
+// response after connecting can still hang forever, so a `timeout` event
+// listener + req.destroy() is required to actually cap total wait time.
 const fetchJSON = (url, retries = 3) => new Promise((resolve, reject) => {
   const attempt = (n) => {
-    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }, timeout: 15000 }, (res) => {
       let data = '';
       res.on('data', d => data += d);
       res.on('end', () => {
@@ -35,6 +38,7 @@ const fetchJSON = (url, retries = 3) => new Promise((resolve, reject) => {
       if (n > 0) setTimeout(() => attempt(n - 1), 600);
       else reject(err);
     });
+    req.on('timeout', () => req.destroy(new Error('Yahoo request timed out')));
   };
   attempt(retries);
 });

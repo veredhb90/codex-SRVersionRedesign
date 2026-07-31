@@ -27,7 +27,7 @@ const fetchFinnhubNews = (symbol) => new Promise((resolve) => {
   const toDate = new Date(now * 1000).toISOString().split('T')[0];
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${apiKey}`;
-  https.get(url, (res) => {
+  const req = https.get(url, { timeout: 15000 }, (res) => {
     let data = '';
     res.on('data', d => data += d);
     res.on('end', () => {
@@ -47,13 +47,14 @@ const fetchFinnhubNews = (symbol) => new Promise((resolve) => {
     console.log('⚠️ Finnhub news request error for ' + symbol + ':', err.message);
     resolve([]);
   });
+  req.on('timeout', () => req.destroy(new Error('Finnhub news timed out')));
 });
 
 // ── Fetch analyst recommendations (same source as free engine) ──────
 const fetchAnalystRatings = (symbol) => new Promise((resolve) => {
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/stock/recommendation?symbol=${symbol}&token=${apiKey}`;
-  https.get(url, (res) => {
+  const req = https.get(url, { timeout: 15000 }, (res) => {
     let data = '';
     res.on('data', d => data += d);
     res.on('end', () => {
@@ -63,6 +64,7 @@ const fetchAnalystRatings = (symbol) => new Promise((resolve) => {
       } catch (e) { resolve(null); }
     });
   }).on('error', () => resolve(null));
+  req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
 // ── Call Claude (mirrors the exact pattern used in chat.js) ─────────
@@ -77,6 +79,7 @@ const callClaude = (systemPrompt, userMessage) => new Promise((resolve, reject) 
     hostname: 'api.anthropic.com',
     path: '/v1/messages',
     method: 'POST',
+    timeout: 25000,
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': process.env.ANTHROPIC_API_KEY,
@@ -94,6 +97,7 @@ const callClaude = (systemPrompt, userMessage) => new Promise((resolve, reject) 
     });
   });
   req.on('error', reject);
+  req.on('timeout', () => req.destroy(new Error('Claude API call timed out after 25s')));
   req.write(body);
   req.end();
 });
@@ -123,7 +127,7 @@ const fetchUpcomingEarnings = (symbol) => new Promise((resolve) => {
   const to = new Date(now.getTime() + 270 * 86400000).toISOString().split('T')[0]; // next ~9 months
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${symbol}&token=${apiKey}`;
-  require('https').get(url, (res) => {
+  const req = require('https').get(url, { timeout: 15000 }, (res) => {
     let data = '';
     res.on('data', d => data += d);
     res.on('end', () => {
@@ -144,13 +148,14 @@ const fetchUpcomingEarnings = (symbol) => new Promise((resolve) => {
       } catch (e) { resolve([]); }
     });
   }).on('error', () => resolve([]));
+  req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
 // ── Fetch past earnings history (last 4 quarters, actual vs estimate) ─────
 const fetchEarningsHistory = (symbol) => new Promise((resolve) => {
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${apiKey}`;
-  require('https').get(url, (res) => {
+  const req = require('https').get(url, { timeout: 15000 }, (res) => {
     let data = '';
     res.on('data', d => data += d);
     res.on('end', () => {
@@ -165,6 +170,7 @@ const fetchEarningsHistory = (symbol) => new Promise((resolve) => {
       } catch (e) { resolve([]); }
     });
   }).on('error', () => resolve([]));
+  req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
 const getClaudeNewsAnalysis = async (symbol, companyName) => {
