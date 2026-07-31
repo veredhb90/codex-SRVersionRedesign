@@ -60,13 +60,40 @@ const pump = () => {
   }
 };
 
+// Local-only escape hatch for A/B testing the queue's actual impact without
+// touching production: DISABLE_FINNHUB_QUEUE=true bypasses throttling
+// entirely so calls hit Finnhub immediately. Defaults to off (normal
+// throttled behavior) everywhere unless explicitly set.
+const BYPASS = process.env.DISABLE_FINNHUB_QUEUE === 'true';
+
 // Queue a Finnhub call. `fn` must return a Promise. Resolves/rejects with
 // fn's own result — callers don't need to change their error handling.
 // Pass `{ priority: true }` for interactive, user-waiting calls (Pro Engine)
 // so they skip ahead of background bulk work (scanner) in the same lane cap.
-const enqueueFinnhubCall = (fn, opts = {}) => new Promise((resolve, reject) => {
-  (opts.priority ? priorityQueue : queue).push({ fn, resolve, reject });
-  pump();
-});
+//
+// Measured: 19 concurrent calls (ticker.js's real pattern) took 28.8s
+// through this blocking queue vs 2.7s with no queue at all. Waiting in
+// line is the wrong trade-off for background/bursty traffic that has a
+// perfectly good stale-cache fallback available (see tryConsumeToken
+// below, used by yahooFinance.js's getQuote) - only genuinely
+// interactive, user-waiting calls should ever block on this queue.
+const enqueueFinnhubCall = (fn, opts = {}) => {
+  if (BYPASS) return fn();
+  return new Promise((resolve, reject) => {
+    (opts.priority ? priorityQueue : queue).push({ fn, resolve, reject });
+    pump();
+  });
+};
 
-module.exports = { enqueueFinnhubCall };
+// Non-blocking: consume one token immediately if available, else return
+// false right away with no queueing. Callers with a stale-cache fallback
+// (background/bursty traffic) should use this instead of enqueueFinnhubCall
+// so a busy moment degrades to "slightly stale data" instead of "wait in line".
+const tryConsumeToken = () => {
+  if (BYPASS) return true;
+  refill();
+  if (tokens > 0) { tokens--; return true; }
+  return false;
+};
+
+module.exports = { enqueueFinnhubCall, tryConsumeToken };

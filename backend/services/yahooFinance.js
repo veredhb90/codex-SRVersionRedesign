@@ -1,18 +1,19 @@
 require('dotenv').config();
 const { DefaultApi } = require('finnhub');
 const https = require('https');
-const { enqueueFinnhubCall } = require('./finnhubQueue');
+const { enqueueFinnhubCall, tryConsumeToken } = require('./finnhubQueue');
 
 const client = new DefaultApi();
 client.apiKey = process.env.FINNHUB_API_KEY;
 
 // ── Cache ──────────────────────────────────────────────────────────
-// 45s (was 30s) gives the shared Finnhub queue enough time to actually
-// finish refreshing all the ticker/live-market symbols in one pass
-// before their cache entries go stale again (see finnhubQueue.js).
+// Entries are kept indefinitely (never deleted on expiry) so a busy moment
+// can fall back to the last known price via fromStaleCache instead of
+// forcing the caller to wait in the Finnhub queue - see getQuote below.
 const cache = new Map();
 const TTL   = 45000;
-const fromCache = (k) => { const e = cache.get(k); if (!e) return null; if (Date.now()-e.ts > TTL) { cache.delete(k); return null; } return e.data; };
+const fromCache = (k) => { const e = cache.get(k); if (!e) return null; if (Date.now()-e.ts > TTL) return null; return e.data; };
+const fromStaleCache = (k) => { const e = cache.get(k); return e ? e.data : null; };
 const toCache   = (k, d) => cache.set(k, { data: d, ts: Date.now() });
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -123,19 +124,31 @@ const getQuote = (symbol) => new Promise((resolve, reject) => {
     return;
   }
 
-  enqueueFinnhubCall(() => new Promise(res => client.quote(resolved, (err, data) => res({ err, data }))))
-    .then(({ err, data }) => {
-      if (err || !data || !data.c) return reject(new Error(`Symbol not found: ${symbol}. Try: GLD, SLV, USO, AAPL, NVDA`));
-      const result = {
-        symbol: DISPLAY_MAP[resolved] || resolved,
-        shortName: REAL_NAMES[resolved] || DISPLAY_MAP[resolved] || resolved,
-        price: data.c, change: data.d || 0, changePct: data.dp || 0,
-        high: data.h || data.c, low: data.l || data.c,
-        open: data.o || data.c, prevClose: data.pc || data.c,
-      };
-      toCache(resolved, result);
-      resolve(result);
-    });
+  const finish = ({ err, data }) => {
+    if (err || !data || !data.c) return reject(new Error(`Symbol not found: ${symbol}. Try: GLD, SLV, USO, AAPL, NVDA`));
+    const result = {
+      symbol: DISPLAY_MAP[resolved] || resolved,
+      shortName: REAL_NAMES[resolved] || DISPLAY_MAP[resolved] || resolved,
+      price: data.c, change: data.d || 0, changePct: data.dp || 0,
+      high: data.h || data.c, low: data.l || data.c,
+      open: data.o || data.c, prevClose: data.pc || data.c,
+    };
+    toCache(resolved, result);
+    resolve(result);
+  };
+
+  // Background/bursty traffic (ticker, live market widget) should never
+  // wait in line - if there's no token free right now, serve the last
+  // known price immediately instead of blocking. Only fall back to the
+  // blocking queue when there's truly no cached value yet at all (e.g.
+  // the very first request for this symbol since server start).
+  if (tryConsumeToken()) {
+    client.quote(resolved, (err, data) => finish({ err, data }));
+    return;
+  }
+  const stale = fromStaleCache(resolved);
+  if (stale) return resolve(stale);
+  enqueueFinnhubCall(() => new Promise(res => client.quote(resolved, (err, data) => res({ err, data })))).then(finish);
 });
 
 // ── Candles via Yahoo Finance (daily) ──────────────────────────────
