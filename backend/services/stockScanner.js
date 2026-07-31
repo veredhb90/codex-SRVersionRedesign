@@ -160,12 +160,12 @@ const withTimeout = (work, ms, label) => Promise.race([
 ]);
 
 const MIN_ACTIONABLE_SCORE = 4;
-const WEEKDAY_SCAN_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const WEEKDAY_SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 const getNextWeekdayScanAt = (from = new Date()) => {
   const next = new Date(from);
   next.setUTCMinutes(0, 0, 0);
-  next.setUTCHours((Math.floor(next.getUTCHours() / 4) + 1) * 4);
+  next.setUTCHours((Math.floor(next.getUTCHours() / 6) + 1) * 6);
   while ([0, 6].includes(next.getUTCDay())) {
     next.setUTCDate(next.getUTCDate() + 1);
     next.setUTCHours(0, 0, 0, 0);
@@ -455,7 +455,7 @@ if (process.env.DISABLE_SCANNER_AUTOSTART !== 'true') {
     }).catch(() => runFullScan().catch(console.error));
   }, 10000);
 
-  // Weekdays on each four-hour UTC boundary. Weekends keep the latest final cache.
+  // Weekdays on each six-hour UTC boundary. Weekends keep the latest final cache.
   const scheduleNextAutomaticScan = () => {
     const next = getNextWeekdayScanAt();
     ScanResult.updateOne({ key: 'latest' }, { nextScheduledAt: next }).catch(() => {});

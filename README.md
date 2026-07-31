@@ -43,7 +43,7 @@ The scanner is intentionally server-managed. Visitors never start a full-univers
 3. It ranks only the final combined score and stores the completed result in MongoDB.
 4. The Scanner page reads that cached result immediately. During a background refresh, the last completed result remains available.
 
-On weekdays, the server schedules an automatic refresh every four hours. Progress, the last successful refresh, and the next scheduled refresh are exposed in the Scanner UI. News enrichment checkpoints are persisted, allowing the scanner to resume after a server restart instead of redoing the complete technical phase.
+On weekdays, the server schedules an automatic refresh every six hours. Progress, the last successful refresh, and the next scheduled refresh are exposed in the Scanner UI. News enrichment checkpoints are persisted, allowing the scanner to resume after a server restart instead of redoing the complete technical phase.
 
 ## Technology
 
