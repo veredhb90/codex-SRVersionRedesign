@@ -32,7 +32,12 @@
         renderNoSignal(r);
       } else {
         renderResult(r);
-        if (window.setChatStockContext) {
+        var me = (window.Auth && Auth.user && Auth.user()) || null;
+        if (me && me.plan === 'pro') {
+          // Pro users: offer a real Pro Engine deep-dive (more accurate) instead
+          // of the generic "Ask AI" chat hand-off.
+          showProEnginePopup(r);
+        } else if (window.setChatStockContext) {
           window.setChatStockContext(r);
         }
       }
@@ -225,4 +230,111 @@
       shareBtn.textContent = '💾 Save to Profile';
     }
   });
+
+  // ── Pro Engine upsell popup (Pro users only) ──────────────────────
+  // Shown after a Free Signal Engine BUY/SELL result. Offers a real Pro
+  // Engine deep-dive (Claude AI news + technicals). Runs on demand only —
+  // never auto-fires, so it doesn't burn the shared Finnhub/Claude quota.
+  function showProEnginePopup(r) {
+    var sym = r.symbol;
+    var dir = r.direction;
+    var old = document.getElementById('sr-eng-pro-popup');
+    if (old) old.remove();
+    var overlay = document.createElement('div');
+    overlay.id = 'sr-eng-pro-popup';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:30000;background:rgba(5,7,13,0.78);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML =
+      '<div style="background:var(--surface);border:1.5px solid var(--border2);border-radius:18px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.55);">' +
+        '<div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:2;">' +
+          '<span style="font-size:20px;">🧠</span>' +
+          '<span style="color:var(--text);font-weight:800;font-size:15px;">AI Pro Engine</span>' +
+          '<span style="margin-left:auto;font-size:10px;background:linear-gradient(135deg,#F5D061,#E0A93B);color:#3a2e08;padding:3px 10px;border-radius:8px;font-weight:800;">PRO</span>' +
+          '<button id="sr-eng-pro-close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;margin-left:6px;">✕</button>' +
+        '</div>' +
+        '<div id="sr-eng-pro-body" style="padding:22px 20px;">' +
+          '<div style="text-align:center;">' +
+            '<div style="font-size:30px;margin-bottom:10px;color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + (dir === 'BUY' ? '▲' : '▼') + '</div>' +
+            '<div style="font-family:var(--font-disp,inherit);font-size:20px;letter-spacing:.5px;color:var(--text);margin-bottom:8px;">More accurate analysis for $' + sym + '</div>' +
+            '<p style="color:var(--text2);font-size:13.5px;line-height:1.6;max-width:400px;margin:0 auto 20px;">Your Free Signal Engine result is a <strong style="color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + dir + '</strong> based on technicals only. Run the <strong>AI Pro Engine</strong> for real Claude AI news analysis, catalysts, risks and a combined score.</p>' +
+            '<button id="sr-eng-pro-run" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;padding:12px 26px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(79,125,255,0.35);">Analyze with Pro Engine 🧠</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    document.getElementById('sr-eng-pro-close').addEventListener('click', function() { overlay.remove(); });
+    document.getElementById('sr-eng-pro-run').addEventListener('click', function() { runProEngineInPopup(sym); });
+  }
+
+  async function runProEngineInPopup(sym) {
+    var body = document.getElementById('sr-eng-pro-body');
+    if (!body) return;
+    body.innerHTML =
+      '<div style="text-align:center;padding:34px 10px;">' +
+        '<div class="spinner"></div>' +
+        '<div style="color:var(--text2);font-size:13px;margin-top:14px;">Running AI Pro Engine for ' + sym + '…<br>analyzing news, catalysts &amp; technicals</div>' +
+      '</div>';
+    try {
+      var token = (window.Auth && Auth.token && Auth.token()) || localStorage.getItem('sr_token') || '';
+      var res = await fetch('/api/pro-engine/' + sym, { headers: { 'Authorization': 'Bearer ' + token } });
+      var d = await res.json();
+      if (!res.ok) {
+        body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">' + (d.message || 'Analysis failed') + '</p>';
+        return;
+      }
+      if (d.insufficientData) {
+        body.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px;">Not enough price history for ' + sym + '.</p>';
+        return;
+      }
+      body.innerHTML = renderProEngineResult(d);
+    } catch (err) {
+      body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">AI Pro Engine failed to load. Please try again.</p>';
+    }
+  }
+
+  function renderProEngineResult(d) {
+    var dirColor = d.direction === 'BUY' ? 'var(--green)' : d.direction === 'SELL' ? 'var(--red)' : 'var(--muted)';
+    var dirBg    = d.direction === 'BUY' ? 'var(--green-bg)' : d.direction === 'SELL' ? 'var(--red-bg)' : 'var(--bg3)';
+    var special  = d.marketState && d.marketState !== 'Regular Session';
+    var breakdown = (d.technicalBreakdown || []).map(function(b) {
+      var c = b.points > 0 ? 'var(--green)' : b.points < 0 ? 'var(--red)' : 'var(--muted)';
+      return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--text2);">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
+    }).join('');
+    var catalysts = (d.catalysts || []).length
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:var(--green);letter-spacing:0.5px;margin-bottom:5px;">📈 CATALYSTS</div>' +
+        d.catalysts.map(function(c) { return '<div style="font-size:13px;color:var(--text);padding:3px 0;">• ' + c + '</div>'; }).join('') + '</div>'
+      : '';
+    var risks = (d.risks || []).length
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:var(--red);letter-spacing:0.5px;margin-bottom:5px;">⚠️ RISKS</div>' +
+        d.risks.map(function(x) { return '<div style="font-size:13px;color:var(--text);padding:3px 0;">• ' + x + '</div>'; }).join('') + '</div>'
+      : '';
+    return '' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">' +
+        '<strong style="font-size:20px;color:var(--text);">' + d.symbol + '</strong>' +
+        '<span style="font-size:14px;color:var(--text2);">$' + d.price + '</span>' +
+        (special ? '<span style="font-size:10.5px;color:#F5D061;font-weight:700;background:rgba(245,208,97,0.12);padding:2px 8px;border-radius:6px;">' + d.marketState + '</span>' : '') +
+        '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
+      '</div>' +
+      (special ? '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Regular Session Close: $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:6px;">Combined Score: <strong style="color:var(--text);">' + d.score + '</strong> · ' + d.confidence + ' Confidence</div>' +
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text2);margin-bottom:14px;padding:9px 12px;background:var(--bg2);border-radius:8px;"><span>Technical: <strong style="color:var(--text);">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>News (AI): <strong style="color:var(--text);">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>Total: <strong style="color:var(--text);">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      (d.holdingPeriod ? '<div style="font-size:12px;color:var(--text);font-weight:700;margin-bottom:6px;">⏳ Suggested holding period: ' + d.holdingPeriod + '</div>' : '') +
+      (d.upcomingEarnings && d.upcomingEarnings.length ? '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;"><strong style="color:var(--text);">📅 Next earnings:</strong> ' + d.upcomingEarnings.map(function(x) { return x.date; }).join(' · ') + '</div>' : '') +
+      (d.takeProfit
+        ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
+            '<div style="background:var(--bg2);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Entry</div><div style="font-weight:700;font-size:14px;color:var(--text);">$' + d.price + '</div></div>' +
+            '<div style="background:var(--green-bg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--green);">Take Profit</div><div style="font-weight:700;font-size:14px;color:var(--green);">$' + d.takeProfit + '</div></div>' +
+            '<div style="background:var(--red-bg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--red);">Stop Loss</div><div style="font-weight:700;font-size:14px;color:var(--red);">$' + d.stopLoss + '</div></div>' +
+          '</div>'
+        : '<p style="color:var(--muted);font-size:13px;margin-bottom:16px;">No clear directional signal — score too low for a trade setup.</p>') +
+      '<div style="font-size:11px;font-weight:800;color:var(--accent2);letter-spacing:1px;margin-bottom:6px;">TECHNICAL BREAKDOWN (' + d.technicalScore + ' pts)</div>' +
+      breakdown +
+      '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">' +
+        '<div style="font-size:11px;font-weight:800;color:var(--accent2);letter-spacing:1px;margin-bottom:6px;">NEWS ANALYSIS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
+        '<p style="font-size:13px;color:var(--text);line-height:1.55;margin:0;">' + (d.newsSummary || '') + '</p>' +
+        (d.analystSummary ? '<p style="font-size:12px;color:var(--text2);margin-top:8px;">' + d.analystSummary + '</p>' : '') +
+        catalysts + risks +
+      '</div>' +
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles analyzed' + (d.newsFromCache ? ' · cached' : '') + '</div>';
+  }
 })();

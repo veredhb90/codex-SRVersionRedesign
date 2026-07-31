@@ -1022,12 +1022,14 @@ window.renderModalRecs = function(filter) {
     '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">' +
     (filter==='all'?'All':filter==='open'?'Open':'Closed') + ' Trades (' + rows.length + ')</div>' +
     (rows.slice(0,15).map(function(r) {
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bg3);flex-wrap:wrap;">' +
-        '<span class="' + (r.direction==='BUY'?'badge-buy':'badge-sell') + '">' + (r.direction==='BUY'?'\u25b2':'\u25bc') + ' ' + r.direction + '</span>' +
-        '<span style="font-size:13px;">Entry: <strong>' + fmtPrice(r.entryPrice) + '</strong></span>' +
-        '<span style="font-size:13px;">TP: <strong class="flash-green">' + fmtPrice(r.takeProfit) + '</strong></span>' +
-        '<span style="margin-left:auto;font-size:12px;color:var(--muted);"><a href="/profile.html?id=' + (r.user && (r.user._id || r.user)) + '" style="color:var(--accent2);text-decoration:none;font-weight:600;">' + (r.user&&r.user.username?'@'+r.user.username:((r.user&&r.user.fullName)||'Trader')) + '</a> · Opened ' + new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar' : 'en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(r.openedAt||r.createdAt)) + '</span>' +
-        (r.outcome!=='OPEN'?'<span class="' + (r.outcome==='WIN'?'badge-win':'badge-loss') + '">' + (r.outcome==='WIN'?'\ud83c\udfc6':'\ud83d\udcb8') + ' ' + r.outcome + '</span>':'') +
+      var openedDate = new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar' : 'en-GB',{day:'2-digit',month:'short'}).format(new Date(r.openedAt||r.createdAt));
+      var trader = r.user&&r.user.username?'@'+r.user.username:((r.user&&r.user.fullName)||'Trader');
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bg3);white-space:nowrap;">' +
+        '<span class="' + (r.direction==='BUY'?'badge-buy':'badge-sell') + '" style="flex-shrink:0;">' + (r.direction==='BUY'?'\u25b2':'\u25bc') + ' ' + r.direction + '</span>' +
+        '<span style="font-size:13px;flex-shrink:0;">Entry <strong>' + fmtPrice(r.entryPrice) + '</strong></span>' +
+        '<span style="font-size:13px;flex-shrink:0;">TP <strong class="flash-green">' + fmtPrice(r.takeProfit) + '</strong></span>' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;min-width:0;"><a href="/profile.html?id=' + (r.user && (r.user._id || r.user)) + '" style="color:var(--accent2);text-decoration:none;font-weight:600;">' + trader + '</a> · ' + openedDate + '</span>' +
+        (r.outcome!=='OPEN'?'<span class="' + (r.outcome==='WIN'?'badge-win':'badge-loss') + '" style="flex-shrink:0;">' + (r.outcome==='WIN'?'\ud83c\udfc6':'\ud83d\udcb8') + ' ' + r.outcome + '</span>':'') +
         '</div>';
     }).join('')||'<div style="color:var(--muted);font-size:13px;padding:12px 0;">No trades in this view</div>');
 };

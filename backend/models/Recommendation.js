@@ -11,7 +11,7 @@ const recommendationSchema = new mongoose.Schema({
   symbol:       { type: String, required: true, uppercase: true, trim: true },
   companyName:  { type: String },
   entryPrice:   { type: Number, required: true },
-  takeProfit:   { type: Number, required: true },
+  takeProfit:   { type: Number },
   stopLoss:     { type: Number },
   direction:    { type: String, enum: ['BUY', 'SELL'], required: true },
   note:         { type: String, maxlength: 280 },

@@ -49,7 +49,7 @@ const checkOutcome = async (rec, io) => {
     const price = q.price;
     if (!price || !rec.isOpen) return rec;
     rec.currentPrice = price;
-    const hitTP = rec.direction==='BUY' ? price>=rec.takeProfit : price<=rec.takeProfit;
+    const hitTP = rec.takeProfit && (rec.direction==='BUY' ? price>=rec.takeProfit : price<=rec.takeProfit);
     const hitSL = rec.stopLoss && (rec.direction==='BUY' ? price<=rec.stopLoss : price>=rec.stopLoss);
 
     if (hitTP) {
@@ -237,7 +237,7 @@ router.post('/', protect, async (req, res) => {
     const io = req.app.get('io');
     const { symbol,takeProfit,direction,note,stopLoss,entryPrice } = req.body;
     const sym = symbol?.trim().toUpperCase();
-    if (!sym||!takeProfit||!direction) return res.status(400).json({ message:'Symbol, direction and take profit are required' });
+    if (!sym||!direction) return res.status(400).json({ message:'Symbol and direction are required' });
     // Check: user cannot have 2 open recommendations on same symbol
     const existingOpen = await Recommendation.findOne({
       user: req.user._id,
@@ -255,12 +255,12 @@ router.post('/', protect, async (req, res) => {
     if (!quote?.price) return res.status(400).json({ message:'Could not fetch live price' });
     const customEntry = entryPrice !== undefined && entryPrice !== null && String(entryPrice).trim() !== '';
     const entry = customEntry ? Number(entryPrice) : Number(quote.price);
-    const tp = Number(takeProfit), sl = stopLoss ? Number(stopLoss) : null;
+    const tp = takeProfit ? Number(takeProfit) : null, sl = stopLoss ? Number(stopLoss) : null;
     if (!Number.isFinite(entry) || entry <= 0) return res.status(400).json({ message:'Entry price must be a positive number' });
-    if (!Number.isFinite(tp) || tp <= 0) return res.status(400).json({ message:'Take profit must be a positive number' });
+    if (tp !== null && (!Number.isFinite(tp) || tp <= 0)) return res.status(400).json({ message:'Take profit must be a positive number' });
     if (sl !== null && (!Number.isFinite(sl) || sl <= 0)) return res.status(400).json({ message:'Stop loss must be a positive number' });
-    if (direction==='BUY'  && tp<=entry) return res.status(400).json({ message:'Take profit must be above entry for BUY' });
-    if (direction==='SELL' && tp>=entry) return res.status(400).json({ message:'Take profit must be below entry for SELL' });
+    if (tp && direction==='BUY'  && tp<=entry) return res.status(400).json({ message:'Take profit must be above entry for BUY' });
+    if (tp && direction==='SELL' && tp>=entry) return res.status(400).json({ message:'Take profit must be below entry for SELL' });
     if (sl&&direction==='BUY'  &&sl>=entry) return res.status(400).json({ message:'Stop loss must be below entry for BUY' });
     if (sl&&direction==='SELL' &&sl<=entry) return res.status(400).json({ message:'Stop loss must be above entry for SELL' });
     let openedAt = new Date();

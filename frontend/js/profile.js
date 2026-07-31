@@ -427,7 +427,7 @@
     const sym  = symInput.value.trim().toUpperCase();
     const dir  = document.querySelector('input[name="direction"]:checked')?.value || 'BUY';
     const entry = entryInput?.value ? parseFloat(entryInput.value) : livePrice;
-    const tp   = parseFloat(tpInput.value);
+    const tp   = tpInput.value ? parseFloat(tpInput.value) : null;
     const sl   = slInput.value ? parseFloat(slInput.value) : null;
     const note = document.getElementById('share-note')?.value?.trim();
     const errEl = document.getElementById('share-error');
@@ -436,9 +436,8 @@
     if (!sym)       return errEl && (errEl.textContent = 'Enter a symbol');
     if (!livePrice) return errEl && (errEl.textContent = 'Fetch a valid symbol first');
     if (!Number.isFinite(entry) || entry <= 0) return errEl && (errEl.textContent = 'Enter a valid entry price');
-    if (isNaN(tp))  return errEl && (errEl.textContent = 'Enter a take profit level');
-    if (dir==='BUY'  && tp<=entry) return errEl && (errEl.textContent = 'TP must be above entry for BUY');
-    if (dir==='SELL' && tp>=entry) return errEl && (errEl.textContent = 'TP must be below entry for SELL');
+    if (tp && dir==='BUY'  && tp<=entry) return errEl && (errEl.textContent = 'TP must be above entry for BUY');
+    if (tp && dir==='SELL' && tp>=entry) return errEl && (errEl.textContent = 'TP must be below entry for SELL');
     if (sl&&dir==='BUY'  &&sl>=entry) return errEl && (errEl.textContent = 'SL must be below entry for BUY');
     if (sl&&dir==='SELL' &&sl<=entry) return errEl && (errEl.textContent = 'SL must be above entry for SELL');
 

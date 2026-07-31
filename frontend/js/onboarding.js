@@ -28,21 +28,21 @@ const Onboarding = {
         </style>
         
         <!-- Header -->
-        <div class="sr-ob-header" style="background:linear-gradient(135deg,#0D47A1,#1565C0,#1976D2);padding:28px 32px;color:#fff;text-align:center;">
-          <div style="font-size:40px;margin-bottom:8px;">🎯</div>
-          <h2 style="font-size:22px;font-weight:800;margin:0 0 8px;letter-spacing:-0.5px;">${T('ob.title','Your Trader Profile')}</h2>
-          <p style="font-size:13px;opacity:0.9;margin:0;line-height:1.6;">${T('ob.intro1','At SwingRush, we care deeply about every investor\'s goals.')}<br>${T('ob.intro2','Our AI personalizes every signal and recommendation based on YOUR profile.')}<br><strong>${T('ob.intro3','Please fill this in carefully and accurately — it matters!')}</strong></p>
-          <div style="margin-top:12px;background:rgba(255,255,255,0.15);border-radius:10px;padding:8px 14px;font-size:12px;opacity:0.9;">
-            ${T('ob.tip','⚠️ Tip: Don\'t update this frequently — your profile shapes all AI advice. Make it accurate from the start.')}
+        <div class="sr-ob-header" style="background:linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018)), var(--surface);padding:18px 28px 16px;color:var(--text);text-align:center;border-bottom:1px solid var(--border);">
+          <div style="font-size:30px;margin-bottom:4px;">🎯</div>
+          <h2 style="font-size:20px;font-weight:800;margin:0 0 6px;letter-spacing:-0.5px;color:var(--text);">${T('ob.title','Your Trader Profile')}</h2>
+          <p style="font-size:12.5px;color:var(--text2);margin:0;line-height:1.6;">${T('ob.intro1','At SwingRush, we care about every investor\'s goals.')}<br>${T('ob.intro2','Our AI personalizes every signal based on YOUR profile.')}<br><strong style="color:var(--text);">${T('ob.intro3','Please fill it in accurately — it matters!')}</strong></p>
+          <div style="margin-top:10px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:7px 12px;font-size:11.5px;color:var(--muted);">
+            ${T('ob.tip','⚠️ Tip: Don\'t update this often — your profile shapes all AI advice.')}
           </div>
         </div>
 
         <!-- Form -->
-        <div style="padding:28px 32px;" id="ob-form">
+        <div style="padding:20px 28px 22px;" id="ob-form">
           <div id="ob-err" style="display:none;background:var(--red-bg);color:var(--red);font-size:13px;font-weight:600;padding:10px 14px;border-radius:10px;margin-bottom:12px;"></div>
           
           <!-- Step indicator -->
-          <div style="display:flex;gap:6px;margin-bottom:24px;justify-content:center;">
+          <div style="display:flex;gap:6px;margin-bottom:18px;justify-content:center;">
             <div id="ob-step-1" style="width:32px;height:4px;border-radius:2px;background:var(--accent);"></div>
             <div id="ob-step-2" style="width:32px;height:4px;border-radius:2px;background:var(--surface2);"></div>
             <div id="ob-step-3" style="width:32px;height:4px;border-radius:2px;background:var(--surface2);"></div>

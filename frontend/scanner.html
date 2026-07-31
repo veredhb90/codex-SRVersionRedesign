@@ -123,7 +123,7 @@
       .scanner-title { font-size:24px; }
     }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1785495789"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1785527714"/>
 </head>
 <body class="scanner-page">
 
@@ -391,10 +391,13 @@
 
   function formatRemaining(milliseconds) {
     const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
-    const hours = Math.floor(totalSeconds / 3600);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+    if (days > 0)  return days + 'd ' + hours + 'h ' + minutes + 'm';
+    if (hours > 0) return hours + 'h ' + minutes + 'm ' + String(seconds).padStart(2, '0') + 's';
+    return minutes + 'm ' + String(seconds).padStart(2, '0') + 's';
   }
 
   function updateNextScanCountdown() {
@@ -403,8 +406,12 @@
     const nextDate = new Date(nextScanAt);
     if (Number.isNaN(nextDate.getTime())) return;
     const locale = document.documentElement.lang === 'ar' ? 'ar' : 'en-GB';
-    const clock = nextDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-    element.textContent = clock + ' · ' + formatRemaining(nextDate.getTime() - Date.now());
+    // Full weekday + date + 12-hour clock so it's unambiguous (the next scan can be days away)
+    const when = new Intl.DateTimeFormat(locale, {
+      weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true
+    }).format(nextDate);
+    element.textContent = when + ' · in ' + formatRemaining(nextDate.getTime() - Date.now());
+    element.title = nextDate.toLocaleString(locale);
   }
   setInterval(updateNextScanCountdown, 1000);
 
@@ -418,7 +425,7 @@
     if (refreshedAt) {
       const lastScan = new Date(refreshedAt);
       lastScanEl.textContent = new Intl.DateTimeFormat(locale, {
-        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
       }).format(lastScan);
       lastScanEl.title = lastScan.toLocaleString(locale);
     } else {
