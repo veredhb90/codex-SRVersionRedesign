@@ -295,7 +295,6 @@ const callClaude = async (messages, systemPrompt, userId) => {
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const parsed = await callClaudeRaw(convo, systemPrompt, CLAUDE_TOOLS);
-    console.log('[TOOL LOOP] round', round, '| stop_reason:', parsed.stop_reason, '| blocks:', (parsed.content || []).map(b => b.type + (b.type === 'tool_use' ? ':' + b.name + '(' + JSON.stringify(b.input) + ')' : '')).join(', '));
 
     if (parsed.stop_reason === 'tool_use') {
       const toolUseBlocks = (parsed.content || []).filter(b => b.type === 'tool_use');
@@ -472,7 +471,6 @@ ${sentimentParts.join('\n')}
 
     // ── Trader profile ───────────────────────────────────────────
     const firstName = (user.fullName || '').split(' ')[0] || '';
-    console.log('[NAME DEBUG] user.fullName:', JSON.stringify(user.fullName), '| computed firstName:', JSON.stringify(firstName));
     const nameContext = firstName ? '\nThe user\'s first name is ' + firstName + '. Use their name whenever you judge it fits naturally \u2014 greetings, acknowledging a point they made, wrapping up a recommendation, etc. Use your own judgment on frequency, but don\'t go silent on it either.\n' : '';
     let profileContext = '';
     if (user.traderProfile && user.traderProfile.onboardingDone) {
@@ -595,7 +593,6 @@ CRITICAL: always use this exact date/time above as "now" — never guess, never 
         : (message || 'Image analysis');
     }
     await session.save();
-    console.log('[STOCKDATA] count:', stockDataList.length, '| symbols:', stockDataList.map(d => d.symbol + ' (' + (d.candles ? d.candles.length : 0) + ' candles)').join(', '));
     res.json({ response: responseText, symbols, sessionId: session._id, stockData: stockDataList[0] || null, stockDataList });
 
   } catch(err) {

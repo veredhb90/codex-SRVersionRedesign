@@ -4,17 +4,26 @@ const { protect } = require('../middleware/authMiddleware');
 const Recommendation = require('../models/Recommendation');
 const User = require('../models/User');
 
+// The leaderboard is hit on every feed load but changes slowly, and computing
+// it scans all manual trades + a user lookup. Cache the computed result briefly
+// so repeated loads (and concurrent users) reuse it instead of re-scanning.
+let _lbCache = { at: 0, data: null };
+const LB_TTL = 30 * 1000;
+
 router.get('/', protect, async (req, res) => {
   try {
+    if (_lbCache.data && Date.now() - _lbCache.at < LB_TTL) {
+      return res.json(_lbCache.data);
+    }
     // Rank only original manual trades. Open trades use their latest stored market value.
     const trades = await Recommendation.find({ $or:[{ source:'manual' }, { source:{ $exists:false } }] })
       .select('user outcome returnPct entryPrice currentPrice direction isOpen')
       .lean();
 
-    console.log('Leaderboard: found', trades.length, 'manual trades');
-
     if (!trades.length) {
-      return res.json({ byWinRate: [], byTotalReturn: [] });
+      const empty = { byWinRate: [], byTotalReturn: [] };
+      _lbCache = { at: Date.now(), data: empty };
+      return res.json(empty);
     }
 
     // Group by user manually
@@ -64,12 +73,12 @@ router.get('/', protect, async (req, res) => {
         };
       });
 
-    console.log('Leaderboard enriched:', enriched.length, 'traders');
-
     const byWinRate     = [...enriched].filter(t => t.wins + t.losses > 0).sort((a,b) => b.winRate - a.winRate || b.total - a.total).slice(0,10);
     const byTotalReturn = [...enriched].sort((a,b) => b.totalReturn - a.totalReturn).slice(0,10);
 
-    res.json({ byWinRate, byTotalReturn });
+    const payload = { byWinRate, byTotalReturn };
+    _lbCache = { at: Date.now(), data: payload };
+    res.json(payload);
   } catch (err) {
     console.error('Leaderboard error:', err);
     res.status(500).json({ message: err.message });

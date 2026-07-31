@@ -258,9 +258,10 @@ const adx = (highs, lows, closes, period = 14) => {
 
 // ── MAIN: Technical-only scoring (NO news — Claude handles that separately) ──
 const getProTechnicalScore = async (symbol) => {
-  const quote = await getQuote(symbol);
+  // Quote and candles are independent Yahoo calls — fetch them in parallel
+  // instead of sequentially (saves a full round-trip on every Pro Engine run).
+  const [quote, candles] = await Promise.all([getQuote(symbol), getCandles(symbol, 120)]);
   const { price, changePct, regularSessionPrice, marketState } = quote;
-  const candles = await getCandles(symbol, 120);
 
   if (!candles || candles.c.length < 20) {
     return {

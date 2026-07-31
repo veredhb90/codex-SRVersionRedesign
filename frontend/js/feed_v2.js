@@ -275,8 +275,10 @@
       }).join('') || '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No trades today yet</p>';
     } catch (_) {}
   }
-  updatePopular();
-  setInterval(updatePopular, 60000);
+  // NOTE: feed.html's inline updatePopular() is the live one (richer onclick +
+  // search integration). This IIFE copy is superseded; scheduling it here just
+  // double-fetched /api/popular and raced the inline version writing the same
+  // element. Left defined for safety but no longer scheduled.
 
   // ── Dynamic Market Overview ────────────────────────────────
   const MARKET_POOLS = [
@@ -303,8 +305,9 @@
       }).join('');
     } catch (_) {}
   }
-  updateMarket();
-  setInterval(updateMarket, 30000);
+  // NOTE: feed.html's inline updateMarket() is the live one (labelled pools like
+  // GOLD/SILVER + search integration). This IIFE copy is superseded; scheduling
+  // it double-fetched quotes and raced the inline version. Left defined, not scheduled.
 
   // ── Live price refresh every 30 seconds ──────────────────────
   async function refreshLivePrices() {

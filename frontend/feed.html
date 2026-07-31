@@ -443,7 +443,7 @@
     console.log('🔔 Notification listener attached to socket:', socket.id);
   }
 
-  // Try immediately (feed.js loads before this inline script)
+  // Try immediately (feed_v2.js sets up the socket before this inline script)
   if (window._srSocket) {
     attachNotifListener(window._srSocket);
   }

@@ -27,7 +27,23 @@ const getCloseMarketQuote = async (symbol) => {
 // Instrument subscriptions are stored in User.watchlist (persistent)
 
 // ── Outcome checker ────────────────────────────────────────────────
+// Per-rec cooldown: checkOutcome is fired for every open rec on every feed
+// load (see the /feed route), so without this the same open trade was
+// re-priced from the market API on every page refresh by every user -
+// hammering the shared quote/Finnhub pipeline for no benefit. A given rec
+// only needs re-checking every so often; skip if checked recently.
+const _lastOutcomeCheck = new Map(); // recId -> last-checked timestamp (ms)
+const OUTCOME_CHECK_COOLDOWN = 90 * 1000; // 90s
+
 const checkOutcome = async (rec, io) => {
+  const _id = String(rec._id);
+  const _now = Date.now();
+  if (_now - (_lastOutcomeCheck.get(_id) || 0) < OUTCOME_CHECK_COOLDOWN) return rec;
+  _lastOutcomeCheck.set(_id, _now);
+  // Opportunistic prune so the map can't grow unbounded over a long uptime.
+  if (_lastOutcomeCheck.size > 5000) {
+    for (const [k, t] of _lastOutcomeCheck) { if (_now - t > OUTCOME_CHECK_COOLDOWN) _lastOutcomeCheck.delete(k); }
+  }
   try {
     const q = await yf.getQuote(rec.symbol);
     const price = q.price;
