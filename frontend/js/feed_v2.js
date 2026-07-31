@@ -832,8 +832,9 @@ window.openSymbolModal    = openSymbolModal;
 window.closeSymbolModal   = closeSymbolModal;
 
 
-// Auto-refresh Hot Stocks every 60s
-setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
+// (Removed a stray 3rd updatePopular() timer — Hot Stocks is already
+// refreshed by the feed IIFE and feed.html's inline loop; a third global
+// copy just triggered redundant /api/popular fetches + re-renders.)
 
 // ── ⚡ Happening Now — live platform activity (left panel) ─────────
 (function() {
@@ -906,6 +907,9 @@ setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
             (a.text?'<div style="color:var(--text2);font-size:11px;font-style:italic;">&quot;'+a.text.replace(/</g,'&lt;')+'&quot;</div>':'')+
             '<div class="sr-act-time">'+(a.at?ago(a.at):'')+'</div></span></div>';
         }).join('')||'<div style="color:var(--muted);font-size:12px;padding:14px;">Nothing yet</div>';
+        // Cap the "seen" set to the current batch so it can't grow unbounded
+        // across a long session (it only needs the latest items to detect new ones).
+        if(known.size>200){ known=new Set(acts.map(keyOf)); }
         firstLoad=false;
       }catch(e){}
     }
@@ -924,7 +928,7 @@ setInterval(function() { try { updatePopular(); } catch(e) {} }, 60000);
       }catch(e){}
     }
     loadActivity(); loadNews();
-    setInterval(loadActivity,4000);
+    setInterval(loadActivity,15000);
     setInterval(loadNews,5*60*1000);
   }
   if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(boot,400); });

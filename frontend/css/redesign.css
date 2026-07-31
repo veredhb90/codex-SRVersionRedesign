@@ -2088,3 +2088,70 @@ html[dir="rtl"] .rec-card.sell {
   .profile-page .stat-box.metric-positive .stat-val,.profile-page .stat-box.metric-negative .stat-val,
   .profile-snapshot .snapshot-item.metric-positive strong,.profile-snapshot .snapshot-item.metric-negative strong { animation:none !important; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   PERFORMANCE OPTIMIZATION (appended 2026-07-31)
+   ----------------------------------------------------------------------
+   The redesign animated box-shadow / glow / background on nearly every
+   card, badge, live marker and scanner element with `infinite` loops.
+   box-shadow & background can't be GPU-composited, so each animated
+   element forces a full repaint every frame — on a feed of 20 cards or a
+   scanner of 100+ cards that's hundreds of perpetual repaints/second,
+   which pins the compositor and makes hover/scroll/interaction feel laggy.
+
+   This block stops the PERPETUAL repaints while preserving the look with
+   STATIC equivalents. One-shot entrance animations, hover transitions,
+   the ticker (GPU transform) and spinners are intentionally left alone.
+   Fully reversible: delete this block to restore the original animations.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Feed: open-trade cards & badges — static "live" glow, no pulse ── */
+.rec-card[data-isopen="true"] {
+  animation: none !important;
+  box-shadow: 0 0 0 1px rgba(37,208,111,.16), 0 2px 12px rgba(37,208,111,.08) !important;
+}
+.badge-open,
+.outcome-badge.badge-open { animation: none !important; }
+
+/* ── Live markers/dots — keep the glow, drop the perpetual pulse ── */
+.rec-card[data-isopen="true"] .live-price-tag::before,
+.feed-heading::after,
+.live-dot-sm,
+.snapshot-live .profile-presence {
+  animation: none !important;
+  box-shadow: 0 0 6px rgba(37,208,111,.45) !important;
+}
+
+/* ── Feed cards (main.css leftovers) — static strips/badges ── */
+.rec-card.buy,
+.rec-card.sell { animation: none !important; }
+.rec-card.buy::after,
+.rec-card.sell::after { animation: none !important; }
+.badge-buy,
+.badge-sell,
+.tp-val,
+.sl-val { animation: none !important; }
+.brand-dot { animation: none !important; box-shadow: 0 0 5px rgba(0,230,118,.5) !important; }
+
+/* ── Scanner: biggest win (4 infinite box-shadow anims × up to 120 cards) ──
+   Keep the one-shot bar fill entrance (scannerBarIn); drop perpetual glow. */
+.scanner-page .stock-card.buy::before,
+.scanner-page .stock-card.sell::before,
+.scanner-page .stock-card.buy .scanner-direction,
+.scanner-page .stock-card.sell .scanner-direction,
+.scanner-page .scanner-score-total,
+.scanner-page .scan-tab.active,
+.scanner-page .cache-notice,
+.scanner-page .scanner-live-dot,
+.scanner-page .scanner-signal-pulse { animation: none !important; }
+.scanner-page .score-bar-fill { animation: scannerBarIn .75s ease-out both !important; }
+
+/* ── Profile: metric glow/value pulses — keep static colour ── */
+.profile-page .stat-box.metric-positive::after,
+.profile-page .stat-box.metric-negative::after,
+.profile-page .stat-box.metric-positive .stat-val,
+.profile-page .stat-box.metric-negative .stat-val,
+.profile-snapshot .snapshot-item.metric-positive strong,
+.profile-snapshot .snapshot-item.metric-negative strong { animation: none !important; }
+
+/* Note: boardPulse lived on .feed-heading::after, already disabled above. */
