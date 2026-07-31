@@ -805,8 +805,8 @@ function buildCard(r) {
         <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
       </span>`}
       ${r.isOpen ? '' : `<span class="live-return" style="color:${retColor};font-family:var(--font-mono);font-size:13px;font-weight:700;">${openReturn >= 0 ? '+' : ''}${openReturn.toFixed(2)}%</span>`}
-      <button class="btn btn-sm btn-outline like-btn ${likedByViewer ? 'liked' : ''}" data-id="${r._id}" aria-pressed="${likedByViewer}" style="margin-left:auto;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;">${r.likes?.length||0}</span></button>
-      <button class="btn btn-sm btn-ghost comment-toggle" data-id="${r._id}">💬 <span class="comment-count">${r.comments?.length||0}</span></button>
+      <button class="btn btn-sm btn-outline like-btn ${likedByViewer ? 'liked' : ''}" data-id="${r._id}" aria-pressed="${likedByViewer}" style="margin-left:auto;"><svg class="sr-ic sr-ic-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 5.6a5.4 5.4 0 0 0-7.7 0l-1.1 1.1-1.1-1.1a5.4 5.4 0 1 0-7.7 7.7l1.1 1.1 7.7 7.6 7.7-7.6 1.1-1.1a5.4 5.4 0 0 0 0-7.7z"/></svg> <span class="like-count" title="See who liked" style="cursor:pointer;">${r.likes?.length||0}</span></button>
+      <button class="btn btn-sm btn-ghost comment-toggle" data-id="${r._id}"><svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> <span class="comment-count">${r.comments?.length||0}</span></button>
       <button class="share-rec-btn">↗ Share</button>
       ${(() => {
         const me = Auth.user();

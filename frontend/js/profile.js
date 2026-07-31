@@ -338,7 +338,7 @@
         if (tb) {
           const n = (tb.dataset.count|0) + 1;
           tb.dataset.count = n;
-          tb.innerHTML = `💬 ${n} Comments`;
+          tb.innerHTML = `<svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> ${n} Comments`;
         }
         toast('Comment posted!', 'success');
       } catch (err) { toast(err.message, 'error'); }
@@ -653,12 +653,12 @@ function buildProfileCard(r, isOwn) {
       <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
     </span>`}
       <span class="live-return" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${retColor};">${openReturn >= 0 ? '+' : ''}${openReturn.toFixed(2)}%</span>
-      <button class="like-btn ${likedByViewer ? 'liked' : ''}" data-id="${r._id}" aria-pressed="${likedByViewer}" style="margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">♥ <span class="like-count" title="See who liked" style="cursor:pointer;font-weight:700;">${r.likes?.length||0}</span></button>
+      <button class="like-btn ${likedByViewer ? 'liked' : ''}" data-id="${r._id}" aria-pressed="${likedByViewer}" style="margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;"><svg class="sr-ic sr-ic-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 5.6a5.4 5.4 0 0 0-7.7 0l-1.1 1.1-1.1-1.1a5.4 5.4 0 1 0-7.7 7.7l1.1 1.1 7.7 7.6 7.7-7.6 1.1-1.1a5.4 5.4 0 0 0 0-7.7z"/></svg> <span class="like-count" title="See who liked" style="cursor:pointer;font-weight:700;">${r.likes?.length||0}</span></button>
       ${!isOwn && r.source !== 'repost' ? `<button class="pf-repost-btn" data-id="${r._id}" style="font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">↻ Repost</button>` : ''}
       <button class="btn btn-sm btn-ghost"
         data-action="toggle-comments" data-recid="${r._id}" data-count="${commentCount}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;">
-        💬 ${commentCount} Comment${commentCount!==1?'s':''}
+        <svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> ${commentCount} Comment${commentCount!==1?'s':''}
       </button>
       ${isOwn && r.source==='repost' ? `<button class="btn btn-sm btn-outline" data-action="undo-repost" data-recid="${r._id}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--red);border-color:var(--red);">

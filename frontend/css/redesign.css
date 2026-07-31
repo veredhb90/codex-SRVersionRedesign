@@ -2234,3 +2234,21 @@ html[dir="rtl"] .rec-card.sell {
   animation: badgePop .28s ease;
 }
 .notif-badge.show { display: inline-block; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   MODERN LIKE / COMMENT ICONS (2026-07-31)
+   Crisp inline-SVG heart + speech-bubble replacing the old ♥ char / 💬
+   emoji, consistent on feed and profile cards. Heart fills red when liked
+   and pops on click (reuses the existing heartPop keyframe).
+   ══════════════════════════════════════════════════════════════════════ */
+.sr-ic {
+  width: 16px; height: 16px; display: inline-block; vertical-align: -3px;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+  transition: fill .18s ease, stroke .18s ease, transform .16s ease;
+}
+.like-btn:hover .sr-ic-heart,
+.comment-toggle:hover .sr-ic,
+[data-action="toggle-comments"]:hover .sr-ic { transform: scale(1.12); }
+.like-btn.liked { color: var(--red) !important; border-color: rgba(255,77,109,.5) !important; }
+.like-btn.liked .sr-ic-heart { fill: var(--red); stroke: var(--red); }
