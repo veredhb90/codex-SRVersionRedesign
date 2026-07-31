@@ -137,6 +137,8 @@ For development with automatic server reloads:
 npm run dev
 ```
 
+Nodemon watches `backend/**/*` only, so frontend edits take effect on the next page load without restarting the server or interrupting in-flight requests.
+
 For a normal server process:
 
 ```bash

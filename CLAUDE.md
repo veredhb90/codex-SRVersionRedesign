@@ -7,7 +7,8 @@ SwingRush is a social trading network (live at swing-rush.com) where traders sha
 - **Backend**: Node.js / Express / MongoDB (Mongoose) / Socket.io — entry point `backend/server.js`, runs on port 5000
 - **Frontend**: Vanilla JS + HTML (no framework) in `frontend/`
 - **Local dev**: `npm run dev` (nodemon — auto-restarts on backend changes). Local MongoDB.
-- **Production**: Railway, auto-deploys on push to GitHub `main` (~2-3 min). GitHub: veredhb90/swingrush-app
+- **This repo**: pushes to GitHub `veredhb90/codex-SRVersionRedesign` (Private) — this is where `git push` should always go for this working directory. NEVER push to `veredhb90/swingrush-app`.
+- **Production**: swing-rush.com currently runs on Railway, deployed from `veredhb90/swingrush-app` (the older repo, ~2-3 min auto-deploy on push to its `main`). Railway is NOT YET connected to `codex-SRVersionRedesign` — Ward will manually point Railway at this repo to test the redesign, and fall back to `swingrush-app` if it doesn't work out. Until Ward says otherwise, assume commits/pushes here do NOT reach the live site.
 - **Secrets**: ALL API keys live in `.env` (gitignored — NEVER commit it, NEVER print its values into committed files). Services used: Finnhub (news), Resend (email), Anthropic API (chat + news analysis), Yahoo Finance (prices/candles, no key needed).
 - ⚠️ **CRITICAL**: local and Railway currently share the SAME Finnhub API key → shared 60 req/min quota. Heavy local testing can rate-limit the LIVE site. A separate dev Finnhub account is planned but not done yet. Be conservative with Finnhub calls during testing.
 
