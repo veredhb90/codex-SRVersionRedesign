@@ -177,6 +177,30 @@ router.get('/popular', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
 
+// GET /api/recommendations/sentiment?symbols=AAPL,NVDA,...
+// Community BUY/SELL split across all public trades for the given symbols.
+// Used on the profile to show how the SwingRush community is positioned on
+// the tickers a trader has traded.
+router.get('/sentiment', protect, async (req, res) => {
+  try {
+    const symbols = String(req.query.symbols || '')
+      .split(',').map(s => s.trim().toUpperCase()).filter(Boolean).slice(0, 60);
+    if (!symbols.length) return res.json({});
+    const rows = await Recommendation.aggregate([
+      { $match: { symbol: { $in: symbols }, profileOnly: { $ne: true } } },
+      { $group: {
+        _id: '$symbol',
+        total: { $sum: 1 },
+        buys:  { $sum: { $cond: [{ $eq: ['$direction', 'BUY'] }, 1, 0] } },
+        sells: { $sum: { $cond: [{ $eq: ['$direction', 'SELL'] }, 1, 0] } },
+      } },
+    ]);
+    const out = {};
+    rows.forEach(r => { out[r._id] = { total: r.total, buys: r.buys, sells: r.sells }; });
+    res.json(out);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // GET /api/recommendations/symbol/:symbol
 router.get('/symbol/:symbol', protect, async (req, res) => {
   try {

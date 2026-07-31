@@ -2252,3 +2252,32 @@ html[dir="rtl"] .rec-card.sell {
 [data-action="toggle-comments"]:hover .sr-ic { transform: scale(1.12); }
 .like-btn.liked { color: var(--red) !important; border-color: rgba(255,77,109,.5) !important; }
 .like-btn.liked .sr-ic-heart { fill: var(--red); stroke: var(--red); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   PROFILE — "why share trades" explainer + community sentiment (2026-07-31)
+   ══════════════════════════════════════════════════════════════════════ */
+.explainer-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+}
+@media (max-width: 720px) { .explainer-grid { grid-template-columns: 1fr; } }
+.explainer-card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius, 14px); padding: 16px;
+}
+.explainer-ic { font-size: 22px; margin-bottom: 8px; }
+.explainer-h { font-weight: 800; font-size: 14px; color: var(--text); margin-bottom: 6px; }
+.explainer-p { font-size: 12.5px; line-height: 1.55; color: var(--text2); }
+
+/* Community sentiment rows */
+.sentiment-row { padding: 11px 2px; border-bottom: 1px solid var(--border); }
+.sentiment-row:last-child { border-bottom: none; }
+.sentiment-row-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.sentiment-sym { font-family: var(--font-mono, monospace); font-weight: 800; color: var(--text); font-size: 14px; }
+.sentiment-meta { font-size: 11px; color: var(--muted); }
+.sentiment-bar { display: flex; height: 20px; border-radius: 6px; overflow: hidden; background: var(--surface2); }
+.sentiment-buy  { background: linear-gradient(90deg, var(--green), var(--green2)); color: #04140b; }
+.sentiment-sell { background: linear-gradient(90deg, var(--red2), var(--red)); color: #fff; }
+.sentiment-buy, .sentiment-sell {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; transition: width .6s ease; min-width: 0;
+}

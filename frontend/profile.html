@@ -141,7 +141,7 @@
     }
     .rec-box-count { margin-left:auto; font-size:12px; color:var(--muted); font-family:var(--font-body); letter-spacing:0; }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1785488002"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1785488533"/>
 </head>
 <body class="profile-page">
 
@@ -276,6 +276,28 @@
     <div class="snapshot-item snapshot-live"><span class="profile-presence"></span><strong data-i18n="profile.snapshot_live">LIVE MARKET DATA</strong></div>
   </div>
 
+  <!-- Why share trades — explainer (own profile only) -->
+  <div class="stats-wrap profile-explainer" id="profile-explainer" style="display:none;">
+    <div class="section-title" data-i18n="profile.why_share">WHY SHARE YOUR TRADES</div>
+    <div class="explainer-grid">
+      <div class="explainer-card">
+        <div class="explainer-ic">📈</div>
+        <div class="explainer-h" data-i18n="profile.why_track">Build a real track record</div>
+        <div class="explainer-p" data-i18n="profile.why_track_p">Post the actual trades from your real trading account with entry, target and stop. Every position is tracked live and scored win/loss automatically — a transparent, verifiable history of how you trade.</div>
+      </div>
+      <div class="explainer-card">
+        <div class="explainer-ic">🧠</div>
+        <div class="explainer-h" data-i18n="profile.why_ai">Consult your AI analyst</div>
+        <div class="explainer-p" data-i18n="profile.why_ai_p">The SwingRush AI chat can see the trades you post. Ask it whether to hold, close or adjust a position and get tailored reasoning on your open trades — news, technicals and risk, specific to what you actually hold.</div>
+      </div>
+      <div class="explainer-card">
+        <div class="explainer-ic">👥</div>
+        <div class="explainer-h" data-i18n="profile.why_crowd">See the crowd's positioning</div>
+        <div class="explainer-p" data-i18n="profile.why_crowd_p">For every ticker you trade, see how the wider SwingRush community is positioned — the share of traders going BUY vs SELL — so you know whether you're with the crowd or against it.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Stats -->
   <div class="stats-wrap">
     <div class="section-title" data-i18n="profile.performance">PERFORMANCE STATS</div>
@@ -306,6 +328,15 @@
     <div id="profile-recs"><div class="spinner"></div></div>
   </div>
 
+  <!-- Community sentiment on this trader's tickers -->
+  <div class="rec-box" id="sentiment-box" style="display:none;">
+    <div class="rec-box-title">
+      <span data-i18n="profile.community_sentiment">COMMUNITY POSITIONING</span>
+      <span style="font-size:10px;color:var(--muted);font-family:var(--font-body);letter-spacing:0;font-weight:400;" data-i18n="profile.community_hint">· BUY vs SELL across SwingRush on these tickers</span>
+    </div>
+    <div id="sentiment-list"></div>
+  </div>
+
   <!-- Box 2: Reposts (own profile only) -->
   <div class="rec-box" id="reposts-box" style="display:none;">
     <div class="rec-box-title"><span data-i18n="profile.reposts">REPOSTED TRADES</span> <span class="rec-box-count" id="count-reposts">—</span></div>
@@ -333,10 +364,10 @@
 
 </div>
 
-<script src="/js/api.js?v=1784445641"></script>
+<script src="/js/api.js?v=1785488533"></script>
 <script src="/js/auth.js?v=1784445641"></script>
 <script src="/js/i18n.js"></script>
-<script src="/js/profile.js?v=1785488002"></script>
+<script src="/js/profile.js?v=1785488533"></script>
 <script>
   const me = Auth.user();
   if (me) document.querySelectorAll('.nav-username').forEach(el => el.textContent = me.username ? '@'+me.username : me.fullName);

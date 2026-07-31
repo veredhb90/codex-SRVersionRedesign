@@ -76,6 +76,9 @@
       if (tpBtn) tpBtn.style.display = 'inline-flex';
       repostsBox && (repostsBox.style.display = 'block');
       engineBox  && (engineBox.style.display  = 'block');
+      // Educational explainer — own profile only
+      const explainer = document.getElementById('profile-explainer');
+      if (explainer) explainer.style.display = 'block';
       // Show and load watchlist
       const wlBox = document.getElementById('watchlist-box');
       if (wlBox) { wlBox.style.display = 'block'; loadWatchlist(); }
@@ -162,6 +165,39 @@
     renderProfileTrades();
     renderBox('profile-reposts',    reposts,    'No reposts yet.', isOwn);
     renderBox('profile-engine-recs',engineRecs, 'No engine signals saved yet.', isOwn);
+    loadCommunitySentiment(manualTrades);
+  }
+
+  // Community BUY/SELL positioning across SwingRush for this trader's tickers.
+  async function loadCommunitySentiment(trades) {
+    const box  = document.getElementById('sentiment-box');
+    const list = document.getElementById('sentiment-list');
+    if (!box || !list) return;
+    const symbols = [...new Set((trades || []).map(t => (t.symbol || '').toUpperCase()).filter(Boolean))].slice(0, 30);
+    if (!symbols.length) { box.style.display = 'none'; return; }
+    try {
+      const data = await API.sentiment(symbols.join(','));
+      const rows = symbols
+        .map(sym => ({ sym, ...(data[sym] || { total: 0, buys: 0, sells: 0 }) }))
+        .filter(r => r.total > 0)
+        .sort((a, b) => b.total - a.total);
+      if (!rows.length) { box.style.display = 'none'; return; }
+      list.innerHTML = rows.map(r => {
+        const buyPct  = Math.round((r.buys / r.total) * 100);
+        const sellPct = 100 - buyPct;
+        return `<div class="sentiment-row">
+          <div class="sentiment-row-top">
+            <span class="sentiment-sym">$${r.sym}</span>
+            <span class="sentiment-meta">${r.total} community trade${r.total !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="sentiment-bar">
+            <div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct >= 12 ? buyPct + '% BUY' : ''}</div>
+            <div class="sentiment-sell" style="width:${sellPct}%;">${sellPct >= 12 ? sellPct + '% SELL' : ''}</div>
+          </div>
+        </div>`;
+      }).join('');
+      box.style.display = 'block';
+    } catch (_) { box.style.display = 'none'; }
   }
 
   function renderProfileTrades() {
