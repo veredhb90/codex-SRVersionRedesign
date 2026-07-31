@@ -59,6 +59,16 @@ router.get('/stats', protect, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// ── POST /api/admin/scanner/run — manually trigger a full scan ─────
+// Fire-and-forget: runFullScan() already no-ops with a log if one is in
+// progress (see stockScanner.js's isScanning guard), so this is safe to
+// call any time without risking a duplicate/overlapping run.
+router.post('/scanner/run', protect, adminOnly, async (req, res) => {
+  const { runFullScan } = require('../services/stockScanner');
+  runFullScan().catch(err => console.error('Manual scan trigger error:', err.message));
+  res.json({ message: 'Scan started' });
+});
+
 // ── GET /api/admin/users?search= ───────────────────────────────────
 router.get('/users', protect, adminOnly, async (req, res) => {
   try {

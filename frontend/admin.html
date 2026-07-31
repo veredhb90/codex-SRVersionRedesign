@@ -145,6 +145,7 @@
   <section class="adm-scan-status" id="adm-scan-status">
     <div><span class="adm-scan-label">MARKET SCANNER</span><strong id="adm-scan-title">Loading scanner status</strong></div>
     <p id="adm-scan-copy">Checking the latest saved market ranking.</p>
+    <button id="adm-scan-run-btn" onclick="runScanNow()" class="btn btn-sm" style="white-space:nowrap;">Run Scan Now</button>
   </section>
 
   <div class="adm-msg" id="adm-msg"></div>
@@ -243,6 +244,7 @@
     var title = document.getElementById('adm-scan-title');
     var copy = document.getElementById('adm-scan-copy');
     var panel = document.getElementById('adm-scan-status');
+    var runBtn = document.getElementById('adm-scan-run-btn');
     panel.classList.remove('running', 'complete', 'idle');
 
     if (!scanner) {
@@ -250,6 +252,7 @@
       title.textContent = 'No completed scan saved yet';
       copy.textContent = 'The scheduled scanner will create the first market ranking automatically.';
       panel.classList.add('idle');
+      runBtn.disabled = false; runBtn.textContent = 'Run Scan Now';
       return;
     }
 
@@ -261,14 +264,31 @@
       title.textContent = isNews ? 'Enriching full-universe news scores' : 'Scanning technical signals';
       copy.textContent = completed + ' / ' + total + ' complete · the final ranking publishes when both phases finish.';
       panel.classList.add('running');
+      runBtn.disabled = true; runBtn.textContent = 'Scan Running…';
       return;
     }
 
     badge.textContent = 'Ready';
     title.textContent = 'Latest full market ranking is available';
     var updated = scanner.scannedAt ? new Date(scanner.scannedAt).toLocaleString() : 'unknown time';
-    copy.textContent = (scanner.scannedCount || 0) + ' tickers scanned · ' + (scanner.duration || 0) + 's duration · updated ' + updated + '. Weekday schedule: every 4 hours.';
+    copy.textContent = (scanner.scannedCount || 0) + ' tickers scanned · ' + (scanner.duration || 0) + 's duration · updated ' + updated + '. Weekday schedule: every 6 hours.';
+    runBtn.disabled = false; runBtn.textContent = 'Run Scan Now';
     panel.classList.add('complete');
+  }
+
+  async function runScanNow() {
+    var btn = document.getElementById('adm-scan-run-btn');
+    btn.disabled = true; btn.textContent = 'Starting…';
+    try {
+      var res = await fetch('/api/admin/scanner/run', { method: 'POST', headers: authHeaders() });
+      var d = await res.json();
+      if (res.status === 403 || res.status === 401) { denied(); return; }
+      showMsg(res.ok ? '✅ ' + d.message : '❌ ' + (d.message || 'Failed to start scan'), res.ok);
+      loadStats();
+    } catch (err) {
+      showMsg('❌ Failed to start scan', false);
+      btn.disabled = false; btn.textContent = 'Run Scan Now';
+    }
   }
 
   async function loadUsers() {
