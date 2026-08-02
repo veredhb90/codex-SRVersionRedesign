@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
-const { getTop5, UNIVERSE } = require('../services/stockScanner');
+const { getTop5, SCAN_SIZE } = require('../services/stockScanner');
 
 // GET /api/scanner/top5 — returns instantly from DB
 router.get('/top5', async (req, res) => {
@@ -23,7 +23,7 @@ router.get('/status', protect, async (req, res) => {
       scanning:     result.scanning,
       scannedAt:    result.scannedAt,
       scannedCount: result.scannedCount,
-      universeSize: UNIVERSE.length,
+      universeSize: SCAN_SIZE,
       stale:        result.stale,
     });
   } catch (err) {

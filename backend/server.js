@@ -99,3 +99,7 @@ app.get('*', (_, res) =>
 const PORT = process.env.PORT || 5000;
 connectDB();
 server.listen(PORT, () => console.log(`🚀 SwingRush on http://localhost:${PORT}`));
+
+// Background TP/SL sweeper — checks ALL open calls hourly during US market
+// hours, independent of who is browsing the feed (io.notifyUser is set above).
+require('./routes/recommendations').startOutcomeSweeper(io);

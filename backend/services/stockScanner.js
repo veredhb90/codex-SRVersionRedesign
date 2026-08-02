@@ -128,8 +128,29 @@ const STOCK_UNIVERSE = [
   'VRTX','ALXN','SGEN','BMRN','EXEL','HALO','INVA','ITCI','JAZZ',
 ];
 
-const UNIVERSE = [...new Set(STOCK_UNIVERSE)];
-console.log(`📊 Stock universe: ${UNIVERSE.length} stocks`);
+// ── Scan universe (top ~2000 US stocks by market cap) ──────────────
+// NOTE: STOCK_UNIVERSE above is legacy and no longer used. The live scan pool
+// is loaded from backend/data/usUniverse2000.js (ordered biggest-cap first).
+// Each scan covers a fixed CORE slice (the biggest names — always scanned) plus
+// a random rotation from the long tail, so mega-caps are never missing while the
+// broader market still gets discovered over time.
+const POOL = [...new Set(require('../data/usUniverse2000'))];
+const CORE_COUNT   = 300;   // always-scanned biggest-cap names (pool index 0..CORE_COUNT-1)
+const RANDOM_COUNT = 200;   // random rotation drawn from the rest of the pool
+const SCAN_SIZE    = CORE_COUNT + RANDOM_COUNT;
+const UNIVERSE     = POOL;   // full universe (exported for status/reference)
+
+// Build one scan's ticker list: core (always) + a uniform-random sample of the tail.
+const buildScanList = () => {
+  const core = POOL.slice(0, CORE_COUNT);
+  const tail = POOL.slice(CORE_COUNT);
+  for (let i = tail.length - 1; i > 0; i--) {        // Fisher–Yates shuffle
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = tail[i]; tail[i] = tail[j]; tail[j] = t;
+  }
+  return core.concat(tail.slice(0, RANDOM_COUNT));
+};
+console.log(`📊 Scan pool: ${POOL.length} stocks | each scan covers ${SCAN_SIZE} (${CORE_COUNT} core + ${RANDOM_COUNT} random)`);
 
 // ── Scan Result Schema ─────────────────────────────────────────────
 const scanResultSchema = new mongoose.Schema({
@@ -319,7 +340,7 @@ const finishNewsPhase = async (allResults, start, startAt = 0) => {
     ...resultLists(finalResults),
     scannedAt: new Date(),
     lastCompletedAt: new Date(),
-    scannedCount: UNIVERSE.length,
+    scannedCount: allResults.length,
     technicalResults: allResults.length,
     newsEnrichedCount: allResults.length,
     technicalCandidates: [],
@@ -335,7 +356,8 @@ const runFullScan = async () => {
   if (isScanning) { console.log('⏳ Already scanning'); return; }
   isScanning = true;
   const start = Date.now();
-  console.log(`\n🔍 Starting 2-phase scan of ${UNIVERSE.length} stocks...`);
+  const scanList = buildScanList(); // fresh core + random rotation each run
+  console.log(`\n🔍 Starting 2-phase scan of ${scanList.length} stocks (${CORE_COUNT} core + ${RANDOM_COUNT} random)...`);
   try {
     const existing = await ScanResult.findOne({ key: 'latest' }).lean();
     const hasCompletedCache = existing?.resultStage === 'complete' && Boolean(existing.top5?.length);
@@ -352,16 +374,16 @@ const runFullScan = async () => {
 
     // Phase 1: Technical scan all stocks
     console.log('\n📊 PHASE 1: Technical scan...');
-    const allResults = await scanTechnical(UNIVERSE, (done) =>
+    const allResults = await scanTechnical(scanList, (done) =>
       ScanResult.findOneAndUpdate({ key: 'latest' }, { scannedCount: done, phase: 'technical' })
     );
-    console.log(`\n✅ Phase 1 done: ${allResults.length}/${UNIVERSE.length} technical results. Starting full news enrichment.`);
+    console.log(`\n✅ Phase 1 done: ${allResults.length}/${scanList.length} technical results. Starting full news enrichment.`);
 
     // Keep a completed cache visible during scheduled refreshes, but never
     // publish a technical-only ranking. The scanner surface is final combined
     // Technical + News scoring only.
     await ScanResult.findOneAndUpdate({ key: 'latest' }, {
-      scannedCount: UNIVERSE.length,
+      scannedCount: scanList.length,
       technicalResults: allResults.length,
       newsEnrichedCount: 0,
       technicalCandidates: allResults,
@@ -389,7 +411,7 @@ const resumeNewsScan = async (doc) => {
   console.log(`🔄 Resuming news enrichment for ${candidates.length} technical candidates...`);
   try {
     await ScanResult.findOneAndUpdate({ key: 'latest' }, {
-      running: true, phase: 'news', scannedCount: UNIVERSE.length,
+      running: true, phase: 'news', scannedCount: candidates.length,
       technicalResults: candidates.length,
     });
     await finishNewsPhase(candidates, start, Number(doc.newsEnrichedCount || 0));
@@ -406,10 +428,10 @@ const getTop5 = async () => {
   const doc = await ScanResult.findOne({ key: 'latest' });
   if (!doc || !doc.scannedAt) {
     return { top5:[], topBuys:[], topSells:[], scanning:isScanning, scannedCount:0, technicalResults:0,
-      newsEnrichedCount:0, phase:'technical', universeSize:UNIVERSE.length, duration:0,
+      newsEnrichedCount:0, phase:'technical', universeSize:SCAN_SIZE, duration:0,
       resultStage:'building',
       nextScheduledAt: getNextWeekdayScanAt(),
-      message: `🔍 Building the first ${UNIVERSE.length}-ticker technical ranking.` };
+      message: `🔍 Building the first ${SCAN_SIZE}-ticker technical ranking.` };
   }
   return {
     top5:         doc.top5     || [],
@@ -426,7 +448,7 @@ const getTop5 = async () => {
     cached:       doc.resultStage === 'complete' && Boolean(doc.top5?.length),
     cachedAt:     doc.lastCompletedAt || doc.scannedAt,
     nextScheduledAt: doc.nextScheduledAt || getNextWeekdayScanAt(),
-    universeSize: UNIVERSE.length,
+    universeSize: SCAN_SIZE,
   };
 };
 
@@ -470,4 +492,4 @@ if (process.env.DISABLE_SCANNER_AUTOSTART !== 'true') {
   console.log('⏸️ Scanner auto-start disabled for this local preview.');
 }
 
-module.exports = { getTop5, runFullScan, UNIVERSE };
+module.exports = { getTop5, runFullScan, UNIVERSE, SCAN_SIZE };

@@ -135,6 +135,53 @@ const checkOutcome = async (rec, io) => {
   return rec;
 };
 
+// ── Background outcome sweeper ──────────────────────────────────────
+// Historically TP/SL was only detected when someone loaded a feed page that
+// happened to contain the open call — so calls "behind Load More" (or private
+// profileOnly calls, which the feed excludes) could stay unchecked, and
+// notifications arrived late/whenever the page was next viewed. This sweeper
+// re-checks EVERY open call on a schedule instead, independent of browsing.
+// Runs once per hour, only during US market hours (TP/SL can only move while
+// the market is open). Holidays are not special-cased — a sweep on a closed
+// day just re-prices to the last price and does nothing, which is harmless.
+const isUsMarketHours = (d = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const get = (t) => parts.find(p => p.type === t)?.value;
+  const wd = get('weekday');
+  if (wd === 'Sat' || wd === 'Sun') return false;
+  let hour = parseInt(get('hour'), 10);
+  if (hour === 24) hour = 0;                 // some environments emit '24' at midnight
+  const mins = hour * 60 + parseInt(get('minute'), 10);
+  return mins >= (9 * 60 + 30) && mins < (16 * 60); // 09:30–16:00 ET
+};
+
+let _sweeperStarted = false;
+let _lastSweepAt = 0;
+const SWEEP_INTERVAL_MS = 60 * 60 * 1000; // once per hour
+
+const startOutcomeSweeper = (io) => {
+  if (_sweeperStarted) return;
+  _sweeperStarted = true;
+  const tick = async () => {
+    try {
+      if (!isUsMarketHours()) return;
+      // Restart-safe hourly gate (checked more often than hourly).
+      if (Date.now() - _lastSweepAt < SWEEP_INTERVAL_MS - 60 * 1000) return;
+      _lastSweepAt = Date.now();
+      const open = await Recommendation.find({ isOpen: true });
+      console.log(`⏰ Outcome sweep: checking ${open.length} open call(s) for TP/SL...`);
+      for (const rec of open) {
+        await checkOutcome(rec, io);          // 90s per-rec cooldown inside prevents redundant re-pricing
+      }
+      console.log('⏰ Outcome sweep complete.');
+    } catch (e) { console.log('Outcome sweeper error:', e.message); }
+  };
+  setTimeout(tick, 30 * 1000);          // first pass shortly after startup (only acts if market is open)
+  setInterval(tick, 10 * 60 * 1000);    // re-evaluate every 10 min; gated to ~hourly + market hours
+};
+
 // GET /api/recommendations/feed
 router.get('/feed', protect, async (req, res) => {
   try {
@@ -573,3 +620,4 @@ router.get('/activity', protect, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.startOutcomeSweeper = startOutcomeSweeper;
