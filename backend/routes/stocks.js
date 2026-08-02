@@ -88,11 +88,11 @@ router.post('/engine/share', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
-// GET /api/stocks/news — general market & economic news (Finnhub, cached 5 min)
+// GET /api/stocks/news — general market & economic news (Finnhub, cached 120 min)
 let _newsCache = { at: 0, data: [] };
 router.get('/news', async (req, res) => {
   try {
-    if (Date.now() - _newsCache.at < 5 * 60 * 1000 && _newsCache.data.length) {
+    if (Date.now() - _newsCache.at < 120 * 60 * 1000 && _newsCache.data.length) {
       return res.json(_newsCache.data);
     }
     const key = process.env.FINNHUB_API_KEY || process.env.FINNHUB_KEY || process.env.FINNHUB || '';

@@ -8,7 +8,7 @@ const User = require('../models/User');
 // it scans all manual trades + a user lookup. Cache the computed result briefly
 // so repeated loads (and concurrent users) reuse it instead of re-scanning.
 let _lbCache = { at: 0, data: null };
-const LB_TTL = 30 * 1000;
+const LB_TTL = 2 * 60 * 1000;
 
 router.get('/', protect, async (req, res) => {
   try {

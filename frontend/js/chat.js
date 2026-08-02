@@ -5,6 +5,7 @@
   var isTyping       = false;
   var currentStock   = null;
   var currentSessionId = null; // null = no session yet, 'NEW' = force new, ID = continue existing
+  var resuming         = false; // true while resumePendingChat is loading/polling after navigation
 
   var pendingStockData = null;
 
@@ -322,8 +323,9 @@
     input.focus();
     document.getElementById('sr-chat-badge').style.display = 'none';
     if (window.innerWidth <= 680) btn.style.display = 'none';
-    // Load last session automatically when opening
-    if (Auth.token() && !currentSessionId) {
+    // Load last session automatically when opening (skip while a resume is
+    // in progress — resumePendingChat manages loading/rendering itself).
+    if (Auth.token() && !currentSessionId && !resuming) {
       loadLastSession();
     }
   }
@@ -345,24 +347,145 @@
       if (sessions && sessions.length > 0) {
         var last = sessions[0];
         currentSessionId = last._id;
-        if (last.messages && last.messages.length > 0) {
-          messages.innerHTML = '';
-          var lastDateLabel = '';
-          last.messages.forEach(function(m) {
-            var msgDate = m.time ? new Date(m.time) : new Date();
-            var dateLabel = msgDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
-            if (dateLabel !== lastDateLabel) {
-              var divider = document.createElement('div');
-              divider.style.cssText = 'text-align:center;margin:14px 0 6px;font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:0.5px;';
-              divider.textContent = '\u2014 ' + dateLabel + ' \u2014';
-              messages.appendChild(divider);
-              lastDateLabel = dateLabel;
-            }
-            addMessage(m.role === 'user' ? 'user' : 'ai', m.content, m.time);
-          });
-        }
+        renderSessionMessages(last);
+        maybePollForReply(last);
       }
     } catch(e) { console.log('Could not load last session'); }
+  }
+
+  // \u2500\u2500 Render a full session's messages into the chat window \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  function renderSessionMessages(session) {
+    if (!session || !session.messages || !session.messages.length) return;
+    messages.innerHTML = '';
+    var lastDateLabel = '';
+    session.messages.forEach(function(m) {
+      var msgDate = m.time ? new Date(m.time) : new Date();
+      var dateLabel = msgDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+      if (dateLabel !== lastDateLabel) {
+        var divider = document.createElement('div');
+        divider.style.cssText = 'text-align:center;margin:14px 0 6px;font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:0.5px;';
+        divider.textContent = '\u2014 ' + dateLabel + ' \u2014';
+        messages.appendChild(divider);
+        lastDateLabel = dateLabel;
+      }
+      addMessage(m.role === 'user' ? 'user' : 'ai', m.content, m.time);
+    });
+  }
+
+  // \u2500\u2500 Resume an in-flight answer after navigation / reload \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // When the user sends a message then leaves the page before the answer is
+  // ready, the browser kills the request and this page is destroyed. The
+  // backend keeps generating and saves the reply to the session, and the
+  // question was persisted immediately. On the next page load we detect the
+  // pending marker, reopen the chat, and poll the session until the AI reply
+  // lands \u2014 so the answer "catches up" to the user wherever they navigated.
+  var PENDING_KEY = 'sr_pending_chat';
+  var RESUME_MAX_AGE_MS = 3 * 60 * 1000;   // ignore stale markers
+  var RESUME_POLL_MS = 2500;
+  var RESUME_MAX_POLLS = 48;               // ~2 minutes of polling
+
+  function clearPending() {
+    try { localStorage.removeItem(PENDING_KEY); } catch(e) {}
+  }
+
+  // ── DB-driven live poller ───────────────────────────────────────
+  // Source of truth is the server: whenever a chat is opened/rendered and its
+  // LAST message is a RECENT user question with no AI reply yet, an answer is
+  // still being generated server-side (the user sent it then navigated). Show
+  // typing and poll THIS session until the reply lands. Works no matter how
+  // the chat was opened (auto-resume, chat button, or history panel).
+  var pollTimer = null;
+  function maybePollForReply(session) {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (!session || !session._id) return;
+    var msgs = session.messages || [];
+    if (!msgs.length) return;
+    var last = msgs[msgs.length - 1];
+    if (!last || last.role !== 'user') return; // already answered / nothing pending
+
+    // Only wait on genuinely recent questions (server timestamp — no client
+    // clock skew). Older unanswered messages are treated as abandoned.
+    var lastTs = last.time ? new Date(last.time).getTime() : 0;
+    if (!lastTs || (Date.now() - lastTs > RESUME_MAX_AGE_MS)) return;
+
+    var sid = session._id;
+    isTyping = true;
+    sendBtn.disabled = true;
+    var typingEl = addTyping();
+    var polls = 0;
+    pollTimer = setInterval(async function() {
+      polls++;
+      var s = null;
+      try { s = await API.getChatSession(sid); } catch(e) {}
+      var mm = (s && s.messages) || [];
+      var lastNow = mm.length ? mm[mm.length - 1] : null;
+      if (lastNow && lastNow.role === 'ai') {
+        clearInterval(pollTimer); pollTimer = null;
+        typingEl.remove();
+        addMessage('ai', lastNow.content, lastNow.time);
+        isTyping = false; sendBtn.disabled = false;
+        clearPending();
+      } else if (polls >= RESUME_MAX_POLLS) {
+        clearInterval(pollTimer); pollTimer = null;
+        typingEl.remove();
+        addMessage('ai', chatCopy(
+          'That answer took too long or your question did not go through. Please ask again.',
+          'استغرقت الإجابة وقتا طويلا أو لم تصل رسالتك. يرجى المحاولة مرة أخرى.')
+        );
+        isTyping = false; sendBtn.disabled = false;
+        clearPending();
+      }
+    }, RESUME_POLL_MS);
+  }
+
+  // Resolve currentSessionId to a CONCRETE session id before sending, so the
+  // resume marker and the poll always target the exact session the message
+  // is saved into (never a "latest session" guess that can open a different
+  // chat or miss the reply).
+  async function ensureSessionId() {
+    if (currentSessionId && currentSessionId !== 'NEW') return currentSessionId;
+    if (currentSessionId === 'NEW') {
+      var created = await API.newChatSession();
+      currentSessionId = created._id;
+      return currentSessionId;
+    }
+    // null → continue the most recent chat if one exists, else start fresh.
+    try {
+      var list = await API.getChatSessions();
+      if (list && list.length) { currentSessionId = list[0]._id; return currentSessionId; }
+    } catch (e) {}
+    var ns = await API.newChatSession();
+    currentSessionId = ns._id;
+    return currentSessionId;
+  }
+
+  // On page load after a navigation: if we left a question in flight, auto-open
+  // the chat to the right session so the answer visibly "catches up". The
+  // actual polling is handled by maybePollForReply (DB-driven), so even if this
+  // marker is missing, opening the chat any other way still resumes.
+  async function resumePendingChat() {
+    var pend = null;
+    try { pend = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch(e) { clearPending(); return; }
+    if (!pend || !pend.ts) return;
+    if (!Auth.token() || (Date.now() - pend.ts > RESUME_MAX_AGE_MS)) { clearPending(); return; }
+
+    resuming = true;
+    openChat();
+
+    // Resolve the exact session that holds the pending question.
+    var session = null;
+    try {
+      if (pend.sessionId && pend.sessionId !== 'NEW') session = await API.getChatSession(pend.sessionId);
+    } catch(e) {}
+    if (!session) {
+      try { var list = await API.getChatSessions(); if (list && list.length) session = list[0]; } catch(e) {}
+    }
+    resuming = false;
+    if (!session) { clearPending(); return; }
+
+    currentSessionId = session._id;
+    renderSessionMessages(session);
+    maybePollForReply(session); // shows typing + polls if the reply isn't in yet
   }
 
   // ── New chat ────────────────────────────────────────────────────
@@ -407,22 +530,8 @@
     try {
       var session = await API.getChatSession(sessionId);
       currentSessionId = session._id;
-      messages.innerHTML = '';
-      if (session.messages) {
-        var lastDateLabel = '';
-        session.messages.forEach(function(m) {
-          var msgDate = m.time ? new Date(m.time) : new Date();
-          var dateLabel = msgDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
-          if (dateLabel !== lastDateLabel) {
-            var divider = document.createElement('div');
-            divider.style.cssText = 'text-align:center;margin:14px 0 6px;font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:0.5px;';
-            divider.textContent = '— ' + dateLabel + ' —';
-            messages.appendChild(divider);
-            lastDateLabel = dateLabel;
-          }
-          addMessage(m.role === 'user' ? 'user' : 'ai', m.content, m.time);
-        });
-      }
+      renderSessionMessages(session);
+      maybePollForReply(session); // resume a still-generating reply if any
       historyPanel.style.display = 'none';
     } catch(e) { console.log('Load session error:', e.message); }
   }
@@ -589,7 +698,7 @@
   }, true);
 
   // ── Send message ────────────────────────────────────────────────
-  function sendMessage() {
+  async function sendMessage() {
     var text = input.value.trim();
     if ((!text && !pendingImage) || isTyping) return;
 
@@ -620,13 +729,17 @@
       stockContextStr = currentSymbol + ' @ $' + currentStock.price + ' | ' + currentStock.direction + ' | Score: ' + currentStock.score + ' | TP: $' + currentStock.takeProfit + ' | SL: $' + currentStock.stopLoss;
     }
 
+    // Lock onto the exact session BEFORE sending, so resume can reopen the
+    // same chat and poll the same session for the reply.
+    try { await ensureSessionId(); } catch (e) {}
+
     // Build request body
     var requestBody = {
       message: text || chatCopy('Please analyze this chart/image', 'يرجى تحليل هذا الرسم أو الصورة'),
       history: chatHistory.slice(-6),
       stockContext: stockContextStr,
       language: isArabicChat() ? 'ar' : 'en',
-      sessionId: currentSessionId // null = continue recent, 'NEW' = create new, ID = specific session
+      sessionId: currentSessionId // concrete id resolved above
     };
 
     if (pendingImage) {
@@ -635,6 +748,17 @@
       pendingImage = null;
       imgPreview.style.display = 'none';
     }
+
+    // Persist a resume marker so that if the user navigates away / reloads
+    // before the answer arrives, the next page load can reopen the chat and
+    // poll this session for the reply (which the backend still finishes).
+    try {
+      localStorage.setItem(PENDING_KEY, JSON.stringify({
+        question: text || 'Image uploaded',
+        ts: Date.now(),
+        sessionId: currentSessionId
+      }));
+    } catch (e) {}
 
     fetch('/api/chat', {
       method: 'POST',
@@ -675,6 +799,9 @@
       addMessage('ai', 'Connection error. Please try again in a moment.');
     })
     .finally(function() {
+      // We reached here => this page survived (no navigation), so the answer
+      // was delivered (or failed locally) and no cross-page resume is needed.
+      clearPending();
       isTyping = false;
       sendBtn.disabled = false;
       input.focus();
@@ -839,4 +966,7 @@
       loadPendingStockIntoChat();
     });
   }
+
+  // ── On load: resume any answer left in-flight from a previous page ───
+  resumePendingChat();
 })();

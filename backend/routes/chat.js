@@ -489,12 +489,34 @@ If the user asks a general investment/recommendation question that would genuine
 `;
     }
 
-    // ── Build full session history for Claude ────────────────────
-    // Use ALL messages from DB session so Claude never forgets
+    // ── Build session history for Claude (BEFORE adding this message) ──
+    // Snapshot the prior turns from the in-memory session; the current user
+    // message is appended to the Claude payload separately below.
     const sessionHistory = session.messages.map(m => ({
       role: m.role === 'ai' ? 'assistant' : 'user',
       content: m.content
     }));
+
+    // ── Persist the user's message IMMEDIATELY (resume support) ──────
+    // Save the question before the (slow) Claude call so that if the client
+    // navigates away / reloads before the answer is ready, the question is
+    // never lost and the frontend can reopen and poll this session for the
+    // reply once generation finishes server-side.
+    //
+    // Use an ATOMIC $push (not load-modify-save): a single session can have
+    // more than one request in flight at once (e.g. the user sends, navigates,
+    // then sends again while the first is still generating server-side).
+    // Full-document .save() calls would clobber each other and drop/mis-attach
+    // messages; $push appends safely regardless of concurrency.
+    const userDbContent = message || 'Image uploaded';
+    const isNewSession = session.messages.length === 0;
+    const userUpdate = { $push: { messages: { role: 'user', content: userDbContent, time: new Date() } } };
+    if (isNewSession) {
+      userUpdate.$set = {
+        title: userDbContent.length > 45 ? userDbContent.substring(0, 45) + '...' : userDbContent
+      };
+    }
+    await ChatSession.updateOne({ _id: session._id }, userUpdate);
 
     // ── System prompt ────────────────────────────────────────────
     const systemPrompt = `You are SwingRush AI — a professional trading analyst with COMPLETE access to SwingRush platform data.
@@ -584,15 +606,14 @@ CRITICAL: always use this exact date/time above as "now" — never guess, never 
     const claudeResult = await callClaude(claudeMessages, systemPrompt, req.user._id);
     const responseText = claudeResult.text;
     const stockDataList = claudeResult.charts || [];
-    // ── Save to session ───────────────────────────
-    session.messages.push({ role: 'user', content: message || 'Image uploaded' });
-    session.messages.push({ role: 'ai', content: responseText });
-    if (session.messages.length <= 2) {
-      session.title = (message || 'Image analysis').length > 45
-        ? (message || 'Image analysis').substring(0, 45) + '...'
-        : (message || 'Image analysis');
-    }
-    await session.save();
+    // ── Save AI reply to session ──────────────────
+    // (User message was already saved above, before the Claude call.)
+    // Atomic $push again, so a concurrent request on the same session can't
+    // clobber this reply (or vice-versa).
+    await ChatSession.updateOne(
+      { _id: session._id },
+      { $push: { messages: { role: 'ai', content: responseText, time: new Date() } } }
+    );
     res.json({ response: responseText, symbols, sessionId: session._id, stockData: stockDataList[0] || null, stockDataList });
 
   } catch(err) {
