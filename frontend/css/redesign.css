@@ -2315,3 +2315,34 @@ body.rtl .why-close { right: auto; left: 16px; }
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 800; transition: width .6s ease; min-width: 0;
 }
+
+/* ── Soft pulse + flash on feed/profile call tags (BUY/SELL/OPEN/WIN/LOSS) ──
+   Gentle "breathing" opacity + a soft colored glow (currentColor matches each
+   badge's own color). No layout shift. Overrides the earlier static-glow block.
+   Respects prefers-reduced-motion below. */
+@keyframes softTagPulse {
+  0%, 100% { opacity: .82; box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+  50%      { opacity: 1;   box-shadow: 0 0 9px -1px currentColor; }
+}
+.badge-buy, .badge-sell, .badge-win, .badge-loss,
+.badge-open, .outcome-badge.badge-open {
+  animation: softTagPulse 2.4s ease-in-out infinite !important;
+}
+
+/* Soft pulse + flash on the LIVE market indicator dots (feed heading +
+   "LIVE MARKET" sidebar). Re-enables a gentle green breathing/glow that the
+   earlier static block had turned off. */
+@keyframes softLivePulse {
+  0%, 100% { opacity: .55; box-shadow: 0 0 0 0 rgba(37,208,111,0); }
+  50%      { opacity: 1;   box-shadow: 0 0 8px 1px rgba(37,208,111,.65); }
+}
+.live-dot-sm,
+.feed-heading::after {
+  animation: softLivePulse 1.8s ease-in-out infinite !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-buy, .badge-sell, .badge-win, .badge-loss,
+  .badge-open, .outcome-badge.badge-open,
+  .live-dot-sm, .feed-heading::after { animation: none !important; }
+}
