@@ -74,6 +74,11 @@
     .sentiment-buy  { background:var(--green); color:#05130a; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; transition:width .8s ease; }
     .sentiment-sell { background:var(--red);   color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; transition:width .8s ease; }
     .popular-item .sentiment-bar { height:12px; margin:3px 0; }
+    /* Soft pulse+flash for live numbers (Happening Now, Best Traders) and the Hot Stocks red/green bar */
+    @keyframes srSoftPulse { 0%,100% { opacity:1; filter:brightness(1); } 50% { opacity:.55; filter:brightness(1.55); } }
+    .sr-soft-pulse { animation:srSoftPulse 2s ease-in-out infinite; display:inline-block; }
+    @keyframes srBarPulse { 0%,100% { filter:brightness(1); box-shadow:0 0 0 0 rgba(255,255,255,0); } 50% { filter:brightness(1.28); box-shadow:0 0 10px 1px rgba(255,255,255,.18); } }
+    .sentiment-bar.sr-bar-pulse { animation:srBarPulse 2.2s ease-in-out infinite; }
 
     /* Market rows */
     .mkt-row { display:flex; justify-content:space-between; align-items:center; padding:6px 4px; border-bottom:1px solid var(--bg3); font-size:12px; border-radius:5px; cursor:pointer; transition:background .15s; }
@@ -153,11 +158,11 @@
       <!-- Tabs -->
       <div style="display:flex;gap:6px;margin-bottom:10px;">
         <button onclick="switchLeaderTab('winrate')" id="lb-tab-winrate"
-          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--green);background:var(--green);color:#05130a;font-size:11px;font-weight:700;cursor:pointer;">
+          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg3);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;">
           <span data-i18n="feed.win_rate">Win Rate</span>
         </button>
         <button onclick="switchLeaderTab('return')" id="lb-tab-return"
-          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg3);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;">
+          style="flex:1;padding:5px;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:11px;font-weight:700;cursor:pointer;">
           <span data-i18n="feed.total_return">Total Return</span>
         </button>
       </div>
@@ -261,11 +266,11 @@
 <script src="/js/i18n.js"></script>
 <script src="/js/ticker.js?v=1784445641"></script>
 <script src="/js/onboarding.js?v=1785528146"></script>
-<script src="/js/feed_v2.js?v=1785522392"></script>
+<script src="/js/feed_v2.js?v=1785779716"></script>
 <script>
   // ── Leaderboard ──────────────────────────────────────────────
   let leaderData = null;
-  let leaderTab  = 'winrate';
+  let leaderTab  = 'return';
 
   async function loadLeaderboard() {
     try {
@@ -282,7 +287,7 @@
     const winBtn = document.getElementById('lb-tab-winrate');
     const retBtn = document.getElementById('lb-tab-return');
     if (tab === 'winrate') {
-      winBtn.style.background = 'var(--green)'; winBtn.style.color = '#000'; winBtn.style.borderColor = 'var(--green)';
+      winBtn.style.background = 'var(--accent)'; winBtn.style.color = '#fff'; winBtn.style.borderColor = 'var(--accent)';
       retBtn.style.background = 'var(--surface2)'; retBtn.style.color = 'var(--muted)'; retBtn.style.borderColor = 'var(--border)';
     } else {
       retBtn.style.background = 'var(--accent)'; retBtn.style.color = '#fff'; retBtn.style.borderColor = 'var(--accent)';
@@ -302,8 +307,8 @@
     el.innerHTML = list.map((t, i) => {
       const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;
       const stat  = leaderTab === 'winrate'
-        ? `<span style="color:var(--green);font-weight:700;">${t.winRate}%</span> <span style="color:var(--muted);font-size:10px;">(${t.wins}W/${t.losses}L)</span>`
-        : `<span style="color:${t.totalReturn>=0?'var(--green)':'var(--red)'};font-weight:700;">${t.totalReturn>=0?'+':''}${t.totalReturn}%</span>`;
+        ? `<span class="sr-soft-pulse" style="color:var(--green);font-weight:700;">${t.winRate}%</span> <span style="color:var(--muted);font-size:10px;">(${t.wins}W/${t.losses}L)</span>`
+        : `<span class="sr-soft-pulse" style="color:${t.totalReturn>=0?'var(--green)':'var(--red)'};font-weight:700;">${t.totalReturn>=0?'+':''}${t.totalReturn}%</span>`;
       return `<div onclick="location.href='/profile.html?id=${t.userId}'"
         style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;transition:background .15s;"
         onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
@@ -683,7 +688,7 @@
             <span class="popular-sym">${item._id}</span>
             <span style="font-size:11px;color:var(--muted);">${item.count} trades</span>
           </div>
-          <div class="sentiment-bar">
+          <div class="sentiment-bar sr-bar-pulse">
             <div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct>20?buyPct+'%':''}</div>
             <div class="sentiment-sell" style="width:${sellPct}%;">${sellPct>20?sellPct+'%':''}</div>
           </div>

@@ -117,7 +117,12 @@ const getQuote = async (symbol, opts = {}) => {
     const meta = result.meta;
     const closes = result.indicators.quote[0].close.filter(c => c != null);
     const price = meta.regularMarketPrice;
-    const prevClose = meta.chartPreviousClose || closes[closes.length - 2] || price;
+    // Yahoo's meta.chartPreviousClose is the close BEFORE the first bar of the
+    // requested range (here 5d) — i.e. ~5 trading days ago, NOT yesterday's
+    // close — so trusting it first produced wildly wrong % changes (e.g. ORCL
+    // showed +16% when the real move was +7%). The true prior close is the
+    // second-to-last daily bar; use that first and only fall back to meta.
+    const prevClose = (closes.length >= 2 ? closes[closes.length - 2] : null) || meta.chartPreviousClose || price;
     const changePct = prevClose ? ((price - prevClose) / prevClose) * 100 : 0;
 
     quote = {

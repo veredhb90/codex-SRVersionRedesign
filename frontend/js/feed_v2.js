@@ -888,8 +888,8 @@ window.closeSymbolModal   = closeSymbolModal;
     function ago(t){var s=Math.max(1,Math.floor((Date.now()-new Date(t).getTime())/1000));if(s<60)return s+'s ago';var m2=Math.floor(s/60);if(m2<60)return m2+'m ago';var h=Math.floor(m2/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
     function aLabel(a){
       if(a.kind==='new')return '<b>@'+a.username+'</b> posted '+(a.direction==='BUY'?'\u25b2 BUY':'\u25bc SELL')+' $'+a.symbol;
-      if(a.kind==='tp')return '<b>@'+a.username+'</b> $'+a.symbol+' hit TP \ud83c\udf89'+(a.returnPct?' <span style="color:var(--green);font-weight:700;">+'+a.returnPct+'%</span>':'');
-      if(a.kind==='sl')return '<b>@'+a.username+'</b> $'+a.symbol+' hit SL'+(a.returnPct?' <span style="color:var(--red);font-weight:700;">'+a.returnPct+'%</span>':'');
+      if(a.kind==='tp')return '<b>@'+a.username+'</b> $'+a.symbol+' hit TP \ud83c\udf89'+(a.returnPct?' <span class="sr-soft-pulse" style="color:var(--green);font-weight:700;">+'+a.returnPct+'%</span>':'');
+      if(a.kind==='sl')return '<b>@'+a.username+'</b> $'+a.symbol+' hit SL'+(a.returnPct?' <span class="sr-soft-pulse" style="color:var(--red);font-weight:700;">'+a.returnPct+'%</span>':'');
       if(a.kind==='reply')return '<b>@'+a.username+'</b> replied on $'+a.symbol;
       return '<b>@'+a.username+'</b> commented on $'+a.symbol;
     }
