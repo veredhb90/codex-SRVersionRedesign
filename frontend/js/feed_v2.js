@@ -1197,6 +1197,7 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #F0F5FC;">' +
       '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">NEWS ANALYSIS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
       '<p style="font-size:12.5px;color:#1A2540;line-height:1.5;margin:0;">' + (d.newsSummary || '') + '</p>' +
+      (d.newsReasoning ? '<p style="font-size:11.5px;color:#4A5A78;line-height:1.5;margin:8px 0 0;"><strong style="color:#7E9BC4;">Why this score:</strong> ' + d.newsReasoning + '</p>' : '') +
       (d.analystSummary ? '<p style="font-size:11.5px;color:#64748b;margin-top:6px;">' + d.analystSummary + '</p>' : '') +
       catalystsHtml + risksHtml +
       '</div>' +
@@ -1330,6 +1331,7 @@ window.runProEngineModal = async function() {
       '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #E3EEFF;">' +
       '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">NEWS ANALYSIS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
       '<p style="font-size:13px;color:#1A2540;line-height:1.55;margin:0;">' + (d.newsSummary || '') + '</p>' +
+      (d.newsReasoning ? '<p style="font-size:12px;color:#4A5A78;line-height:1.55;margin:8px 0 0;"><strong style="color:#7E9BC4;">Why this score:</strong> ' + d.newsReasoning + '</p>' : '') +
       (d.analystSummary ? '<p style="font-size:12px;color:#64748b;margin-top:8px;">' + d.analystSummary + '</p>' : '') +
       catalystsHtml + risksHtml +
       '</div>' +

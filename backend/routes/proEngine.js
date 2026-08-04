@@ -86,6 +86,7 @@ router.get('/:symbol', protect, requirePro, async (req, res) => {
       newsScore: newsAnalysis.score,
       newsLabel: newsAnalysis.label,
       newsSummary: newsAnalysis.summary,
+      newsReasoning: newsAnalysis.reasoning || '',
       catalysts: newsAnalysis.catalysts,
       risks: newsAnalysis.risks,
       analystSummary: newsAnalysis.analystSummary,

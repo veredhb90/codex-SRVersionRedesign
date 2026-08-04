@@ -92,7 +92,7 @@ const runProEngineFor = async (sym) => {
     direction, score: combinedScore, confidence,
     takeProfit, stopLoss, riskReward,
     technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
-    newsScore: newsA.score, newsLabel: newsA.label, newsSummary: newsA.summary,
+    newsScore: newsA.score, newsLabel: newsA.label, newsSummary: newsA.summary, newsReasoning: newsA.reasoning || '',
     catalysts: newsA.catalysts || [], risks: newsA.risks || [],
     analystSummary: newsA.analystSummary || '',
     holdingPeriod: newsA.holdingPeriod || '',
@@ -114,7 +114,7 @@ ${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss}
 TECHNICAL BREAKDOWN (${e.technicalScore} pts):
 ${breakdownText}
 AI NEWS ANALYSIS (${e.newsScore > 0 ? '+' : ''}${e.newsScore} pts) \u2014 ${e.newsLabel}:
-${e.newsSummary}
+${e.newsSummary}${e.newsReasoning ? '\nWHY THIS SCORE: ' + e.newsReasoning : ''}
 CATALYSTS:
 ${catalystsText}
 RISKS:
