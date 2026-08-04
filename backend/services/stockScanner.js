@@ -305,8 +305,11 @@ const enrichWithNews = async (stocks, onProgress, startAt = 0) => {
     });
     const done = Math.min(i + 2, stocks.length);
     if (onProgress) await onProgress(done, i, batch);
-    // Two Finnhub calls per symbol. Keep the shared production quota below 30 req/min.
-    if (i + 2 < stocks.length) await delay(8000);
+    // Two Finnhub calls per symbol. There's a 6h window between scans and no need
+    // for speed, so pace this gently (~15 req/min, half the old rate) to leave
+    // maximum headroom on the quota shared with production. A full pass now takes
+    // ~70-80min instead of ~35-40min, still comfortably inside the 6h window.
+    if (i + 2 < stocks.length) await delay(16000);
   }
   return stocks.map(applyTradePlan);
 };
