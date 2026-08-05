@@ -422,7 +422,7 @@
     var sid = session._id;
     isTyping = true;
     sendBtn.disabled = true;
-    var typingEl = addTyping();
+    var typingEl = addTyping(last.content);
     var polls = 0;
     pollTimer = setInterval(async function() {
       polls++;
@@ -732,7 +732,7 @@
     input.style.height = 'auto';
     isTyping = true;
     sendBtn.disabled = true;
-    var typingEl = addTyping();
+    var typingEl = addTyping(text);
 
     var stockContextStr = '';
     var currentSymbol = stockSymbol(currentStock);
@@ -865,7 +865,10 @@
   // Always opens with a plain "thinking" line, then shuffles through a big
   // playful pool so it feels fresh across messages instead of a fixed script.
   var CHAT_STATUS_OPENER = chatCopy('SwingRush AI is thinking…', 'سوينج راش الذكاء الاصطناعي يفكر…');
-  var CHAT_STATUS_POOL = [
+  // Only shown when the question actually looks stock/analysis-related — see
+  // looksLikeStockQuestion() below. Showing "scanning news / calculating
+  // score" for a casual "how are you?" would be a flat-out false claim.
+  var CHAT_STATUS_POOL_FINANCE = [
     chatCopy('Scanning fresh news 📰', 'يبحث عن آخر الأخبار 📰'),
     chatCopy('Analyzing the news…', 'يحلل الأخبار…'),
     chatCopy('Reading the charts 📊', 'يقرأ الرسوم البيانية 📊'),
@@ -873,16 +876,36 @@
     chatCopy('Combining with technical analysis…', 'يدمج مع التحليل الفني…'),
     chatCopy('Weighing risk vs. reward ⚖️', 'يوازن بين المخاطرة والعائد ⚖️'),
     chatCopy('Checking the momentum 🚀', 'يتحقق من الزخم 🚀'),
-    chatCopy('Connecting the dots…', 'يربط النقاط…'),
     chatCopy('Cross-checking the signals 🔍', 'يتحقق من الإشارات 🔍'),
     chatCopy('Consulting the market data…', 'يستشير بيانات السوق…'),
-    chatCopy('Sharpening the analysis ✨', 'يصقل التحليل ✨'),
-    chatCopy('Putting it all together…', 'يجمع كل شيء معاً…'),
+  ];
+  // Safe for ANY question — no claim about what's actually happening.
+  var CHAT_STATUS_POOL_GENERIC = [
+    chatCopy('Connecting the dots…', 'يربط النقاط…'),
+    chatCopy('Putting together a good answer…', 'يجهز إجابة جيدة…'),
+    chatCopy('Sharpening the answer ✨', 'يصقل الإجابة ✨'),
+    chatCopy('Choosing the right words…', 'يختار الكلمات المناسبة…'),
+    chatCopy('One moment…', 'لحظة واحدة…'),
     chatCopy('Almost there…', 'اقتربنا…'),
   ];
 
-  function shuffledPhrases() {
-    var pool = CHAT_STATUS_POOL.slice();
+  // Heuristic, client-side only (purely cosmetic — decides which status
+  // phrases are honest to show). A ticker-like token (2-5 uppercase letters)
+  // or finance/analysis keywords/an already-loaded stock context all count;
+  // a plain "how are you?" matches none of these and gets generic phrases only.
+  var TICKER_PATTERN = /\$?\b[A-Z]{2,5}\b/;
+  var FINANCE_WORDS = /\b(stock|stocks|ticker|analy[sz]e|analysis|score|signal|buy|sell|chart|technical|price target|entry|take[\s-]?profit|stop[\s-]?loss|\bTP\b|\bSL\b|pro engine|scanner|earnings|swing trade|portfolio|position)\b/i;
+  function looksLikeStockQuestion(text) {
+    if (currentStock) return true; // a stock is already loaded into this chat's context
+    if (!text) return false;
+    return FINANCE_WORDS.test(text) || TICKER_PATTERN.test(text);
+  }
+
+  function shuffledPhrases(messageText) {
+    var basePool = looksLikeStockQuestion(messageText)
+      ? CHAT_STATUS_POOL_GENERIC.concat(CHAT_STATUS_POOL_FINANCE)
+      : CHAT_STATUS_POOL_GENERIC;
+    var pool = basePool.slice();
     for (var i = pool.length - 1; i > 0; i--) {
       var j = Math.floor(Math.random() * (i + 1));
       var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
@@ -890,7 +913,7 @@
     return [CHAT_STATUS_OPENER].concat(pool);
   }
 
-  function addTyping() {
+  function addTyping(messageText) {
     var div = document.createElement('div');
     div.className = 'sr-msg ai';
     div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + birdSvg + '</div>' +
@@ -900,7 +923,7 @@
     messages.scrollTop = messages.scrollHeight;
 
     var statusEl = div.querySelector('.sr-typing-status');
-    var phrases = shuffledPhrases();
+    var phrases = shuffledPhrases(messageText);
     var idx = 0;
     statusEl.textContent = phrases[0];
     div._statusInterval = setInterval(function() {
