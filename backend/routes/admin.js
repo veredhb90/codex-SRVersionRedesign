@@ -2,6 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const mongoose = require('mongoose');
 const { protect } = require('../middleware/authMiddleware');
+const { SCAN_SIZE } = require('../services/stockScanner');
 
 // ── Admin-only guard ───────────────────────────────────────────────
 // Reads the raw users collection so isAdmin works even if not in the Mongoose schema
@@ -54,6 +55,7 @@ router.get('/stats', protect, adminOnly, async (req, res) => {
         phase: scan.phase || 'idle',
         duration: scan.duration || 0,
         running: Boolean(scan.running),
+        universeSize: SCAN_SIZE,
       } : null,
     });
   } catch (err) { res.status(500).json({ message: err.message }); }

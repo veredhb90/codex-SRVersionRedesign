@@ -144,7 +144,7 @@
   <!-- Header -->
   <div class="scanner-header">
     <div class="scanner-title" data-i18n="scanner.title">SWINGRUSH SCANNER</div>
-    <div class="scanner-sub" data-i18n="scanner.sub">AI-powered scan of 682 US stocks — best opportunities ranked by composite score · Results cached in database</div>
+    <div class="scanner-sub" data-i18n="scanner.sub">AI-powered scan across a 2000-stock US universe — best opportunities ranked by composite score · Results cached in database</div>
     <div class="scanner-meta" id="scanner-meta" style="display:none;">
       <div class="scanner-meta-item"><span data-i18n="scanner.scanned">Scanned:</span> <strong id="meta-count">—</strong></div>
       <div class="scanner-meta-item"><span data-i18n="scanner.duration">Duration:</span> <strong id="meta-duration">—</strong>s</div>
@@ -170,7 +170,7 @@
       <div class="big-icon">⚡</div>
       <div style="font-size:16px;font-weight:700;margin-bottom:8px;" data-i18n="scanner.ready_title">Automatic Scan</div>
       <div style="font-size:14px;" data-i18n="scanner.ready_copy">The scanner loads the latest completed market ranking automatically.</div>
-      <div style="font-size:12px;margin-top:8px;color:var(--muted);" data-i18n="scanner.ready_meta">Scans all 682 tickers with technical and news scoring · Takes ~45–60 minutes · Weekdays every 4 hours</div>
+      <div style="font-size:12px;margin-top:8px;color:var(--muted);" data-i18n="scanner.ready_meta">Scans 500 tickers each run (300 core + 200 rotating) from a 2000-stock universe, with technical and news scoring · Takes ~70–85 minutes · Weekdays every 6 hours</div>
     </div>
   </div>
 
@@ -386,7 +386,7 @@
     scheduleNextPoll(); // wait five seconds between completed requests
   }
 
-  const UNIVERSE_SIZE = 682;
+  const UNIVERSE_SIZE = 500; // fallback only — real value comes from data.universeSize (SCAN_SIZE)
   let nextScanAt = null;
 
   function formatRemaining(milliseconds) {
@@ -707,7 +707,7 @@
   // The scanner is schedule-driven. This page only loads the latest saved result.
   runScan();
 </script>
-<script src="/js/chat.js?v=1785686877"></script>
+<script src="/js/chat.js?v=1785909447"></script>
 <script src="/js/paywall.js"></script>
 </body>
 </html>

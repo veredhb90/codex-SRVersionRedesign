@@ -18,6 +18,14 @@
     return isArabicChat() ? arabic : english;
   }
 
+  // Per-message RTL detection — independent of the site's UI language setting,
+  // so a Hebrew or Arabic reply renders right-to-left even if the site itself
+  // is in English (e.g. the AI replying in the user's own language mid-chat).
+  var RTL_CHARS = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+  function isRTLText(str) {
+    return !!str && RTL_CHARS.test(str);
+  }
+
   function stockSymbol(stockData) {
     return String((stockData && (stockData.symbol || stockData.ticker)) || '').trim().toUpperCase();
   }
@@ -194,10 +202,13 @@
     '.sr-bubble.sr-md a { color:#1565C0; }' +
     '.sr-msg-time { font-size:10px; color:#94a3b8; padding:0 4px; }' +
     '#sr-selection-popup { position:fixed; z-index:10000; background:#1565C0; color:#fff; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(13,71,161,0.4); display:none; align-items:center; gap:6px; border:none; }' +
-    '.sr-typing { display:flex; gap:5px; padding:14px 16px; background:#fff; border-radius:4px 18px 18px 18px; width:fit-content; box-shadow:0 2px 10px rgba(0,0,0,0.08); }' +
+    '.sr-typing-wrap { display:flex; flex-direction:column; gap:5px; }' +
+    '.sr-typing { display:flex; gap:5px; padding:14px 16px; background:#fff; border-radius:4px 18px 18px 18px; width:fit-content; box-shadow:0 2px 12px rgba(180,140,40,0.06); border:1px solid #F0E6D2; }' +
     '.sr-dot { width:8px; height:8px; border-radius:50%; background:#1565C0; animation:srBounce 1.4s ease infinite; opacity:.7; }' +
     '.sr-dot:nth-child(2){animation-delay:.2s} .sr-dot:nth-child(3){animation-delay:.4s}' +
     '@keyframes srBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-9px);opacity:1} }' +
+    '.sr-typing-status { font-size:11px; color:#94a3b8; font-weight:500; padding-left:4px; animation:srStatusFade .5s ease; }' +
+    '@keyframes srStatusFade { from{opacity:0;transform:translateY(-3px);} to{opacity:1;transform:translateY(0);} }' +
     '#sr-chat-suggestions { padding:10px 14px; display:flex; gap:6px; flex-wrap:wrap; background:rgba(255,255,255,0.65); border-top:1px solid rgba(227,238,255,0.8); flex-shrink:0; max-height:90px; overflow-y:auto; }' +
     '.sr-sug { padding:6px 13px; border-radius:20px; font-size:11.5px; font-weight:600; border:1px solid #F0E0B0; background:#FFFBF0; color:#92650C; cursor:pointer; transition:all .2s; white-space:nowrap; }' +
     '.sr-sug:hover { background:#1565C0; color:#fff; }' +
@@ -421,13 +432,13 @@
       var lastNow = mm.length ? mm[mm.length - 1] : null;
       if (lastNow && lastNow.role === 'ai') {
         clearInterval(pollTimer); pollTimer = null;
-        typingEl.remove();
+        removeTyping(typingEl);
         addMessage('ai', lastNow.content, lastNow.time);
         isTyping = false; sendBtn.disabled = false;
         clearPending();
       } else if (polls >= RESUME_MAX_POLLS) {
         clearInterval(pollTimer); pollTimer = null;
-        typingEl.remove();
+        removeTyping(typingEl);
         addMessage('ai', chatCopy(
           'That answer took too long or your question did not go through. Please ask again.',
           'استغرقت الإجابة وقتا طويلا أو لم تصل رسالتك. يرجى المحاولة مرة أخرى.')
@@ -767,7 +778,7 @@
     })
     .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
     .then(function(result) {
-      typingEl.remove();
+      removeTyping(typingEl);
       if (!result.ok) {
         if (result.data.requireSubscription) {
           addMessage('ai', 'AI Chat is a SwingRush Pro feature.\n\nUpgrade to Pro for unlimited access to the AI analyst \u2014 real Claude AI reasoning combined with technical analysis on every stock.');
@@ -795,7 +806,7 @@
       }
     })
     .catch(function(err) {
-      typingEl.remove();
+      removeTyping(typingEl);
       addMessage('ai', 'Connection error. Please try again in a moment.');
     })
     .finally(function() {
@@ -815,11 +826,12 @@
     var div = document.createElement('div');
     div.className = 'sr-msg ' + role;
     var escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var rtlAttr = isRTLText(text) ? ' dir="rtl" style="text-align:right;"' : '';
     if (role === 'ai') {
-      div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + birdSvg + '</div><div class="sr-bubble">' + escaped + '</div></div><span class="sr-msg-time">' + now + '</span>';
+      div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + birdSvg + '</div><div class="sr-bubble"' + rtlAttr + '>' + escaped + '</div></div><span class="sr-msg-time">' + now + '</span>';
       renderMarkdownInto(div.querySelector('.sr-bubble'), text);
     } else {
-      div.innerHTML = '<div class="sr-msg-row"><div class="sr-bubble">' + escaped + '</div></div><span class="sr-msg-time">' + now + '</span>';
+      div.innerHTML = '<div class="sr-msg-row"><div class="sr-bubble"' + rtlAttr + '>' + escaped + '</div></div><span class="sr-msg-time">' + now + '</span>';
     }
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
@@ -847,13 +859,66 @@
     });
   }
 
+  // Rotating status line under the typing dots — purely cosmetic (client-side
+  // timer, not tied to real backend progress) so a slow answer (e.g. the Pro
+  // Engine's live news web_search, ~30-60s) reads as "working" not "stuck".
+  // Always opens with a plain "thinking" line, then shuffles through a big
+  // playful pool so it feels fresh across messages instead of a fixed script.
+  var CHAT_STATUS_OPENER = chatCopy('SwingRush AI is thinking…', 'سوينج راش الذكاء الاصطناعي يفكر…');
+  var CHAT_STATUS_POOL = [
+    chatCopy('Scanning fresh news 📰', 'يبحث عن آخر الأخبار 📰'),
+    chatCopy('Analyzing the news…', 'يحلل الأخبار…'),
+    chatCopy('Reading the charts 📊', 'يقرأ الرسوم البيانية 📊'),
+    chatCopy('Calculating the score…', 'يحسب النتيجة…'),
+    chatCopy('Combining with technical analysis…', 'يدمج مع التحليل الفني…'),
+    chatCopy('Weighing risk vs. reward ⚖️', 'يوازن بين المخاطرة والعائد ⚖️'),
+    chatCopy('Checking the momentum 🚀', 'يتحقق من الزخم 🚀'),
+    chatCopy('Connecting the dots…', 'يربط النقاط…'),
+    chatCopy('Cross-checking the signals 🔍', 'يتحقق من الإشارات 🔍'),
+    chatCopy('Consulting the market data…', 'يستشير بيانات السوق…'),
+    chatCopy('Sharpening the analysis ✨', 'يصقل التحليل ✨'),
+    chatCopy('Putting it all together…', 'يجمع كل شيء معاً…'),
+    chatCopy('Almost there…', 'اقتربنا…'),
+  ];
+
+  function shuffledPhrases() {
+    var pool = CHAT_STATUS_POOL.slice();
+    for (var i = pool.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+    }
+    return [CHAT_STATUS_OPENER].concat(pool);
+  }
+
   function addTyping() {
     var div = document.createElement('div');
     div.className = 'sr-msg ai';
-    div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + birdSvg + '</div><div class="sr-typing"><div class="sr-dot"></div><div class="sr-dot"></div><div class="sr-dot"></div></div></div>';
+    div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + birdSvg + '</div>' +
+      '<div class="sr-typing-wrap"><div class="sr-typing"><div class="sr-dot"></div><div class="sr-dot"></div><div class="sr-dot"></div></div>' +
+      '<div class="sr-typing-status"></div></div></div>';
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;
+
+    var statusEl = div.querySelector('.sr-typing-status');
+    var phrases = shuffledPhrases();
+    var idx = 0;
+    statusEl.textContent = phrases[0];
+    div._statusInterval = setInterval(function() {
+      idx = (idx + 1) % phrases.length;
+      statusEl.textContent = phrases[idx];
+      statusEl.style.animation = 'none';
+      void statusEl.offsetWidth; // restart the fade-in animation
+      statusEl.style.animation = '';
+      messages.scrollTop = messages.scrollHeight;
+    }, 3500);
+
     return div;
+  }
+
+  function removeTyping(div) {
+    if (!div) return;
+    if (div._statusInterval) clearInterval(div._statusInterval);
+    div.remove();
   }
 
   // ── Stock Chart Rendering ───────────────────────────────────────

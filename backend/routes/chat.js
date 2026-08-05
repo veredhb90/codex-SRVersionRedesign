@@ -200,7 +200,7 @@ const CLAUDE_TOOLS = [
 ];
 
 // ── Execute a tool call server-side and return its result text ──────
-// ── Fetch the full market scanner data (682 stocks), formatted for Claude ──
+// ── Fetch the market scanner data (500/run from a 2000-stock universe), formatted for Claude ──
 // Returns null if no scan data is available yet.
 const fetchScannerData = async () => {
   try {

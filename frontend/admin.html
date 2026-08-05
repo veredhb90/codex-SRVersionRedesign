@@ -259,7 +259,7 @@
     if (scanner.running) {
       var isNews = scanner.phase === 'news';
       var completed = isNews ? scanner.newsEnrichedCount : scanner.scannedCount;
-      var total = isNews ? (scanner.technicalResults || scanner.scannedCount) : 682;
+      var total = isNews ? (scanner.technicalResults || scanner.scannedCount) : (scanner.universeSize || 500);
       badge.textContent = 'Running';
       title.textContent = isNews ? 'Enriching full-universe news scores' : 'Scanning technical signals';
       copy.textContent = completed + ' / ' + total + ' complete · the final ranking publishes when both phases finish.';
