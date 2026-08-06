@@ -5,21 +5,23 @@ const TICKER_SYMBOLS = [
   'AAPL','MSFT','NVDA','TSLA','AMZN','GOOGL','META','NFLX','AMD','JPM','GS','INTC','BABA','COIN',
   // ETFs
   'SPY','QQQ','DIA','IWM',
-  // Commodities via Finnhub (use these exact symbols)
-  'OANDA:XAU_USD',  // Gold
-  'OANDA:XAG_USD',  // Silver
-  'OANDA:BCO_USD',  // Brent Oil
-  'OANDA:NATGAS_USD', // Natural Gas
-  'OANDA:XPT_USD',  // Platinum
+  // Commodities — routed through the backend's Yahoo Finance path (Finnhub
+  // doesn't support these OANDA forex/commodity symbols on our plan, which
+  // silently dropped all 5 from the ticker forever)
+  'GOLD',
+  'SILVER',
+  'OIL',
+  'NATGAS',
+  'PLATINUM',
 ];
 
 // Display names for commodity symbols
 const DISPLAY_NAMES = {
-  'OANDA:XAU_USD':    'GOLD',
-  'OANDA:XAG_USD':    'SILVER',
-  'OANDA:BCO_USD':    'OIL',
-  'OANDA:NATGAS_USD': 'NAT.GAS',
-  'OANDA:XPT_USD':    'PLATINUM',
+  'GOLD':     'GOLD',
+  'SILVER':   'SILVER',
+  'OIL':      'OIL',
+  'NATGAS':   'NAT.GAS',
+  'PLATINUM': 'PLATINUM',
 };
 
 async function loadTicker() {

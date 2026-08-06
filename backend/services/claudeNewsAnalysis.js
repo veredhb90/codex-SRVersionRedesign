@@ -70,7 +70,7 @@ const fetchAnalystRatings = (symbol) => new Promise((resolve) => {
 // ── Call Claude (mirrors the exact pattern used in chat.js) ─────────
 const callClaude = (systemPrompt, userMessage, tools) => new Promise((resolve, reject) => {
   const bodyObj = {
-    model: 'claude-sonnet-5',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 1200,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],

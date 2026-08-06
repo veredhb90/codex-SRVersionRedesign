@@ -287,6 +287,14 @@
   var input      = document.getElementById('sr-chat-input');
   var sendBtn    = document.getElementById('sr-chat-send');
   var messages   = document.getElementById('sr-chat-messages');
+  // Smart auto-scroll: only snap to the bottom if the user was already near
+  // it. Otherwise a user scrolled up to read history gets yanked back down
+  // on every new message / typing-status tick (was happening every 3.5s
+  // while the AI "thinks" — reported as "I can't scroll up while it loads").
+  function isNearBottom(threshold) {
+    if (!messages) return true;
+    return (messages.scrollHeight - messages.scrollTop - messages.clientHeight) < (threshold || 120);
+  }
   var selPopup   = document.getElementById('sr-selection-popup');
   var newChatBtn = document.getElementById('sr-newchat-btn');
   var historyBtn = document.getElementById('sr-history-btn');
@@ -823,6 +831,7 @@
     var now = realTime
       ? new Date(realTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       : new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    var wasNearBottom = isNearBottom();
     var div = document.createElement('div');
     div.className = 'sr-msg ' + role;
     var escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -834,7 +843,7 @@
       div.innerHTML = '<div class="sr-msg-row"><div class="sr-bubble"' + rtlAttr + '>' + escaped + '</div></div><span class="sr-msg-time">' + now + '</span>';
     }
     messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+    if (wasNearBottom || role === 'user') messages.scrollTop = messages.scrollHeight;
     return div;
   }
 
@@ -851,10 +860,11 @@
     if (!bubbleEl || !rawText) return;
     loadMarkedLib(function() {
       try {
+        var wasNearBottom = isNearBottom();
         var safe = rawText.replace(/</g, '&lt;');
         bubbleEl.innerHTML = marked.parse(safe);
         bubbleEl.classList.add('sr-md');
-        messages.scrollTop = messages.scrollHeight;
+        if (wasNearBottom) messages.scrollTop = messages.scrollHeight;
       } catch(e) {}
     });
   }
@@ -914,25 +924,29 @@
   }
 
   function addTyping(messageText) {
+    var wasNearBottom = isNearBottom();
     var div = document.createElement('div');
     div.className = 'sr-msg ai';
     div.innerHTML = '<div class="sr-msg-row"><div class="sr-av-sm">' + birdSvg + '</div>' +
       '<div class="sr-typing-wrap"><div class="sr-typing"><div class="sr-dot"></div><div class="sr-dot"></div><div class="sr-dot"></div></div>' +
       '<div class="sr-typing-status"></div></div></div>';
     messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+    if (wasNearBottom) messages.scrollTop = messages.scrollHeight;
 
     var statusEl = div.querySelector('.sr-typing-status');
     var phrases = shuffledPhrases(messageText);
     var idx = 0;
     statusEl.textContent = phrases[0];
     div._statusInterval = setInterval(function() {
+      // Re-check on every tick — the user may scroll up mid-wait, and this
+      // must never force them back down (was happening every 3.5s before).
+      var nearBottomNow = isNearBottom();
       idx = (idx + 1) % phrases.length;
       statusEl.textContent = phrases[idx];
       statusEl.style.animation = 'none';
       void statusEl.offsetWidth; // restart the fade-in animation
       statusEl.style.animation = '';
-      messages.scrollTop = messages.scrollHeight;
+      if (nearBottomNow) messages.scrollTop = messages.scrollHeight;
     }, 3500);
 
     return div;
@@ -989,6 +1003,7 @@
         wrap.appendChild(chartDiv);
 
         container.appendChild(wrap);
+        var wasNearBottom = isNearBottom();
         messages.appendChild(container);
 
         var chart = LightweightCharts.createChart(chartDiv, {
@@ -1021,7 +1036,7 @@
           wrap.appendChild(newsWrap);
         }
 
-        messages.scrollTop = messages.scrollHeight;
+        if (wasNearBottom) messages.scrollTop = messages.scrollHeight;
       } catch(e) { console.log('Chart render error:', e.message); }
     });
   }
