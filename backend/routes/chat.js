@@ -132,7 +132,7 @@ ${(e.priceHistory || []).slice(-30).map(c => {
 // ── Raw single API call to Claude, returns the full parsed response ──
 const callClaudeRaw = (messages, systemPrompt, tools) => new Promise((resolve, reject) => {
   const body = JSON.stringify({
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-5',
     max_tokens: 2000,
     system: systemPrompt,
     messages,
