@@ -197,6 +197,18 @@ const CLAUDE_TOOLS = [
     description: 'Get the trade calls that THIS specific user (the one you are chatting with right now) has personally posted \u2014 their own open and closed positions, with entry price, TP/SL, and outcome (WIN/LOSS/OPEN). Use this when it would genuinely help to know the user\'s own trading history or current positions \u2014 for example if they ask how they are doing, ask for advice that should consider what they already hold, or reference \'my calls\'/\'my trades\'. This is different from get_market_scan or general community sentiment \u2014 it is specifically about this one user\'s own activity.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
+  {
+    name: 'get_market_movers',
+    description: 'A live screener returning the biggest stock gainers or losers of the current/most recent trading session by % change, ranked, across the WHOLE US market \u2014 not limited to SwingRush\u2019s scanned universe (get_market_scan only covers stocks that cleared an actionable technical BUY/SELL score, so a stock that moved big on no clean technical setup won\u2019t appear there). Structured live data, not a web search.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        direction: { type: 'string', enum: ['losers', 'gainers'], description: '\'losers\' for biggest % decliners, \'gainers\' for biggest % advancers' },
+        count: { type: 'number', description: 'How many to return, default 10, max 25' },
+      },
+      required: ['direction'],
+    },
+  },
 ];
 
 // ── Execute a tool call server-side and return its result text ──────
@@ -229,6 +241,27 @@ OVER \$100:  ${buys.filter(r => r.price >= 100).map(r => `${r.symbol}:+${r.score
     return null;
   }
 };
+
+// ── Real market-wide top gainers/losers via Yahoo's free screener (no API key, no Finnhub quota) ──
+const fetchMarketMovers = (direction, count) => new Promise((resolve) => {
+  const scrId = direction === 'gainers' ? 'day_gainers' : 'day_losers';
+  const n = Math.max(1, Math.min(count || 10, 25));
+  const url = `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&lang=en-US&region=US&scrIds=${scrId}&count=${n}`;
+  https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
+    let data = '';
+    res.on('data', d => data += d);
+    res.on('end', () => {
+      try {
+        const parsed = JSON.parse(data);
+        const quotes = parsed.finance.result[0].quotes || [];
+        resolve(quotes.map(q => ({
+          symbol: q.symbol, name: q.longName || q.shortName || q.symbol,
+          price: q.regularMarketPrice, changePct: q.regularMarketChangePercent,
+        })));
+      } catch (e) { resolve(null); }
+    });
+  }).on('error', () => resolve(null));
+});
 
 const executeTool = async (toolName, toolInput, chartRequests, userId) => {
   if (toolName === 'get_stock_analysis') {
@@ -283,6 +316,15 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
     } catch (e) {
       return `Failed to fetch user's calls: ${e.message}`;
     }
+  }
+  if (toolName === 'get_market_movers') {
+    const direction = toolInput.direction === 'gainers' ? 'gainers' : 'losers';
+    const movers = await fetchMarketMovers(direction, toolInput.count);
+    if (!movers) return `Failed to fetch market ${direction} right now — try again shortly.`;
+    if (!movers.length) return `No ${direction} data available right now.`;
+    const label = direction === 'gainers' ? 'GAINERS' : 'LOSERS';
+    return `TOP ${label} — LIVE, current trading session (real market-wide data, not limited to SwingRush's scanned universe):\n` +
+      movers.map((m, i) => `${i+1}. ${m.symbol} (${m.name}): ${m.changePct >= 0 ? '+' : ''}${m.changePct.toFixed(2)}% | $${m.price}`).join('\n');
   }
   return `Unknown tool: ${toolName}`;
 };
@@ -536,7 +578,8 @@ ${stockContext ? `\nStock the user is currently viewing:\n${stockContext}\n` : '
 ${communityContext}
 ${profileContext}
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
-Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true })} (server time) — treat this exact timestamp as "now".`;
+Yesterday was: ${new Date(Date.now() - 86400000).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
+Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true })} (server time) — treat these exact dates as ground truth, do not recompute them yourself.`;
 
     // ── Build messages — use FULL session history ────────────────
     let claudeMessages;
