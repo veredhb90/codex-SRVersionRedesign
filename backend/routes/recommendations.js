@@ -417,11 +417,24 @@ router.post('/:id/close', protect, async (req, res) => {
 router.post('/engine-save', protect, async (req, res) => {
   try {
     const { symbol,entryPrice,takeProfit,stopLoss,direction,note } = req.body;
+    const sym = symbol.toUpperCase();
+    const entry = Number(entryPrice);
+    // The engine result may have been generated a while before the user clicks
+    // "save" -- if the live price has since moved away from the entry price,
+    // backdate to when the price was actually there (same logic as the manual
+    // "Share a Trade" form, see POST / above).
+    let openedAt = new Date();
+    try {
+      const quote = await yf.getQuote(sym);
+      if (quote?.price && Math.abs(quote.price - entry) > 0.005) {
+        openedAt = await yf.findLastPriceTouch(sym, entry) || openedAt;
+      }
+    } catch (_) {}
     const rec = await Recommendation.create({
-      user:req.user._id, symbol:symbol.toUpperCase(), companyName:symbol.toUpperCase(),
-      entryPrice:Number(entryPrice), takeProfit:Number(takeProfit),
+      user:req.user._id, symbol:sym, companyName:sym,
+      entryPrice:entry, takeProfit:Number(takeProfit),
       stopLoss:stopLoss?Number(stopLoss):null, direction, note,
-      currentPrice:Number(entryPrice), openedAt:new Date(), source:'engine', profileOnly:true,
+      currentPrice:entry, openedAt, source:'engine', profileOnly:true,
     });
     await rec.populate('user','fullName username email');
     res.status(201).json(rec);

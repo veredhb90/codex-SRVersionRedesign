@@ -71,15 +71,29 @@ router.post('/engine/share', protect, async (req, res) => {
     if (direction==='SELL' && takeProfit >= entryPrice)
       return res.status(400).json({ message:'Take profit must be below entry for SELL' });
 
+    const sym = symbol.toUpperCase();
+    const entry = Number(entryPrice);
+    // Same backdating as the manual "Share a Trade" form and engine-save: if the
+    // Pro Engine result's price has since drifted from live, use the date the
+    // price was actually there instead of "now".
+    let openedAt = new Date();
+    try {
+      const quote = await yf.getQuote(sym);
+      if (quote?.price && Math.abs(quote.price - entry) > 0.005) {
+        openedAt = await yf.findLastPriceTouch(sym, entry) || openedAt;
+      }
+    } catch (_) {}
+
     const rec = await Recommendation.create({
       user: req.user._id,
-      symbol: symbol.toUpperCase(),
-      companyName: symbol.toUpperCase(),
-      entryPrice:  Number(entryPrice),
+      symbol: sym,
+      companyName: sym,
+      entryPrice:  entry,
       takeProfit:  Number(takeProfit),
       stopLoss:    stopLoss ? Number(stopLoss) : null,
       direction, note,
-      currentPrice: Number(entryPrice),
+      currentPrice: entry,
+      openedAt,
       source:      'engine',
       profileOnly: true,  // ← PROFILE ONLY — does NOT appear in main feed
     });
