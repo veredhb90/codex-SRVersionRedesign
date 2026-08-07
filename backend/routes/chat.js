@@ -228,9 +228,9 @@ const fetchScannerData = async () => {
     return `SWINGRUSH MARKET SCANNER (${doc.scannedCount} stocks scanned, last updated: ${new Date(doc.scannedAt).toLocaleString()})
 Each stock's total score combines a TECHNICAL score + a NEWS score (the news is keyword/analyst-based sentiment, not the deep Claude AI news analysis the Pro Engine runs). This is a broad multi-stock scan \u2014 NOT the same as a Pro Engine analysis for one symbol. If a symbol here also has a Pro Engine result, the Pro Engine number is authoritative, not this one.
 ALL BUY SIGNALS (${buys.length} stocks):
-${buys.map((r, i) => `${i+1}. ${r.symbol}: +${r.score} ${split(r)} | \$${r.price} | TP:\$${r.takeProfit} | SL:\$${r.stopLoss} | ${r.confidence}`).join('\n')}
+${buys.map((r, i) => `${i+1}. ${r.symbol}${r.name ? ' ('+r.name+')' : ''}: +${r.score} ${split(r)} | \$${r.price} | TP:\$${r.takeProfit} | SL:\$${r.stopLoss} | ${r.confidence}`).join('\n')}
 ALL SELL SIGNALS (${sells.length} stocks):
-${sells.map((r, i) => `${i+1}. ${r.symbol}: ${r.score} ${split(r)} | \$${r.price} | TP:\$${r.takeProfit} | SL:\$${r.stopLoss} | ${r.confidence}`).join('\n')}
+${sells.map((r, i) => `${i+1}. ${r.symbol}${r.name ? ' ('+r.name+')' : ''}: ${r.score} ${split(r)} | \$${r.price} | TP:\$${r.takeProfit} | SL:\$${r.stopLoss} | ${r.confidence}`).join('\n')}
 BY PRICE (BUY signals):
 UNDER \$20:  ${buys.filter(r => r.price < 20).map(r => `${r.symbol}:+${r.score}(\$${r.price})`).join(', ') || 'None'}
 \$20-\$50:    ${buys.filter(r => r.price >= 20 && r.price < 50).map(r => `${r.symbol}:+${r.score}(\$${r.price})`).join(', ') || 'None'}
