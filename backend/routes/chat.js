@@ -310,7 +310,8 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
       const lines2 = recs.map(r => {
         const status = r.isOpen ? 'OPEN' : (r.outcome === 'WIN' ? 'WIN' : r.outcome === 'LOSS' ? 'LOSS' : 'CLOSED');
         const ret = !r.isOpen && r.returnPct ? ` (${r.returnPct > 0 ? '+' : ''}${r.returnPct}%)` : '';
-        return `${r.symbol} | ${r.direction} | Entry: $${r.entryPrice} | TP: $${r.takeProfit}${r.stopLoss ? ' | SL: $' + r.stopLoss : ''} | ${status}${ret} | Posted: ${r.createdAt.toISOString().split('T')[0]}`;
+        const opened = r.openedAt || r.createdAt;
+        return `${r.symbol} | ${r.direction} | Entry: $${r.entryPrice} | TP: $${r.takeProfit}${r.stopLoss ? ' | SL: $' + r.stopLoss : ''} | ${status}${ret} | Opened: ${opened.toISOString().split('T')[0]}`;
       });
       return `This user's own posted trade calls (most recent first):\n${lines2.join('\n')}`;
     } catch (e) {
