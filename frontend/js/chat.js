@@ -641,21 +641,32 @@
   });
 
   // ── Text selection popup ────────────────────────────────────────
-  document.addEventListener('mouseup', function() {
-    setTimeout(function() {
-      var sel  = window.getSelection();
-      var text = sel ? sel.toString().trim() : '';
-      if (text.length > 3 && text.length < 300 && messages.contains(sel.anchorNode)) {
-        var range = sel.getRangeAt(0);
-        var rect  = range.getBoundingClientRect();
-        selPopup.style.display = 'flex';
-        selPopup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
-        selPopup.style.top  = (rect.top - 42 + window.scrollY) + 'px';
-        selPopup.dataset.text = text;
-      } else {
-        selPopup.style.display = 'none';
-      }
-    }, 10);
+  // mouseup covers desktop click-drag selection. Touch devices don't fire
+  // mouseup the same way for text selection (the OS handles the selection
+  // gesture itself), so we also listen for touchend + selectionchange —
+  // the latter is what actually fires reliably once a mobile user lifts
+  // their finger after long-press-and-drag selecting text.
+  function updateSelectionPopup() {
+    var sel  = window.getSelection();
+    var text = sel && sel.rangeCount ? sel.toString().trim() : '';
+    if (text.length > 3 && text.length < 300 && messages.contains(sel.anchorNode)) {
+      var range = sel.getRangeAt(0);
+      var rect  = range.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return; // selection not settled yet
+      selPopup.style.display = 'flex';
+      selPopup.style.left = Math.min(Math.max(rect.left, 8), window.innerWidth - 220) + 'px';
+      selPopup.style.top  = Math.max(rect.top - 42 + window.scrollY, 8) + 'px';
+      selPopup.dataset.text = text;
+    } else {
+      selPopup.style.display = 'none';
+    }
+  }
+  document.addEventListener('mouseup', function() { setTimeout(updateSelectionPopup, 10); });
+  document.addEventListener('touchend', function() { setTimeout(updateSelectionPopup, 250); });
+  var selChangeTimer = null;
+  document.addEventListener('selectionchange', function() {
+    clearTimeout(selChangeTimer);
+    selChangeTimer = setTimeout(updateSelectionPopup, 250);
   });
 
   var quotedText = null; // stores the quoted selection for reply
@@ -691,9 +702,11 @@
     input.placeholder = 'Ask about any stock, indicator, or market...';
   };
 
-  document.addEventListener('mousedown', function(e) {
+  function dismissSelectionPopupIfOutside(e) {
     if (e.target !== selPopup) selPopup.style.display = 'none';
-  });
+  }
+  document.addEventListener('mousedown', dismissSelectionPopupIfOutside);
+  document.addEventListener('touchstart', dismissSelectionPopupIfOutside);
 
   // ── Register prompt — close chat and scroll to register ─────────
   function handleRegisterClick() {
