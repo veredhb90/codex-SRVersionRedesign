@@ -344,9 +344,14 @@
     if (window.innerWidth <= 680) btn.style.display = 'none';
     // Load last session automatically when opening (skip while a resume is
     // in progress — resumePendingChat manages loading/rendering itself).
+    // Return the load promise so callers that need to inject a message right
+    // after opening (e.g. the Pro Engine handoff) can wait for the session's
+    // messages to render first — renderSessionMessages() wipes and rebuilds
+    // the chat window, so anything appended before it finishes gets erased.
     if (Auth.token() && !currentSessionId && !resuming) {
-      loadLastSession();
+      return loadLastSession();
     }
+    return Promise.resolve();
   }
 
   function closeChat() {
@@ -1076,9 +1081,9 @@
       openChat();
       loadPendingStockIntoChat();
     });
-    document.getElementById('sr-choice-continue').addEventListener('click', function() {
+    document.getElementById('sr-choice-continue').addEventListener('click', async function() {
       overlay.remove();
-      openChat();
+      await openChat();
       loadPendingStockIntoChat();
     });
   }
