@@ -1060,9 +1060,9 @@ window.openProUpgradeModal = function() {
   m.innerHTML = '<div style="background:#fff;border-radius:18px;padding:32px 28px;max-width:420px;width:100%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.3);">' +
     '<div style="font-size:40px;margin-bottom:8px;">��</div>' +
     '<h3 style="font-size:20px;color:#0D2244;margin-bottom:10px;">AI Pro Analysis is a Pro feature</h3>' +
-    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">Unlock real Claude AI news analysis, catalysts, and risk detection combined with technical scoring.<br>To upgrade, contact us at:</p>' +
-    '<a href="mailto:swingrush.admin@gmail.com?subject=SwingRush%20Pro%20Upgrade" style="display:inline-block;background:#EEF4FF;color:#0D2244;font-weight:700;padding:10px 18px;border-radius:10px;text-decoration:none;margin-bottom:18px;font-size:14px;">📧 swingrush.admin@gmail.com</a><br>' +
-    '<button onclick="document.getElementById(\'sr-pro-upgrade-modal\').remove()" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:700;cursor:pointer;font-size:14px;">Got it</button>' +
+    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">Unlock real Claude AI news analysis, catalysts, and risk detection combined with technical scoring.</p>' +
+    '<a href="/payment.html" style="display:block;background:#0D2244;color:#fff;font-weight:700;padding:11px;border-radius:10px;text-decoration:none;margin-bottom:10px;font-size:14px;">Continue to Payment</a>' +
+    '<button onclick="document.getElementById(\'sr-pro-upgrade-modal\').remove()" style="width:100%;background:transparent;color:#475569;border:none;padding:8px;cursor:pointer;font-size:13px;">Cancel</button>' +
     '</div>';
   m.addEventListener('click', function(e) { if (e.target === m) m.remove(); });
   document.body.appendChild(m);
@@ -1263,7 +1263,7 @@ window.runProEngineModal = async function() {
       '<div style="font-size:32px;margin-bottom:8px;">🧠🔒</div>' +
       '<div style="font-weight:800;font-size:15px;margin-bottom:6px;">AI Pro Engine is a Pro feature</div>' +
       '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">Analyze any stock with real Claude AI reasoning on news, catalysts, and risks — combined with 8 technical indicators.</div>' +
-      '<a href="mailto:swingrush.admin@gmail.com?subject=SwingRush%20Pro%20Upgrade" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:9px 18px;border-radius:10px;text-decoration:none;font-size:13px;">📧 Upgrade to Pro</a>' +
+      '<a href="/payment.html" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:9px 18px;border-radius:10px;text-decoration:none;font-size:13px;">Upgrade to Pro</a>' +
       '</div>';
     return;
   }

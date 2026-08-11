@@ -1,0 +1,139 @@
+const express = require('express');
+const router  = express.Router();
+const { protect } = require('../middleware/authMiddleware');
+const { paypalRequest } = require('../services/paypal');
+const User = require('../models/User');
+const PLANS = require('../config/plans');
+
+function cycleFromPlanId(planId) {
+  if (planId === PLANS.monthly.id) return 'monthly';
+  if (planId === PLANS.yearly.id)  return 'yearly';
+  return null;
+}
+
+function fallbackEnd(cycle) {
+  const d = new Date();
+  if (cycle === 'yearly') d.setFullYear(d.getFullYear() + 1);
+  else d.setMonth(d.getMonth() + 1);
+  return d;
+}
+
+// Fetches the subscription from PayPal and, if active on a known plan,
+// upgrades whichever user owns paypalSubscriptionId (or matches custom_id).
+async function syncSubscription(subscriptionId) {
+  const sub = await paypalRequest(`/v1/billing/subscriptions/${subscriptionId}`);
+  const cycle = cycleFromPlanId(sub.plan_id);
+  if (!cycle) throw Object.assign(new Error('Unknown PayPal plan_id'), { status: 400 });
+
+  const user = sub.custom_id
+    ? await User.findById(sub.custom_id)
+    : await User.findOne({ paypalSubscriptionId: subscriptionId });
+  if (!user) throw Object.assign(new Error('No matching SwingRush user for this subscription'), { status: 404 });
+
+  if (sub.status === 'ACTIVE') {
+    const end = sub.billing_info?.next_billing_time
+      ? new Date(sub.billing_info.next_billing_time)
+      : fallbackEnd(cycle);
+    user.plan = 'pro';
+    user.subscriptionEnd = end;
+    user.paypalSubscriptionId = subscriptionId;
+    user.billingCycle = cycle;
+    await user.save();
+  }
+  // CANCELLED / SUSPENDED / EXPIRED: no immediate downgrade — access lapses
+  // naturally once subscriptionEnd passes (isPro() already checks the date).
+
+  return { user, status: sub.status };
+}
+
+// ── GET /api/payments/config — public plan/pricing info for the payment page
+router.get('/config', (req, res) => {
+  res.json({ clientId: process.env.PAYPAL_CLIENT_ID, plans: PLANS });
+});
+
+// ── POST /api/payments/confirm  { subscriptionID } — called right after
+// PayPal's onApprove fires client-side, to activate Pro immediately instead
+// of waiting on the webhook.
+router.post('/confirm', protect, async (req, res) => {
+  try {
+    const { subscriptionID } = req.body;
+    if (!subscriptionID) return res.status(400).json({ message: 'subscriptionID required' });
+
+    const sub = await paypalRequest(`/v1/billing/subscriptions/${subscriptionID}`);
+    if (sub.custom_id && sub.custom_id !== String(req.user._id)) {
+      return res.status(403).json({ message: 'This subscription does not belong to your account' });
+    }
+    const existing = await User.findOne({ paypalSubscriptionId: subscriptionID });
+    if (existing && String(existing._id) !== String(req.user._id)) {
+      return res.status(409).json({ message: 'This subscription is already linked to another account' });
+    }
+    if (sub.status !== 'ACTIVE') {
+      return res.status(202).json({ message: `Subscription status is ${sub.status}, not yet active`, status: sub.status });
+    }
+
+    const cycle = cycleFromPlanId(sub.plan_id);
+    if (!cycle) return res.status(400).json({ message: 'Unrecognized plan' });
+
+    const end = sub.billing_info?.next_billing_time
+      ? new Date(sub.billing_info.next_billing_time)
+      : fallbackEnd(cycle);
+
+    req.user.plan = 'pro';
+    req.user.subscriptionEnd = end;
+    req.user.paypalSubscriptionId = subscriptionID;
+    req.user.billingCycle = cycle;
+    await req.user.save();
+
+    res.json({ message: 'Pro activated', plan: 'pro', subscriptionEnd: end, billingCycle: cycle });
+  } catch (err) {
+    console.error('payments/confirm error:', err.details || err.message);
+    res.status(err.status || 500).json({ message: err.message });
+  }
+});
+
+// ── POST /api/payments/webhook — PayPal event delivery (renewals, cancellations)
+router.post('/webhook', async (req, res) => {
+  try {
+    if (!process.env.PAYPAL_WEBHOOK_ID) {
+      console.warn('PayPal webhook received but PAYPAL_WEBHOOK_ID is not configured — skipping');
+      return res.status(200).end(); // ack so PayPal doesn't retry-storm us
+    }
+
+    const verification = await paypalRequest('/v1/notifications/verify-webhook-signature', {
+      method: 'POST',
+      body: {
+        auth_algo:         req.headers['paypal-auth-algo'],
+        cert_url:          req.headers['paypal-cert-url'],
+        transmission_id:   req.headers['paypal-transmission-id'],
+        transmission_sig:  req.headers['paypal-transmission-sig'],
+        transmission_time: req.headers['paypal-transmission-time'],
+        webhook_id:        process.env.PAYPAL_WEBHOOK_ID,
+        webhook_event:     req.body,
+      },
+    });
+    if (verification.verification_status !== 'SUCCESS') {
+      console.warn('PayPal webhook signature verification failed');
+      return res.status(400).end();
+    }
+
+    const event = req.body;
+    const subId = event.resource?.billing_agreement_id || event.resource?.id;
+    const relevant = [
+      'PAYMENT.SALE.COMPLETED',
+      'BILLING.SUBSCRIPTION.ACTIVATED',
+      'BILLING.SUBSCRIPTION.CANCELLED',
+      'BILLING.SUBSCRIPTION.SUSPENDED',
+      'BILLING.SUBSCRIPTION.EXPIRED',
+    ];
+    if (subId && relevant.includes(event.event_type)) {
+      await syncSubscription(subId).catch(e => console.error('webhook syncSubscription error:', e.message));
+    }
+
+    res.status(200).end();
+  } catch (err) {
+    console.error('payments/webhook error:', err.details || err.message);
+    res.status(500).end();
+  }
+});
+
+module.exports = router;

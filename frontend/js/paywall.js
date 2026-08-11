@@ -97,11 +97,7 @@ const Paywall = {
 
   startSubscription() {
     this.remove();
-    const toastEl = document.createElement('div');
-    toastEl.className = 'sr-pro-contact-toast';
-    toastEl.textContent = this.text('paywall.contact', 'Pro access: contact swingrush.admin@gmail.com.');
-    document.body.appendChild(toastEl);
-    setTimeout(() => toastEl.remove(), 5500);
+    location.href = '/payment.html';
   },
 
   async checkEngineAccess() {

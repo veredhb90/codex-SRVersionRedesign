@@ -41,6 +41,8 @@ const API = {
   getWatchlist:        ()        => API._req('/recommendations/watchlist'),
   searchUsers:         (q)       => API._req('/users/search?q='+encodeURIComponent(q)),
   me:                  ()        => API._req('/users/me'),
+  paymentConfig:       ()        => API._req('/payments/config'),
+  paymentConfirm:      (b)       => API._req('/payments/confirm', { method:'POST', body:JSON.stringify(b) }),
   user:                (id)      => API._req('/users/'+id),
   follow:              (id)      => API._req('/users/'+id+'/follow',  { method:'POST' }),
   getNotifications:    ()        => API._req('/notifications'),

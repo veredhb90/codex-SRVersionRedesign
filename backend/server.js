@@ -32,6 +32,7 @@ app.use('/api/leaderboard',      require('./routes/leaderboard'));
 app.use('/api/chat',             require('./routes/chat'));
 app.use('/api/admin',            require('./routes/admin'));
 app.use('/api/pro-engine',       require('./routes/proEngine'));
+app.use('/api/payments',         require('./routes/payments'));
 app.get('/api/health', (_, res) => res.json({ status:'ok', time:new Date() }));
 app.get('/api/online-users', (_, res) => res.json(Array.from(onlineUsersMap.values())));
 
@@ -103,3 +104,6 @@ server.listen(PORT, () => console.log(`🚀 SwingRush on http://localhost:${PORT
 // Background TP/SL sweeper — checks ALL open calls hourly during US market
 // hours, independent of who is browsing the feed (io.notifyUser is set above).
 require('./routes/recommendations').startOutcomeSweeper(io);
+
+// Downgrades expired Pro subscriptions to free + sends 3-day renewal reminders.
+require('./services/subscriptionSweeper').startSubscriptionSweeper();

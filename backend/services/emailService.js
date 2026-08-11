@@ -174,4 +174,25 @@ const sendNewFollowerAlert = async (to, followerName, followerUsername) => {
   if (error) console.error('❌ New follower email error:', error);
 };
 
-module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser, sendNewFollowerAlert };
+const sendRenewalReminder = async (to, fullName, billingCycle, subscriptionEnd, price) => {
+  const dateStr = new Date(subscriptionEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const cycleLabel = billingCycle === 'yearly' ? 'year' : 'month';
+  const { error } = await resend.emails.send({
+    from: FROM, to,
+    subject: `⏳ Your SwingRush Pro renews in 3 days`,
+    html: `<div style="${baseStyle}">${logo}
+      <div style="background:#111;border:2px solid #ffb020;border-radius:12px;padding:24px;text-align:center;">
+        <div style="font-size:40px;margin-bottom:8px;">⏳</div>
+        <div style="font-size:20px;font-weight:900;color:#ffb020;margin-bottom:8px;">RENEWS IN 3 DAYS</div>
+        <div style="color:#ddd;font-size:15px;margin-bottom:4px;">Hi ${fullName || ''}, your SwingRush Pro ${cycleLabel}ly subscription renews on</div>
+        <div style="font-size:22px;font-weight:900;color:#fff;margin:8px 0;">${dateStr}</div>
+        <div style="color:#aaa;font-size:14px;">Your card on file with PayPal will be charged <strong style="color:#fff;">$${price}</strong> automatically to keep your Pro access active.</div>
+      </div>
+      <p style="color:#555;margin-top:20px;font-size:13px;text-align:center;">Nothing to do if you want to keep Pro — this is just a heads up. To cancel or change your plan, manage it from your PayPal account, or contact us below.</p>
+      <a href="${process.env.CLIENT_URL || 'https://swing-rush.com'}/payment.html" style="display:block;margin-top:16px;padding:14px;background:#ffb020;color:#000;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">Manage Subscription →</a>
+    </div>`,
+  });
+  if (error) console.error('❌ Renewal reminder email error:', error);
+};
+
+module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser, sendNewFollowerAlert, sendRenewalReminder };
