@@ -56,7 +56,7 @@ SwingRush is free to join, with a Pro subscription that unlocks the full AI rese
 | --- | --- | --- |
 | Social feed — share trades & track stats | ✅ | ✅ |
 | Follow top traders + instant email alerts | ✅ | ✅ |
-| Market Scanner — all 682 stocks ranked | Top signals view | Full access |
+| Market Scanner — 500 stocks ranked per scan (300 fixed core + 200 rotating from a 2,000-stock universe) | Top signals view | Full access |
 | Free Signal Engine analyses | 1 analysis | Unlimited |
 | Win rate & performance tracking | ✅ | ✅ |
 | **AI Pro Engine** (technical + real Claude AI news, live pre/after-market pricing, catalysts, risks) | ❌ | ✅ Unlimited, any stock |
