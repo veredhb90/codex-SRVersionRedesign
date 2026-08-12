@@ -145,13 +145,13 @@
 
 <div class="layout">
   <aside class="sidebar-left">
-    <div class="sb-card workspace-card">
-      <div class="workspace-title" data-i18n="feed.workspace">Trading Desk</div>
-      <div class="workspace-links">
-        <a href="/profile.html"><span data-i18n="feed.workspace_profile">Profile</span><span>↗</span></a>
-        <a href="/scanner.html"><span data-i18n="feed.workspace_scanner">Market Scanner</span><span>↗</span></a>
-        <button type="button" onclick="openProEngineModal()"><span data-i18n="feed.workspace_engine">Pro Engine</span><span>↗</span></button>
-      </div>
+    <div class="sb-card">
+      <div class="sb-title" data-i18n="feed.scanner_title">MARKET SCANNER</div>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 8px;" data-i18n="feed.scanner_copy">Next automatic scan of the market:</p>
+      <div id="scanner-countdown" style="font-family:var(--font-mono);font-weight:800;font-size:18px;color:var(--accent2);">—</div>
+      <a href="/scanner.html" class="btn btn-outline btn-sm" style="width:100%;justify-content:center;margin-top:10px;gap:6px;">
+        <span data-i18n="feed.view_scanner">View Scanner</span><span class="why-link-arrow" aria-hidden="true">→</span>
+      </a>
     </div>
     <div class="sb-card" id="leaderboard-card">
       <div class="sb-title" data-i18n="feed.best_traders">BEST TRADERS</div>
@@ -730,6 +730,38 @@
   }
   updateMarket();
   setInterval(updateMarket, 30000);
+
+  // ── Scanner countdown — next automatic scan ────────────────────
+  let nextScanAt = null;
+
+  function formatScannerRemaining(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const days    = Math.floor(totalSeconds / 86400);
+    const hours   = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (days > 0)  return days + 'd ' + hours + 'h ' + minutes + 'm';
+    if (hours > 0) return hours + 'h ' + minutes + 'm';
+    return minutes + 'm ' + String(seconds).padStart(2, '0') + 's';
+  }
+
+  function tickScannerCountdown() {
+    const el = document.getElementById('scanner-countdown');
+    if (!el || !nextScanAt) return;
+    const ms = new Date(nextScanAt).getTime() - Date.now();
+    el.textContent = ms > 0 ? formatScannerRemaining(ms) : 'Scanning now…';
+  }
+
+  async function loadScannerSchedule() {
+    try {
+      const data = await API.scanTop5();
+      nextScanAt = data.nextScheduledAt;
+      tickScannerCountdown();
+    } catch (_) {}
+  }
+  loadScannerSchedule();
+  setInterval(loadScannerSchedule, 5 * 60000); // re-sync schedule every 5min
+  setInterval(tickScannerCountdown, 1000);      // tick the display every second
 
   // ── Quick engine ──────────────────────────────────────────────
   // Quick Signal removed — replaced with AI Pro Engine modal (see feed_v2.js)

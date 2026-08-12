@@ -153,6 +153,14 @@
     </div>
   </div>
 
+  <!-- How the Scanner Works — trigger (matches profile.html's "why-link" pattern) -->
+  <div style="margin-bottom:16px;">
+    <button type="button" class="why-link" onclick="openScannerHowModal()">
+      <span data-i18n="scanner.how_link_q">How does the Scanner work?</span>
+      <span class="why-link-arrow" aria-hidden="true">→</span>
+    </button>
+  </div>
+
   <!-- Result views -->
   <div style="display:flex;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
     <div class="scan-tabs">
@@ -223,6 +231,36 @@
     </div>
   </div>
 
+  <!-- How the Scanner Works — popup -->
+  <div id="scanner-how-modal" class="why-overlay">
+    <div class="why-box">
+      <button class="close-modal why-close" onclick="closeScannerHowModal()" aria-label="Close">✕</button>
+      <div class="section-title" data-i18n="scanner.how_title">HOW THE SCANNER WORKS</div>
+      <div class="why-list">
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">🌐</span><span data-i18n="scanner.how_universe_title">2,000-stock universe, 500 scanned per run</span></div>
+          <div class="why-item-p" data-i18n="scanner.how_universe_copy">SwingRush tracks a universe of 2,000 US stocks ranked by market cap. Each run scans 500 of them: a fixed <strong>300-stock core</strong> — always the biggest-cap names, so mega-caps like AAPL or MSFT are never missed — plus <strong>200 randomly rotated</strong> from the remaining ~1,700, so the long tail of smaller names still gets discovered over time.</div>
+        </div>
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">⚙️</span><span data-i18n="scanner.how_phase1_title">Phase 1 — Technical scan</span></div>
+          <div class="why-item-p" data-i18n="scanner.how_phase1_copy">All 500 stocks are scored with the same 12-indicator technical engine that powers SwingRush's free Signal Engine — RSI, EMA, MACD, Bollinger Bands, ADX, Stochastic, Williams %R, ROC, 50-day MA, Volume and Multi-Timeframe confirmation — using Yahoo Finance price data.</div>
+        </div>
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">📰</span><span data-i18n="scanner.how_phase2_title">Phase 2 — News enrichment</span></div>
+          <div class="why-item-p" data-i18n="scanner.how_phase2_copy">Every one of the 500 scanned stocks then gets real news and analyst-sentiment scoring from Finnhub, combined into the final ranked score you see below.</div>
+        </div>
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">🧠</span><span data-i18n="scanner.how_vs_pro_title">Scanner vs. Pro Engine</span></div>
+          <div class="why-item-p" data-i18n="scanner.how_vs_pro_copy">The Scanner is a broad market-wide sweep using technical + keyword-based news scoring — great for finding opportunities across hundreds of stocks. For the deepest single-stock analysis with real Claude AI reasoning on news, catalysts and risks, use Pro Engine.</div>
+        </div>
+        <div class="why-item">
+          <div class="why-item-h"><span class="why-item-ic">⏱️</span><span data-i18n="scanner.how_cadence_title">Runs automatically every 6 hours</span></div>
+          <div class="why-item-p" data-i18n="scanner.how_cadence_copy">Scans run on their own schedule, every 6 hours on weekdays (a full pass takes roughly 70–85 minutes). On weekends, the Scanner shows the latest completed weekday scan.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script src="/js/api.js?v=1785493929"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/i18n.js"></script>
@@ -234,6 +272,21 @@
   let scanData   = null;
   let activeTab  = 'all';
   let renderedResultVersion = null;
+
+  function openScannerHowModal() {
+    document.getElementById('scanner-how-modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeScannerHowModal() {
+    document.getElementById('scanner-how-modal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('scanner-how-modal').addEventListener('click', function(e) {
+    if (e.target === document.getElementById('scanner-how-modal')) closeScannerHowModal();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('scanner-how-modal').classList.contains('open')) closeScannerHowModal();
+  });
 
   function switchTab(tab) {
     activeTab = tab;

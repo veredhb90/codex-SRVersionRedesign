@@ -35,6 +35,12 @@ const getCloseMarketQuote = async (symbol) => {
 const _lastOutcomeCheck = new Map(); // recId -> last-checked timestamp (ms)
 const OUTCOME_CHECK_COOLDOWN = 90 * 1000; // 90s
 
+// rec.user is a plain ObjectId when checkOutcome runs from the background
+// sweeper, but a POPULATED user doc when it runs from /feed or /following
+// (both .populate('user', ...)). String(populatedDoc) is not a clean id
+// string, so every notifyUser/fromUser call below must unwrap ._id first.
+const ownerId = (u) => String(u && u._id ? u._id : u);
+
 const checkOutcome = async (rec, io) => {
   const _id = String(rec._id);
   const _now = Date.now();
@@ -61,7 +67,7 @@ const checkOutcome = async (rec, io) => {
       const author = await User.findById(rec.user).select('fullName username email');
 
       // ── Notify & email the REC OWNER ─────────────────────────────
-      io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
+      io.notifyUser && io.notifyUser(ownerId(rec.user), 'notification', {
         type:'win', title:`🏆 Your $${rec.symbol} trade hit Take Profit!`,
         body:`+${rec.returnPct}% return · Great trade!`, recId:rec._id, time:new Date(),
       });
@@ -76,7 +82,7 @@ const checkOutcome = async (rec, io) => {
         try {
           io.notifyUser && io.notifyUser(String(f._id), 'notification', {
             type:'win', title:`🏆 @${author?.username||author?.fullName}'s $${rec.symbol} hit Take Profit!`,
-            body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
+            body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:ownerId(rec.user), time:new Date(),
           });
           if (f.email) {
             sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
@@ -89,10 +95,10 @@ const checkOutcome = async (rec, io) => {
       const winWatchers = await User.find({ watchlist: rec.symbol }).select('_id');
       winWatchers.forEach(w => {
         const wid = String(w._id);
-        if (wid !== String(rec.user)) {
+        if (wid !== ownerId(rec.user)) {
           io.notifyUser && io.notifyUser(wid, 'notification', {
             type:'win', title:`🏆 $${rec.symbol} hit Take Profit!`,
-            body:`+${rec.returnPct}% — @${author?.username||author?.fullName}`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
+            body:`+${rec.returnPct}% — @${author?.username||author?.fullName}`, recId:rec._id, fromUser:ownerId(rec.user), time:new Date(),
           });
         }
       });
@@ -106,7 +112,7 @@ const checkOutcome = async (rec, io) => {
       const author = await User.findById(rec.user).select('fullName username email');
 
       // ── Notify & email the REC OWNER on LOSS ─────────────────────
-      io.notifyUser && io.notifyUser(String(rec.user), 'notification', {
+      io.notifyUser && io.notifyUser(ownerId(rec.user), 'notification', {
         type:'loss', title:`💸 Your $${rec.symbol} trade hit Stop Loss`,
         body:`${rec.returnPct}% · Review your analysis`, recId:rec._id, time:new Date(),
       });
@@ -121,7 +127,7 @@ const checkOutcome = async (rec, io) => {
         try {
           io.notifyUser && io.notifyUser(String(f._id), 'notification', {
             type:'loss', title:`💸 @${author?.username||author?.fullName}'s $${rec.symbol} hit Stop Loss`,
-            body:`${rec.returnPct}%`, recId:rec._id, fromUser:String(rec.user), time:new Date(),
+            body:`${rec.returnPct}%`, recId:rec._id, fromUser:ownerId(rec.user), time:new Date(),
           });
           if (f.email) {
             sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
@@ -187,12 +193,12 @@ router.get('/feed', protect, async (req, res) => {
   try {
     const io   = req.app.get('io');
     const page = parseInt(req.query.page) || 1;
-    const recs = await Recommendation.find({ profileOnly:{ $ne:true }, source:{ $ne:'repost' } })
+    const recs = await Recommendation.find({ isOpen:true, profileOnly:{ $ne:true }, source:{ $ne:'repost' } })
       .sort({ openedAt:-1, createdAt:-1 }).skip((page-1)*20).limit(20)
       .populate('user','fullName username email')
       .populate('comments.user','fullName username')
       .populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username' } });
-    recs.forEach(r => { if (r.isOpen) checkOutcome(r, io); });
+    recs.forEach(r => checkOutcome(r, io));
     res.json(recs);
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
@@ -203,7 +209,7 @@ router.get('/following', protect, async (req, res) => {
     const freshUser = await User.findById(req.user._id).select('following username fullName');
     const followingIds = freshUser?.following || [];
     if (!followingIds.length) return res.json([]);
-    const recs = await Recommendation.find({ user:{ $in:followingIds }, profileOnly:{ $ne:true }, source:{ $ne:'repost' } })
+    const recs = await Recommendation.find({ isOpen:true, user:{ $in:followingIds }, profileOnly:{ $ne:true }, source:{ $ne:'repost' } })
       .sort({ openedAt:-1, createdAt:-1 }).limit(50)
       .populate('user','fullName username email')
       .populate('comments.user','fullName username');

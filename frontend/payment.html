@@ -27,31 +27,32 @@
 </head>
 <body>
   <div class="pay-wrap">
-    <a href="/feed.html" class="pay-back">&larr; Back</a>
-    <div class="pay-title">Upgrade to SwingRush Pro</div>
-    <div class="pay-sub">Unlimited AI Signal Engine, Pro Engine analysis, and AI chat.</div>
+    <a href="/feed.html" class="pay-back"><span class="why-link-arrow" aria-hidden="true">&larr;</span> <span data-i18n="payment.back">Back</span></a>
+    <div class="pay-title" data-i18n="payment.title">Upgrade to SwingRush Pro</div>
+    <div class="pay-sub" data-i18n="payment.subtitle">Unlimited AI Signal Engine, Pro Engine analysis, and AI chat.</div>
 
     <div class="pay-toggle">
-      <button id="btn-monthly" class="active">Monthly</button>
-      <button id="btn-yearly">Yearly</button>
+      <button id="btn-monthly" class="active" data-i18n="payment.monthly">Monthly</button>
+      <button id="btn-yearly" data-i18n="payment.yearly">Yearly</button>
     </div>
 
     <div class="pay-card">
       <div class="pay-price" id="pay-price">$75<span>/ month</span></div>
-      <div class="pay-save" id="pay-save" style="visibility:hidden;">Save $200/year</div>
+      <div class="pay-save" id="pay-save" style="visibility:hidden;" data-i18n="payment.save_yearly">Save $200/year</div>
       <ul class="pay-features">
-        <li>Unlimited Signal Engine &amp; Pro Engine analysis</li>
-        <li>Unlimited AI chat with the trading analyst</li>
-        <li>Full ranked market scanner</li>
-        <li>Cancel anytime</li>
+        <li data-i18n="payment.feat_1">Unlimited Signal Engine &amp; Pro Engine analysis</li>
+        <li data-i18n="payment.feat_2">Unlimited AI chat with the trading analyst</li>
+        <li data-i18n="payment.feat_3">Full ranked market scanner</li>
+        <li data-i18n="payment.feat_4">Cancel anytime</li>
       </ul>
       <div id="paypal-buttons"></div>
       <div class="pay-msg" id="pay-msg"></div>
     </div>
   </div>
 
-  <script src="/js/auth.js"></script>
   <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/i18n.js"></script>
   <script>
     if (!Auth.require()) { /* redirected to login */ }
 
@@ -60,10 +61,12 @@
     let sdkLoaded = false;
     let currentUser = Auth.user(); // fullName/email from login cache immediately; phone filled in below
 
+    function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
+
     function renderPrice() {
       const p = plans[selectedCycle];
-      document.getElementById('pay-price').innerHTML =
-        '$' + p.price + '<span>/ ' + (selectedCycle === 'yearly' ? 'year' : 'month') + '</span>';
+      const perLabel = selectedCycle === 'yearly' ? t('payment.per_year', '/ year') : t('payment.per_month', '/ month');
+      document.getElementById('pay-price').innerHTML = '$' + p.price + '<span>' + perLabel + '</span>';
       document.getElementById('pay-save').style.visibility = selectedCycle === 'yearly' ? 'visible' : 'hidden';
       document.getElementById('btn-monthly').classList.toggle('active', selectedCycle === 'monthly');
       document.getElementById('btn-yearly').classList.toggle('active', selectedCycle === 'yearly');
@@ -91,20 +94,20 @@
           return actions.subscription.create(sub);
         },
         onApprove: async function (data) {
-          document.getElementById('pay-msg').textContent = 'Activating your Pro account...';
+          document.getElementById('pay-msg').textContent = t('payment.activating', 'Activating your Pro account...');
           document.getElementById('pay-msg').classList.remove('pay-error');
           try {
             await API.paymentConfirm({ subscriptionID: data.subscriptionID });
-            document.getElementById('pay-msg').textContent = 'Pro activated! Redirecting...';
+            document.getElementById('pay-msg').textContent = t('payment.activated', 'Pro activated! Redirecting...');
             setTimeout(function () { location.href = '/feed.html'; }, 1200);
           } catch (e) {
-            document.getElementById('pay-msg').textContent = 'Payment succeeded but activation failed: ' + e.message + '. Contact swingrush.admin@gmail.com.';
+            document.getElementById('pay-msg').textContent = t('payment.activate_failed', 'Payment succeeded but activation failed:') + ' ' + e.message + '. ' + t('payment.contact_us', 'Contact swingrush.admin@gmail.com.');
             document.getElementById('pay-msg').classList.add('pay-error');
           }
         },
         onError: function (err) {
           console.error('PayPal error:', err);
-          document.getElementById('pay-msg').textContent = 'Payment could not be completed. Please try again.';
+          document.getElementById('pay-msg').textContent = t('payment.pay_failed', 'Payment could not be completed. Please try again.');
           document.getElementById('pay-msg').classList.add('pay-error');
         },
       }).render('#paypal-buttons');
@@ -125,12 +128,12 @@
           '&vault=true&intent=subscription&enable-funding=card&currency=USD';
         s.onload = function () { sdkLoaded = true; renderButtons(); };
         s.onerror = function () {
-          document.getElementById('pay-msg').textContent = 'Could not load PayPal. Please refresh and try again.';
+          document.getElementById('pay-msg').textContent = t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.');
           document.getElementById('pay-msg').classList.add('pay-error');
         };
         document.body.appendChild(s);
       } catch (e) {
-        document.getElementById('pay-msg').textContent = 'Could not load pricing: ' + e.message;
+        document.getElementById('pay-msg').textContent = t('payment.config_failed', 'Could not load pricing:') + ' ' + e.message;
         document.getElementById('pay-msg').classList.add('pay-error');
       }
     }
