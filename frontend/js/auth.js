@@ -11,6 +11,11 @@ const Auth = {
     return u ? String(u.id || u._id) : null;
   },
   logout() {
+    // Clear the "skipped onboarding this session" flag so a fresh login
+    // re-evaluates from server truth instead of staying suppressed forever
+    // (sessionStorage survives logout/login within the same browser tab).
+    const uid = this.userId();
+    if (uid) sessionStorage.removeItem('sr_onboarding_skipped_' + uid);
     localStorage.removeItem('sr_token');
     localStorage.removeItem('sr_user');
     location.href = '/index.html';
