@@ -4,6 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const { paypalRequest, CLIENT_ID, IS_LIVE } = require('../services/paypal');
 const WEBHOOK_ID = process.env['PAYPAL_WEBHOOK_ID' + (IS_LIVE ? '_LIVE' : '_SANDBOX')];
 const User = require('../models/User');
+const PaymentHistory = require('../models/PaymentHistory');
 const PLANS = require('../config/plans');
 
 function cycleFromPlanId(planId) {
@@ -47,6 +48,47 @@ async function syncSubscription(subscriptionId) {
   return { user, status: sub.status };
 }
 
+// Reconciles a PAYMENT.SALE.COMPLETED webhook event into PaymentHistory.
+// The first charge for a subscription already has a pending 'activation' row
+// (created at /confirm, no transaction id yet) — this enriches that same row
+// with the real transaction id/amount instead of inserting a duplicate.
+// Any charge after that is a genuine renewal and gets its own row.
+async function recordCharge(event) {
+  const resource = event.resource || {};
+  const subId = resource.billing_agreement_id;
+  const transactionId = resource.id;
+  if (!subId || !transactionId) return;
+
+  const dup = await PaymentHistory.findOne({ paypalTransactionId: transactionId });
+  if (dup) return; // webhook redelivery — already recorded
+
+  const amount = Number(resource.amount?.total);
+  const currency = resource.amount?.currency || 'USD';
+  const occurredAt = resource.create_time ? new Date(resource.create_time) : new Date();
+
+  const pending = await PaymentHistory.findOne({
+    paypalSubscriptionId: subId, type: 'activation', paypalTransactionId: null,
+  });
+  if (pending) {
+    pending.paypalTransactionId = transactionId;
+    if (Number.isFinite(amount)) pending.amount = amount;
+    pending.currency = currency;
+    pending.occurredAt = occurredAt;
+    await pending.save();
+    return;
+  }
+
+  const user = await User.findOne({ paypalSubscriptionId: subId });
+  if (!user) return;
+  const cycle = user.billingCycle || 'monthly';
+  await PaymentHistory.create({
+    user: user._id, paypalSubscriptionId: subId, paypalTransactionId: transactionId,
+    type: 'renewal', billingCycle: cycle,
+    amount: Number.isFinite(amount) ? amount : PLANS[cycle].price,
+    currency, occurredAt,
+  });
+}
+
 // ── GET /api/payments/config — public plan/pricing info for the payment page
 router.get('/config', (req, res) => {
   res.json({ clientId: CLIENT_ID, plans: PLANS });
@@ -84,6 +126,19 @@ router.post('/confirm', protect, async (req, res) => {
     req.user.paypalSubscriptionId = subscriptionID;
     req.user.billingCycle = cycle;
     await req.user.save();
+
+    // One 'activation' row per subscription, guarded so repeat /confirm calls
+    // (page refresh, retry) don't create duplicates. The webhook enriches this
+    // same row with the real transaction id once PAYMENT.SALE.COMPLETED arrives.
+    const alreadyRecorded = await PaymentHistory.findOne({ paypalSubscriptionId: subscriptionID });
+    if (!alreadyRecorded) {
+      await PaymentHistory.create({
+        user: req.user._id, paypalSubscriptionId: subscriptionID,
+        type: 'activation', billingCycle: cycle,
+        amount: PLANS[cycle].price, currency: PLANS[cycle].currency,
+        occurredAt: new Date(),
+      }).catch(e => console.error('PaymentHistory activation record error:', e.message));
+    }
 
     res.json({ message: 'Pro activated', plan: 'pro', subscriptionEnd: end, billingCycle: cycle });
   } catch (err) {
@@ -129,6 +184,9 @@ router.post('/webhook', async (req, res) => {
     if (subId && relevant.includes(event.event_type)) {
       await syncSubscription(subId).catch(e => console.error('webhook syncSubscription error:', e.message));
     }
+    if (event.event_type === 'PAYMENT.SALE.COMPLETED') {
+      await recordCharge(event).catch(e => console.error('webhook recordCharge error:', e.message));
+    }
 
     res.status(200).end();
   } catch (err) {
@@ -138,3 +196,4 @@ router.post('/webhook', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.recordCharge = recordCharge; // exported for direct testing (sandbox webhooks can't reach localhost)

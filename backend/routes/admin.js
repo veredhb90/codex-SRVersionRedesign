@@ -3,6 +3,8 @@ const router   = express.Router();
 const mongoose = require('mongoose');
 const { protect } = require('../middleware/authMiddleware');
 const { SCAN_SIZE } = require('../services/stockScanner');
+const PaymentHistory = require('../models/PaymentHistory');
+const { sendReceiptEmail } = require('../services/emailService');
 
 // ── Admin-only guard ───────────────────────────────────────────────
 // Reads the raw users collection so isAdmin works even if not in the Mongoose schema
@@ -144,6 +146,42 @@ router.post('/delete', protect, adminOnly, async (req, res) => {
       try { await mongoose.connection.db.collection(c).deleteMany({ user: oid }); } catch (e) {}
     }
     res.json({ message: 'User deleted — the email and username are free to register again' });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── GET /api/admin/payments?userId=&search= ─────────────────────────
+router.get('/payments', protect, adminOnly, async (req, res) => {
+  try {
+    const query = {};
+    if (req.query.userId) query.user = new mongoose.Types.ObjectId(req.query.userId);
+    const payments = await PaymentHistory.find(query)
+      .sort({ occurredAt: -1 })
+      .limit(300)
+      .populate('user', 'fullName username email');
+
+    const search = (req.query.search || '').trim().toLowerCase();
+    const filtered = search
+      ? payments.filter(p => {
+          const u = p.user || {};
+          return (u.fullName || '').toLowerCase().includes(search)
+            || (u.username || '').toLowerCase().includes(search)
+            || (u.email || '').toLowerCase().includes(search);
+        })
+      : payments;
+
+    res.json(filtered);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── POST /api/admin/payments/:id/email-receipt ──────────────────────
+router.post('/payments/:id/email-receipt', protect, adminOnly, async (req, res) => {
+  try {
+    const payment = await PaymentHistory.findById(req.params.id).populate('user', 'fullName username email');
+    if (!payment) return res.status(404).json({ message: 'Payment not found' });
+    if (!payment.user?.email) return res.status(400).json({ message: 'This user has no email on file' });
+
+    await sendReceiptEmail(payment.user.email, payment.user.fullName || payment.user.username, payment);
+    res.json({ message: 'Receipt sent to ' + payment.user.email });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 

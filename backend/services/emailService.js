@@ -195,4 +195,28 @@ const sendRenewalReminder = async (to, fullName, billingCycle, subscriptionEnd, 
   if (error) console.error('❌ Renewal reminder email error:', error);
 };
 
-module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser, sendNewFollowerAlert, sendRenewalReminder };
+const sendReceiptEmail = async (to, fullName, payment) => {
+  const dateStr = new Date(payment.occurredAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const cycleLabel = payment.billingCycle === 'yearly' ? 'Yearly' : 'Monthly';
+  const typeLabel = payment.type === 'renewal' ? 'Subscription renewal' : 'Subscription activation';
+  const { error } = await resend.emails.send({
+    from: FROM, to,
+    subject: `🧾 Your SwingRush Pro receipt — ${dateStr}`,
+    html: `<div style="${baseStyle}">${logo}
+      <p style="font-size:16px;margin-bottom:16px;">Hi ${fullName || ''}, here's your payment receipt:</p>
+      <div style="background:#111;border:2px solid #00e676;border-radius:12px;padding:20px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Date</td><td style="color:#fff;font-weight:700;font-size:14px;text-align:right;">${dateStr}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Description</td><td style="color:#fff;font-weight:700;font-size:14px;text-align:right;">${typeLabel}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Plan</td><td style="color:#fff;font-weight:700;font-size:14px;text-align:right;">SwingRush Pro — ${cycleLabel}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Amount</td><td style="color:#00e676;font-weight:900;font-size:16px;text-align:right;">$${payment.amount} ${payment.currency}</td></tr>
+          ${payment.paypalTransactionId ? `<tr><td style="color:#aaa;padding:6px 0;font-size:12px;">PayPal Transaction ID</td><td style="color:#888;font-size:12px;text-align:right;font-family:monospace;">${payment.paypalTransactionId}</td></tr>` : ''}
+        </table>
+      </div>
+      <p style="color:#555;margin-top:20px;font-size:13px;">Paid via PayPal Subscriptions. Questions about this charge? Contact swingrush.admin@gmail.com.</p>
+    </div>`,
+  });
+  if (error) console.error('❌ Receipt email error:', error);
+};
+
+module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser, sendNewFollowerAlert, sendRenewalReminder, sendReceiptEmail };

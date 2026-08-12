@@ -177,6 +177,29 @@
       </tbody>
     </table>
   </div>
+
+  <div class="adm-table-heading">
+    <div><span class="adm-eyebrow">BILLING</span><h2>Payment History</h2></div>
+    <span id="adm-payment-count" class="adm-user-count">– payments</span>
+  </div>
+
+  <div class="adm-toolbar">
+    <input class="adm-search" id="adm-payment-search" type="text" placeholder="🔍 Search by email, username or name..."/>
+    <button type="button" class="btn btn-outline btn-sm" onclick="loadPayments()">Refresh</button>
+  </div>
+
+  <div class="adm-table-wrap">
+    <table class="adm">
+      <thead>
+        <tr>
+          <th>USER</th><th>EMAIL</th><th>TYPE</th><th>PLAN</th><th>AMOUNT</th><th>DATE</th><th>ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody id="adm-payment-rows">
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px;">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <div class="adm-modal" id="adm-access-modal" aria-hidden="true">
@@ -401,6 +424,7 @@
       if (ok) {
         document.getElementById('adm-main').style.display = 'block';
         await loadUsers();
+        await loadPayments();
       }
     } catch(e) { denied(); }
   }
@@ -408,6 +432,62 @@
   document.getElementById('adm-search').addEventListener('input', function() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(loadUsers, 350);
+  });
+
+  // ── Payment history ─────────────────────────────────────────────
+  var paymentSearchTimer = null;
+
+  async function loadPayments() {
+    var q = document.getElementById('adm-payment-search').value.trim();
+    var res = await fetch('/api/admin/payments' + (q ? '?search=' + encodeURIComponent(q) : ''), { headers: authHeaders() });
+    if (res.status === 403 || res.status === 401) { denied(); return; }
+    var payments = await res.json();
+    renderPayments(payments);
+  }
+
+  function renderPayments(payments) {
+    var rows = document.getElementById('adm-payment-rows');
+    document.getElementById('adm-payment-count').textContent = payments.length + (payments.length === 1 ? ' payment' : ' payments');
+    if (!payments.length) {
+      rows.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px;">No payments yet</td></tr>';
+      return;
+    }
+    rows.innerHTML = '';
+    payments.forEach(function(p) {
+      var u = p.user || {};
+      var tr = document.createElement('tr');
+      var date = p.occurredAt ? new Date(p.occurredAt).toLocaleString() : '—';
+      var typeLabel = p.type === 'renewal' ? 'Renewal' : 'Activation';
+      tr.innerHTML =
+        '<td><strong>' + esc(u.fullName || '') + '</strong><br><span style="color:var(--muted);font-size:11px;">@' + esc(u.username || '') + '</span></td>' +
+        '<td>' + esc(u.email || '') + '</td>' +
+        '<td>' + typeLabel + '</td>' +
+        '<td class="sub-until">' + esc(p.billingCycle || '') + '</td>' +
+        '<td class="sub-until">$' + p.amount + ' ' + esc(p.currency || 'USD') + '</td>' +
+        '<td class="sub-until">' + date + '</td>' +
+        '<td><button class="adm-btn up" onclick="sendReceipt(\'' + p._id + '\', this)">Send Receipt</button></td>';
+      rows.appendChild(tr);
+    });
+  }
+
+  async function sendReceipt(paymentId, btn) {
+    btn.disabled = true;
+    var original = btn.textContent;
+    btn.textContent = 'Sending…';
+    try {
+      var res = await fetch('/api/admin/payments/' + paymentId + '/email-receipt', { method: 'POST', headers: authHeaders() });
+      var d = await res.json();
+      showMsg(res.ok ? '✅ ' + d.message : '❌ ' + d.message, res.ok);
+    } catch (e) {
+      showMsg('❌ Failed to send receipt', false);
+    }
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+
+  document.getElementById('adm-payment-search').addEventListener('input', function() {
+    clearTimeout(paymentSearchTimer);
+    paymentSearchTimer = setTimeout(loadPayments, 350);
   });
 
   if (!localStorage.getItem('sr_token')) { denied(); } else { loadAll(); }
