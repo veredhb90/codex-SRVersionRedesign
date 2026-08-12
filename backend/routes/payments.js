@@ -1,7 +1,8 @@
 const express = require('express');
 const router  = express.Router();
 const { protect } = require('../middleware/authMiddleware');
-const { paypalRequest } = require('../services/paypal');
+const { paypalRequest, CLIENT_ID, IS_LIVE } = require('../services/paypal');
+const WEBHOOK_ID = process.env['PAYPAL_WEBHOOK_ID' + (IS_LIVE ? '_LIVE' : '_SANDBOX')];
 const User = require('../models/User');
 const PLANS = require('../config/plans');
 
@@ -48,7 +49,7 @@ async function syncSubscription(subscriptionId) {
 
 // ── GET /api/payments/config — public plan/pricing info for the payment page
 router.get('/config', (req, res) => {
-  res.json({ clientId: process.env.PAYPAL_CLIENT_ID, plans: PLANS });
+  res.json({ clientId: CLIENT_ID, plans: PLANS });
 });
 
 // ── POST /api/payments/confirm  { subscriptionID } — called right after
@@ -94,8 +95,8 @@ router.post('/confirm', protect, async (req, res) => {
 // ── POST /api/payments/webhook — PayPal event delivery (renewals, cancellations)
 router.post('/webhook', async (req, res) => {
   try {
-    if (!process.env.PAYPAL_WEBHOOK_ID) {
-      console.warn('PayPal webhook received but PAYPAL_WEBHOOK_ID is not configured — skipping');
+    if (!WEBHOOK_ID) {
+      console.warn('PayPal webhook received but PAYPAL_WEBHOOK_ID is not configured for this mode — skipping');
       return res.status(200).end(); // ack so PayPal doesn't retry-storm us
     }
 
@@ -107,7 +108,7 @@ router.post('/webhook', async (req, res) => {
         transmission_id:   req.headers['paypal-transmission-id'],
         transmission_sig:  req.headers['paypal-transmission-sig'],
         transmission_time: req.headers['paypal-transmission-time'],
-        webhook_id:        process.env.PAYPAL_WEBHOOK_ID,
+        webhook_id:        WEBHOOK_ID,
         webhook_event:     req.body,
       },
     });

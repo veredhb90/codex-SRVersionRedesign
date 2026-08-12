@@ -1,9 +1,10 @@
 // PayPal REST API helper — OAuth2 client-credentials + generic request wrapper.
 // Base URL switches on PAYPAL_MODE ('sandbox' | 'live').
 
-const BASE_URL = process.env.PAYPAL_MODE === 'live'
-  ? 'https://api-m.paypal.com'
-  : 'https://api-m.sandbox.paypal.com';
+const IS_LIVE  = process.env.PAYPAL_MODE === 'live';
+const BASE_URL = IS_LIVE ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+const CLIENT_ID     = IS_LIVE ? process.env.PAYPAL_CLIENT_ID_LIVE     : process.env.PAYPAL_CLIENT_ID_SANDBOX;
+const CLIENT_SECRET = IS_LIVE ? process.env.PAYPAL_CLIENT_SECRET_LIVE : process.env.PAYPAL_CLIENT_SECRET_SANDBOX;
 
 let cachedToken = null;
 let cachedTokenExpiry = 0;
@@ -14,9 +15,7 @@ async function getAccessToken() {
   const res = await fetch(`${BASE_URL}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
-      Authorization: 'Basic ' + Buffer.from(
-        `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`
-      ).toString('base64'),
+      Authorization: 'Basic ' + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64'),
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: 'grant_type=client_credentials',
@@ -51,4 +50,4 @@ async function paypalRequest(path, { method = 'GET', body, extraHeaders = {} } =
   return data;
 }
 
-module.exports = { BASE_URL, getAccessToken, paypalRequest };
+module.exports = { BASE_URL, IS_LIVE, CLIENT_ID, getAccessToken, paypalRequest };

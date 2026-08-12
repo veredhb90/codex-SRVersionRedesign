@@ -2,9 +2,11 @@
 // billing plans, then prints the plan IDs to paste into .env.
 // Run with: node backend/scripts/setupPaypalPlans.js
 require('dotenv').config();
-const { paypalRequest } = require('../services/paypal');
+const { paypalRequest, IS_LIVE } = require('../services/paypal');
+const SUFFIX = IS_LIVE ? '_LIVE' : '_SANDBOX';
 
 async function main() {
+  console.log(`Running against PAYPAL_MODE=${IS_LIVE ? 'live' : 'sandbox'}\n`);
   const product = await paypalRequest('/v1/catalogs/products', {
     method: 'POST',
     body: {
@@ -59,9 +61,9 @@ async function main() {
   console.log('Yearly plan created:', yearly.id);
 
   console.log('\nAdd these to .env:');
-  console.log(`PAYPAL_PRODUCT_ID=${product.id}`);
-  console.log(`PAYPAL_PLAN_MONTHLY=${monthly.id}`);
-  console.log(`PAYPAL_PLAN_YEARLY=${yearly.id}`);
+  console.log(`PAYPAL_PRODUCT_ID${SUFFIX}=${product.id}`);
+  console.log(`PAYPAL_PLAN_MONTHLY${SUFFIX}=${monthly.id}`);
+  console.log(`PAYPAL_PLAN_YEARLY${SUFFIX}=${yearly.id}`);
 }
 
 main().catch(err => {
