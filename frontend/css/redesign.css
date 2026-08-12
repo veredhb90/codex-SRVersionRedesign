@@ -2234,7 +2234,7 @@ html[dir="rtl"] .rec-card.sell {
 /* Modern gradient badge */
 .notif-badge {
   position: absolute; top: -6px; right: -6px;
-  min-width: 18px; height: 18px; padding: 0 5px;
+  width: auto !important; min-width: 18px; height: 18px; padding: 0 5px;
   background: linear-gradient(135deg, var(--red), #ff8a3c) !important;
   color: #fff !important;
   border-radius: 999px !important;
