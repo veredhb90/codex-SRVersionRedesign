@@ -18,7 +18,7 @@ app.set('io', io);
 
 app.set('trust proxy', 1); // Required for Railway/Heroku
 app.use(cors({ origin: '*', credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '2mb' })); // default 100kb is too small for avatar data-URL uploads
 
 const authLimiter = rateLimit({ windowMs: 15*60*1000, max: 100, skip: () => process.env.NODE_ENV === 'production' });
 app.use(express.static(path.join(__dirname, '../frontend')));

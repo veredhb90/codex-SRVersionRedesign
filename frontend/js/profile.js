@@ -45,8 +45,14 @@
       : SRLang.t('profile.trader_workspace', 'TRADER WORKSPACE');
     const accountStatus = document.getElementById('profile-snapshot-status');
     if (accountStatus) accountStatus.textContent = user.plan === 'pro' ? 'PRO' : 'FREE';
-    document.getElementById('prof-avatar').textContent = initials(user.fullName);
-    if (isOwn) document.getElementById('prof-email').textContent = user.email || '';
+    document.getElementById('prof-avatar').innerHTML = avatarHtml(user);
+    if (isOwn) {
+      document.getElementById('prof-email').textContent = user.email || '';
+      const editBtn = document.getElementById('prof-av-edit');
+      const removeBtn = document.getElementById('prof-av-remove');
+      if (editBtn) editBtn.style.display = 'flex';
+      if (removeBtn) removeBtn.style.display = user.avatar ? 'flex' : 'none';
+    }
     // Show @username under name
     const unameEl = document.getElementById('prof-username');
     if (unameEl) unameEl.textContent = user.username ? '@' + user.username : '';
@@ -455,6 +461,78 @@
   });
 
   loadProfile();
+
+  // ── Profile photo (own profile only) ────────────────────────────
+  if (isOwn) {
+    const avWrap   = document.getElementById('prof-av-wrap');
+    const avInput  = document.getElementById('prof-av-input');
+    const avEdit   = document.getElementById('prof-av-edit');
+    const avRemove = document.getElementById('prof-av-remove');
+
+    const openPicker = () => avInput && avInput.click();
+    avEdit && avEdit.addEventListener('click', openPicker);
+    avWrap && avWrap.addEventListener('click', (e) => {
+      if (e.target === avEdit || e.target === avRemove) return;
+      openPicker();
+    });
+
+    avInput && avInput.addEventListener('change', async () => {
+      const file = avInput.files && avInput.files[0];
+      avInput.value = ''; // allow re-picking the same file later
+      if (!file) return;
+      if (!/^image\/(jpeg|jpg|png|webp)$/.test(file.type)) {
+        return toast('Please choose a JPEG, PNG or WebP image', 'error');
+      }
+      try {
+        const dataUrl = await resizeImageToDataUrl(file, 320);
+        const res = await API.uploadAvatar(dataUrl);
+        Auth.updateUser({ avatar: res.avatar });
+        document.getElementById('prof-avatar').innerHTML = avatarHtml({ avatar: res.avatar });
+        avRemove.style.display = 'flex';
+        toast('✅ Profile photo updated', 'success');
+      } catch (err) {
+        toast(err.message || 'Could not update photo', 'error');
+      }
+    });
+
+    avRemove && avRemove.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Remove your profile photo?')) return;
+      try {
+        await API.removeAvatar();
+        Auth.updateUser({ avatar: null });
+        document.getElementById('prof-avatar').innerHTML = avatarHtml({ avatar: null, fullName: me?.fullName });
+        avRemove.style.display = 'none';
+        toast('Profile photo removed', 'success');
+      } catch (err) {
+        toast(err.message || 'Could not remove photo', 'error');
+      }
+    });
+  }
+
+  // Downscales+crops to a square JPEG data URL so uploads stay small
+  // regardless of the original photo's size.
+  function resizeImageToDataUrl(file, size) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.onload = () => {
+        img.onerror = () => reject(new Error('Could not load image'));
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          const side = Math.min(img.width, img.height);
+          const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
   // ── Watchlist ─────────────────────────────────────────────────
   async function loadWatchlist() {

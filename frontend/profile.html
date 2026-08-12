@@ -24,7 +24,7 @@
       background:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(255,255,255,0.015) 24px,rgba(255,255,255,0.015) 25px);
     }
     .prof-av {
-      width:72px; height:72px; border-radius:50%; flex-shrink:0;
+      width:72px; height:72px; border-radius:50%; flex-shrink:0; overflow:hidden;
       background:linear-gradient(135deg,var(--green2),var(--green));
       display:flex; align-items:center; justify-content:center;
       font-family:var(--font-disp); font-size:24px; color:#fff;
@@ -143,7 +143,7 @@
     }
     .fm-user:hover { background:var(--bg2); }
     .fm-avatar {
-      width:40px; height:40px; border-radius:50%; flex-shrink:0;
+      width:40px; height:40px; border-radius:50%; flex-shrink:0; overflow:hidden;
       background:linear-gradient(135deg,var(--accent),var(--green));
       display:flex; align-items:center; justify-content:center;
       font-family:var(--font-disp); font-size:15px; color:#fff;
@@ -333,7 +333,18 @@
 
     <!-- Row 1: identity (avatar + name) and action buttons -->
     <div class="prof-header">
-      <div class="prof-av" id="prof-avatar">?</div>
+      <div class="prof-av-wrap" id="prof-av-wrap" style="position:relative;">
+        <div class="prof-av" id="prof-avatar">?</div>
+        <button type="button" id="prof-av-edit" title="Change photo" aria-label="Change photo"
+          style="display:none;position:absolute;bottom:-2px;right:-2px;width:26px;height:26px;border-radius:50%;
+          background:var(--accent,#4f7dff);border:2px solid var(--bg,#05070d);color:#fff;font-size:12px;
+          cursor:pointer;align-items:center;justify-content:center;">📷</button>
+        <input type="file" id="prof-av-input" accept="image/png,image/jpeg,image/webp" style="display:none;">
+        <button type="button" id="prof-av-remove" title="Remove photo" aria-label="Remove photo"
+          style="display:none;position:absolute;top:-2px;right:-2px;width:20px;height:20px;border-radius:50%;
+          background:var(--red,#ff3b5c);border:2px solid var(--bg,#05070d);color:#fff;font-size:10px;line-height:1;
+          cursor:pointer;align-items:center;justify-content:center;padding:0;">✕</button>
+      </div>
       <div class="prof-info">
         <div class="profile-kicker"><span class="profile-presence"></span><span id="prof-context" data-i18n="profile.workspace">TRADING WORKSPACE</span></div>
         <h1 id="prof-name" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Loading…<span id="prof-plan-badge" style="display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px;border-radius:12px;vertical-align:middle;"></span></h1>
@@ -438,10 +449,10 @@
 
 </div>
 
-<script src="/js/api.js?v=1785493929"></script>
-<script src="/js/auth.js?v=1786561713"></script>
+<script src="/js/api.js?v=1786563038"></script>
+<script src="/js/auth.js?v=1786563038"></script>
 <script src="/js/i18n.js"></script>
-<script src="/js/profile.js?v=1785527526"></script>
+<script src="/js/profile.js?v=1786563038"></script>
 <script>
   const me = Auth.user();
   if (me) document.querySelectorAll('.nav-username').forEach(el => el.textContent = me.username ? '@'+me.username : me.fullName);
@@ -479,7 +490,7 @@
 
     listEl.innerHTML = users.map(u => `
       <div class="fm-user" onclick="closeFollowModal(); location.href='/profile.html?id=${u._id}'">
-        <div class="fm-avatar">${initials(u.fullName)}</div>
+        <div class="fm-avatar">${avatarHtml(u)}</div>
         <div>
           <div class="fm-name">${u.username ? '@'+u.username : u.fullName}</div>
           <div class="fm-email">${u.fullName}</div>

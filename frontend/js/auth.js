@@ -24,6 +24,13 @@ const Auth = {
     if (!this.token()) { location.href = '/login.html'; return false; }
     return true;
   },
+  // Merges a partial update (e.g. { avatar }) into the cached user object
+  // without a full re-login.
+  updateUser(patch) {
+    const u = this.user();
+    if (!u) return;
+    localStorage.setItem('sr_user', JSON.stringify({ ...u, ...patch }));
+  },
 };
 
 function toast(msg, type, ms) {
@@ -65,6 +72,18 @@ function timeAgo(iso) {
 function initials(name) {
   return (name||'?').split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
 }
+// Returns markup for whatever avatar container this goes inside (assign via
+// .innerHTML, not .textContent) — a photo if the user has one, else initials.
+// The <img> inherits the container's border-radius so it matches circles,
+// rounded squares, etc. without per-page CSS.
+function avatarHtml(user) {
+  var avatar = user && user.avatar;
+  var name = user && (user.fullName || user.username);
+  if (avatar) {
+    return '<img src="' + avatar + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
+  }
+  return initials(name);
+}
 
 window.Auth     = Auth;
 window.toast    = toast;
@@ -72,3 +91,4 @@ window.fmtPrice = fmtPrice;
 window.fmtPct   = fmtPct;
 window.timeAgo  = timeAgo;
 window.initials = initials;
+window.avatarHtml = avatarHtml;

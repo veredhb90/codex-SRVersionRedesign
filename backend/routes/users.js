@@ -49,7 +49,7 @@ router.get('/search', protect, async (req, res) => {
       $and: conditions,
       isVerified: true,
     })
-    .select('fullName username followers following')
+    .select('fullName username avatar followers following')
     .limit(10);
     res.json(users);
   } catch (err) { res.status(500).json({ message: err.message }); }
@@ -60,8 +60,8 @@ router.get('/me', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .select('-password -otpCode')
-      .populate('following', 'fullName username email')
-      .populate('followers', 'fullName username email');
+      .populate('following', 'fullName username email avatar')
+      .populate('followers', 'fullName username email avatar');
     const recs = await Recommendation.find({ user: req.user._id })
       .sort({ openedAt: -1, createdAt: -1 })
       .populate('comments.user', 'fullName username')
@@ -71,13 +71,43 @@ router.get('/me', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// POST /api/users/me/avatar  { image: 'data:image/jpeg;base64,...' }
+// The client resizes/compresses to a small thumbnail before sending — this
+// cap is just a safety net against someone bypassing that and posting a
+// full-size image straight at the API.
+const MAX_AVATAR_DATAURL_LENGTH = 600_000; // ~450KB decoded
+router.post('/me/avatar', protect, async (req, res) => {
+  try {
+    const { image } = req.body;
+    if (!image || typeof image !== 'string') return res.status(400).json({ message: 'image required' });
+    if (!/^data:image\/(jpeg|jpg|png|webp);base64,/.test(image)) {
+      return res.status(400).json({ message: 'Image must be a JPEG, PNG or WebP data URL' });
+    }
+    if (image.length > MAX_AVATAR_DATAURL_LENGTH) {
+      return res.status(413).json({ message: 'Image too large — please use a smaller photo' });
+    }
+    req.user.avatar = image;
+    await req.user.save();
+    res.json({ avatar: req.user.avatar });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// DELETE /api/users/me/avatar — revert to initials
+router.delete('/me/avatar', protect, async (req, res) => {
+  try {
+    req.user.avatar = null;
+    await req.user.save();
+    res.json({ message: 'Profile photo removed' });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // GET /api/users/:id
 router.get('/:id', protect, async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .select('-password -otpCode -phone')
-      .populate('following', 'fullName username email')
-      .populate('followers', 'fullName username email');
+      .populate('following', 'fullName username email avatar')
+      .populate('followers', 'fullName username email avatar');
     if (!user) return res.status(404).json({ message: 'User not found' });
     const recs = await Recommendation.find({
       user: req.params.id,

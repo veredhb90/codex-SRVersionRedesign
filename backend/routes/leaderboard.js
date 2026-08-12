@@ -49,7 +49,7 @@ router.get('/', protect, async (req, res) => {
     // Get user details
     const userIds = Object.keys(userStats);
     const users   = await User.find({ _id: { $in: userIds } })
-      .select('fullName username followers').lean();
+      .select('fullName username avatar followers').lean();
 
     const userMap = {};
     users.forEach(u => { userMap[String(u._id)] = u; });
@@ -63,6 +63,7 @@ router.get('/', protect, async (req, res) => {
           userId:      uid,
           fullName:    u.fullName,
           username:    u.username,
+          avatar:      u.avatar || null,
           followers:   u.followers?.length || 0,
           total:       s.total,
           wins:        s.wins,

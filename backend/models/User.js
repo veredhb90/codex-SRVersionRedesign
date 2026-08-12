@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   email:       { type: String, required: true, unique: true, lowercase: true, trim: true },
   phone:       { type: String, required: true, match: [/^\d{1,10}$/, 'Phone must be up to 10 digits'] },
   password:    { type: String },
+  avatar:      { type: String, default: null }, // data URL (client resizes/compresses before upload)
   isVerified:  { type: Boolean, default: false },
   otpCode:     { type: String },
   plan:            { type: String, enum: ['free','pro'], default: 'free' },

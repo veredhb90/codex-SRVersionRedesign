@@ -84,7 +84,7 @@ router.post('/login', async (req, res) => {
     if (!match) return res.status(401).json({ message: 'Invalid credentials' });
     res.json({
       token: signToken(user._id),
-      user:  { id: String(user._id), fullName: user.fullName, username: user.username, email: user.email, plan: user.plan || 'free', subscriptionEnd: user.subscriptionEnd || null },
+      user:  { id: String(user._id), fullName: user.fullName, username: user.username, email: user.email, plan: user.plan || 'free', subscriptionEnd: user.subscriptionEnd || null, avatar: user.avatar || null },
     });
   } catch (err) {
     console.error(err);
