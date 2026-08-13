@@ -764,7 +764,7 @@
     document.querySelectorAll('[data-i18n-title]').forEach(el => applyAttr(el, 'title', 'i18nTitle', 'i18nOriginalTitle'));
 
     document.querySelectorAll('.lang-toggle').forEach(btn => {
-      btn.textContent = api.lang === 'ar' ? '🇬🇧' : '🇸🇦';
+      btn.textContent = api.lang === 'ar' ? 'EN' : 'عربي';
       btn.title = api.t('nav.language', 'Change language');
       btn.setAttribute('aria-label', btn.title);
     });

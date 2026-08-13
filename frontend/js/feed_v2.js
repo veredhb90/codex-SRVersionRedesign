@@ -787,7 +787,7 @@ function buildCard(r) {
       <div class="rec-time rec-opened-date" title="Trade opened date">${t('feed.opened_label','Opened')} · ${openedDate}</div>
     </div>
     <div class="rec-user" style="margin-bottom:12px;display:flex;align-items:center;gap:6px;">
-      <a href="/profile.html?id=${r.user?._id || r.user}" style="display:inline-flex;width:20px;height:20px;border-radius:50%;overflow:hidden;flex-shrink:0;background:#1565C0;color:#fff;align-items:center;justify-content:center;font-size:9px;font-weight:800;">${window.avatarHtml ? window.avatarHtml(r.user) : ''}</a>
+      <a href="/profile.html?id=${r.user?._id || r.user}" style="display:inline-flex;width:30px;height:30px;border-radius:50%;overflow:hidden;flex-shrink:0;background:#1565C0;color:#fff;align-items:center;justify-content:center;font-size:12px;font-weight:800;">${window.avatarHtml ? window.avatarHtml(r.user) : ''}</a>
       <span>${t('feed.by_label','by')} <strong><a href="/profile.html?id=${r.user?._id || r.user}" style="color:var(--accent2);text-decoration:none;">@${r.user?.username || r.user?.fullName || t('feed.trader_fallback','trader')}</a></strong></span>
     </div>
     <div class="rec-prices">
