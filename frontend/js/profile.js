@@ -25,12 +25,9 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
   // ── Header ───────────────────────────────────────────────────
   function renderHeader({ user, isFollowing }) {
     var nameEl = document.getElementById('prof-name');
-    if (nameEl.childNodes.length && nameEl.childNodes[0].nodeType === 3) {
-      nameEl.childNodes[0].textContent = user.fullName;
-    } else {
-      nameEl.insertBefore(document.createTextNode(user.fullName), nameEl.firstChild);
-    }
     var planBadge = document.getElementById('prof-plan-badge');
+    Array.prototype.slice.call(nameEl.childNodes).forEach(function(n) { if (n !== planBadge) nameEl.removeChild(n); });
+    nameEl.insertBefore(document.createTextNode(user.fullName), planBadge || null);
     if (planBadge) {
       if (user.plan === 'pro') {
         planBadge.textContent = '⚡ ' + t('payment.pro_badge', 'PRO');
