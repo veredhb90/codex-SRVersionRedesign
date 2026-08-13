@@ -258,12 +258,12 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     const isReply  = !!m;
     const bodyText = m ? m[2] : text;
     const commentId = String(c._id || '');
-    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" data-comment-id="${commentId}" style="margin-left:auto;background:#F0F5FE;border:1px solid #D6E4F5;border-radius:12px;color:var(--accent2);font-size:10.5px;cursor:pointer;font-weight:700;padding:3px 10px;flex-shrink:0;">↩ Reply</button>`;
+    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" data-comment-id="${commentId}" style="margin-left:auto;background:none;border:none;color:var(--accent2);font-size:10.5px;cursor:pointer;font-weight:700;padding:3px 6px;flex-shrink:0;">↩ Reply</button>`;
     const nameLink = c.user?._id
       ? `<a href="/profile.html?id=${c.user._id}" style="text-decoration:none;color:var(--accent2);font-weight:800;font-size:12.5px;">${uname}</a>`
       : `<strong style="color:var(--accent2);font-size:12.5px;">${uname}</strong>`;
-    const replyChip = isReply ? `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#64748b;background:#EEF4FF;border-radius:8px;padding:2px 8px;margin-bottom:5px;">↩ Reply to <b style="color:var(--accent2);">@${m[1]}</b></div>` : '';
-    return `<div id="profile-comment-${commentId}" class="pc-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin:6px 0 6px ${ind}px;${isReply?'border-left:2.5px solid #90CAF9;':''}padding:9px 11px;background:${isReply?'rgba(21,101,192,0.045)':'#fff'};border:1px solid #E3EEFF;border-radius:${isReply?'0 12px 12px 12px':'12px'};">
+    const replyChip = isReply ? `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);background:rgba(21,101,192,0.12);border-radius:8px;padding:2px 8px;margin-bottom:5px;">↩ Reply to <b style="color:var(--accent2);">@${m[1]}</b></div>` : '';
+    return `<div id="profile-comment-${commentId}" class="pc-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin:6px 0 6px ${ind}px;${isReply?'border-left:2.5px solid var(--accent2);':''}padding:9px 11px;background:${isReply?'rgba(21,101,192,0.08)':'var(--bg2)'};border-radius:${isReply?'0 12px 12px 12px':'12px'};">
       ${replyChip}
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${avatarInner}</span>
