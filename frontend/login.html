@@ -157,7 +157,7 @@
     const errEl  = document.getElementById('forgot-err');
     const btn    = document.getElementById('forgot-btn');
     errEl.textContent = '';
-    if (!email) { errEl.textContent = 'Enter your email'; return; }
+    if (!email) { errEl.textContent = SRLang.t('login.enter_email', 'Enter your email'); return; }
     btn.disabled = true; btn.textContent = SRLang.t('login.sending', 'Sending…');
     try {
       const res = await API.forgotPassword({ email });
@@ -202,7 +202,7 @@
         password: document.getElementById('l-pass').value,
       });
       Auth.save(res.token, res.user);
-      toast('Welcome back, ' + (res.user.username ? '@'+res.user.username : res.user.fullName) + '! 🚀','success');
+      toast(SRLang.t('login.welcome_back', 'Welcome back,') + ' ' + (res.user.username ? '@'+res.user.username : res.user.fullName) + '! 🚀','success');
       setTimeout(() => location.href = '/feed.html', 500);
     } catch(err) {
       document.getElementById('l-err').textContent = err.message;

@@ -58,7 +58,7 @@
     <!-- Upgrade-to-yearly offer (active Pro Monthly users only) -->
     <div class="pay-card upgrade-banner-wrap" id="upgrade-section" style="display:none;">
       <div class="upgrade-banner">
-        <div class="u-copy" data-i18n="payment.upgrade_yearly_copy">Save <span class="u-save">$200/year</span> by switching to the yearly plan.</div>
+        <div class="u-copy" data-i18n-html="payment.upgrade_yearly_copy">Save <span class="u-save">$200/year</span> by switching to the yearly plan.</div>
       </div>
       <div id="upgrade-paypal-buttons"></div>
     </div>
@@ -104,7 +104,8 @@
 
     function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
     function fmtDate(d) {
-      return new Date(d).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+      const locale = document.documentElement.lang === 'ar' ? 'ar' : undefined;
+      return new Date(d).toLocaleDateString(locale, { month: 'long', day: 'numeric', year: 'numeric' });
     }
     function showMsg(text, isError) {
       const el = document.getElementById('pay-msg');
@@ -199,7 +200,7 @@
           cancelBtn.style.display = 'none';
         } else if (hasSubscription && knownCycle) {
           badge.className = 'status-badge';
-          badge.textContent = '⚡ PRO — ' + cycleLabel.toUpperCase();
+          badge.textContent = '⚡ ' + t('payment.pro_badge', 'PRO') + ' — ' + cycleLabel.toUpperCase();
           document.getElementById('pay-sub').textContent = me.billingCycle === 'monthly'
             ? t('payment.monthly_sub', 'You have full access. Want to save money? Switch to yearly below.')
             : t('payment.yearly_sub', "You're on our top plan — full access, best price.");
@@ -211,7 +212,7 @@
         } else {
           // Pro access with no PayPal subscription behind it (admin-granted).
           badge.className = 'status-badge';
-          badge.textContent = '⚡ PRO';
+          badge.textContent = '⚡ ' + t('payment.pro_badge', 'PRO');
           document.getElementById('pay-sub').textContent = t('payment.admin_granted_sub', 'Your Pro access was granted by the SwingRush team.');
           rows.innerHTML = me.subscriptionEnd
             ? '<div class="status-row"><span class="label">' + t('payment.access_until','Active until') + '</span><span class="val">' + fmtDate(me.subscriptionEnd) + '</span></div>'

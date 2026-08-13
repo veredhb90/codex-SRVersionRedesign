@@ -1,4 +1,5 @@
 // ── Feed Logic ─────────────────────────────────────────────────────
+function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
 (function () {
   if (!Auth.require()) return;
   const u = Auth.user();
@@ -32,24 +33,24 @@
     feedEl.insertAdjacentHTML('afterbegin', buildCard(rec));
     pulseCard(feedEl.querySelector(`[data-recid="${rec._id}"]`));
     setTimeout(refreshLivePrices, 0);
-    toast(`📡 @${rec.user?.username||rec.user?.fullName||'trader'} posted ${rec.direction} on $${rec.symbol}`, 'info', 4000);
+    toast(`📡 @${rec.user?.username||rec.user?.fullName||t('feed.trader_fallback','trader')} ${t('feed.posted_toast','posted')} ${rec.direction} ${t('feed.on_toast','on')} $${rec.symbol}`, 'info', 4000);
     updatePopular();
   });
 
   socket.on('recommendation:win', ({ recId, symbol, returnPct }) => {
     const card = feedEl.querySelector(`[data-recid="${recId}"]`);
     if (card) celebrateWin(card, symbol, returnPct);
-    toast(`🏆 $${symbol} hit Take Profit! +${returnPct}%`, 'success', 6000);
+    toast(`🏆 $${symbol} ${t('feed.hit_tp_toast','hit Take Profit!')} +${returnPct}%`, 'success', 6000);
   });
 
   socket.on('recommendation:loss', ({ recId, symbol }) => {
     const card = feedEl.querySelector(`[data-recid="${recId}"]`);
     if (card) {
       card.querySelector('.outcome-badge').className = 'outcome-badge badge-loss';
-      card.querySelector('.outcome-badge').textContent = '💸 LOSS';
+      card.querySelector('.outcome-badge').textContent = '💸 ' + t('feed.loss_badge', 'LOSS');
       card.classList.add('closed');
     }
-    toast(`💸 $${symbol} hit Stop Loss`, 'error', 4000);
+    toast(`💸 $${symbol} ${t('feed.hit_sl_toast','hit Stop Loss')}`, 'error', 4000);
   });
 
   socket.on('recommendation:comment', ({ recId, comment }) => {
@@ -80,7 +81,7 @@
       if (!recs.length && page === 1) {
         feedEl.innerHTML = `<div style="text-align:center;color:var(--muted);padding:60px 20px;">
           <div style="font-size:40px;margin-bottom:12px;">📭</div>
-          <p>${currentTab==='following'?'Follow traders to see their trades here.':'No trades yet.'}</p>
+          <p>${currentTab==='following'?t('feed.follow_to_see','Follow traders to see their trades here.'):t('feed.no_trades_yet','No trades yet.')}</p>
         </div>`;
         loadMoreBtn && (loadMoreBtn.style.display = 'none'); return;
       }
@@ -115,9 +116,9 @@
       m.id = 'sr-likes-modal';
       m.style.cssText = 'position:fixed;inset:0;z-index:25000;background:rgba(8,15,36,0.6);display:flex;align-items:center;justify-content:center;padding:20px;';
       const items = users.length
-        ? users.map(u => '<a href="/profile.html?id=' + u._id + '" style="display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid #EEF3FB;text-decoration:none;color:#1A2540;"><span style="width:32px;height:32px;border-radius:50%;background:#1565C0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">' + (u.username||u.fullName||'?').charAt(0).toUpperCase() + '</span><span style="font-weight:600;">@' + (u.username||u.fullName) + '</span></a>').join('')
-        : '<div style="text-align:center;color:#94a3b8;padding:16px;">No likes yet</div>';
-      m.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;max-height:70vh;overflow-y:auto;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,0.3);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><strong style="color:#0D2244;">&#10084;&#65039; Liked by</strong><button id="sr-likes-close" style="background:none;border:none;font-size:16px;cursor:pointer;color:#94a3b8;">&#10005;</button></div>' + items + '</div>';
+        ? users.map(u => '<a href="/profile.html?id=' + u._id + '" style="display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid #EEF3FB;text-decoration:none;color:#1A2540;"><span style="width:32px;height:32px;border-radius:50%;background:#1565C0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;overflow:hidden;">' + (window.avatarHtml ? window.avatarHtml(u) : (u.username||u.fullName||'?').charAt(0).toUpperCase()) + '</span><span style="font-weight:600;">@' + (u.username||u.fullName) + '</span></a>').join('')
+        : '<div style="text-align:center;color:#94a3b8;padding:16px;">' + t('feed.no_likes_yet', 'No likes yet') + '</div>';
+      m.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;max-height:70vh;overflow-y:auto;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,0.3);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><strong style="color:#0D2244;">&#10084;&#65039; ' + t('feed.liked_by', 'Liked by') + '</strong><button id="sr-likes-close" style="background:none;border:none;font-size:16px;cursor:pointer;color:#94a3b8;">&#10005;</button></div>' + items + '</div>';
       m.addEventListener('click', function(ev) { if (ev.target === m || ev.target.id === 'sr-likes-close') m.remove(); });
       document.body.appendChild(m);
     } catch (err) { toast(err.message, 'error'); }
@@ -138,7 +139,7 @@
         setTimeout(() => {
           input.dataset.replyTo = replyBtn.dataset.commentId || '';
           input.value = '@' + replyBtn.dataset.username + ' ';
-          input.placeholder = 'Replying to @' + replyBtn.dataset.username + '…';
+          input.placeholder = t('feed.replying_to', 'Replying to') + ' @' + replyBtn.dataset.username + '…';
           input.focus();
           input.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }, 120);
@@ -196,7 +197,7 @@
         appendComment(section, comment, recId);
         input.value = '';
         delete input.dataset.replyTo;
-        input.placeholder = 'Add a comment… (recommend, analyze, discuss)';
+        input.placeholder = t('feed.comment_placeholder', 'Add a comment… (recommend, analyze, discuss)');
         const count = document.querySelector(`[data-recid="${recId}"] .comment-count`);
         if (count) count.textContent = parseInt(count.textContent||0) + 1;
       } catch (err) { toast(err.message, 'error'); }
@@ -217,17 +218,17 @@
       if (isReposted) {
         // Undo repost directly
         repostBtn.disabled = true;
-        repostBtn.textContent = 'Undoing…';
+        repostBtn.textContent = t('feed.undoing', 'Undoing…');
         try {
           await API.undoRepost(id);
           repostBtn.dataset.reposted = 'false';
-          repostBtn.textContent = '↩ Repost';
+          repostBtn.textContent = '↩ ' + t('feed.repost_short', 'Repost');
           repostBtn.style.color = '';
           repostBtn.style.borderColor = '';
-          toast('Repost removed from your profile', 'info');
+          toast(t('feed.repost_removed', 'Repost removed from your profile'), 'info');
         } catch (err) {
           toast(err.message, 'error');
-          repostBtn.textContent = '✓ Undo Repost';
+          repostBtn.textContent = '✓ ' + t('feed.undo_repost', 'Undo Repost');
         } finally {
           repostBtn.disabled = false;
         }
@@ -242,9 +243,9 @@
     const shareBtn = e.target.closest('.share-rec-btn');
     if (shareBtn) {
       const card  = shareBtn.closest('[data-recid]');
-      const text  = `📊 ${card.dataset.dir} $${card.dataset.symbol} | Entry: $${Number(card.dataset.entry).toFixed(2)} | TP: $${card.dataset.tp} | SL: $${card.dataset.sl||'N/A'} via SwingRush`;
+      const text  = `📊 ${card.dataset.dir} $${card.dataset.symbol} | ${t('feed.entry_short','Entry')}: $${Number(card.dataset.entry).toFixed(2)} | ${t('feed.tp_short','TP')}: $${card.dataset.tp} | ${t('feed.sl_short','SL')}: $${card.dataset.sl||'N/A'} via SwingRush`;
       if (navigator.share) navigator.share({ title: `SwingRush: ${card.dataset.dir} $${card.dataset.symbol}`, text, url: location.origin }).catch(()=>{});
-      else { navigator.clipboard.writeText(text + '\n' + location.origin); toast('📋 Copied to clipboard!', 'success'); }
+      else { navigator.clipboard.writeText(text + '\n' + location.origin); toast('📋 ' + t('feed.copied_toast', 'Copied to clipboard!'), 'success'); }
       return;
     }
   });
@@ -261,18 +262,18 @@
         return `<div class="popular-item" onclick="openSymbolModal('${item._id}')" style="cursor:pointer;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <span class="popular-sym">${item._id}</span>
-            <span style="font-size:12px;color:var(--muted);">${item.count} trades</span>
+            <span style="font-size:12px;color:var(--muted);">${item.count} ${t('feed.trades_suffix','trades')}</span>
           </div>
           <div class="sentiment-bar">
             <div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct>15?buyPct+'%':''}</div>
             <div class="sentiment-sell" style="width:${sellPct}%;">${sellPct>15?sellPct+'%':''}</div>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px;">
-            <span style="color:var(--green);">▲ ${item.buys} BUY</span>
-            <span style="color:var(--red);">▼ ${item.sells} SELL</span>
+            <span style="color:var(--green);">▲ ${item.buys} ${t('feed.stat_buy','BUY')}</span>
+            <span style="color:var(--red);">▼ ${item.sells} ${t('feed.stat_sell','SELL')}</span>
           </div>
         </div>`;
-      }).join('') || '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No trades today yet</p>';
+      }).join('') || '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">' + t('feed.no_trades_today', 'No trades today yet') + '</p>';
     } catch (_) {}
   }
   // NOTE: feed.html's inline updatePopular() is the live one (richer onclick +
@@ -402,7 +403,7 @@ async function openSymbolModal(symbol) {
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   document.getElementById('modal-sym-name').textContent = symbol;
-  document.getElementById('modal-sym-price').textContent = 'Loading…';
+  document.getElementById('modal-sym-price').textContent = t('scanner.loading', 'Loading…');
   document.getElementById('modal-stats').innerHTML = '<div class="spinner"></div>';
   document.getElementById('modal-recs').innerHTML = '';
 
@@ -542,20 +543,21 @@ function renderCommentHtml(c, recId, depth) {
   const ind    = 22 * Math.min(Math.max(depth || (m ? 1 : 0), m ? 1 : 0), 2);
   const commentId = String(c._id || '');
   const replyBtn = `<button class="comment-reply-btn" data-username="${dataU}" data-rec="${recId}" data-comment-id="${commentId}" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;margin-left:8px;font-weight:700;">↩ Reply</button>`;
+  const avatarSpan = `<span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;vertical-align:middle;margin-right:6px;">${window.avatarHtml ? window.avatarHtml(c.user) : (dataU||'?').charAt(0).toUpperCase()}</span>`;
   const userLink = c.user?._id
     ? `<a href="/profile.html?id=${c.user._id}" style="color:var(--accent2);font-weight:700;font-size:13px;text-decoration:none;">${uname}</a>`
     : `<strong style="color:var(--accent2);font-size:13px;">${uname}</strong>`;
   if (m) {
     return `<div id="comment-${commentId}" class="comment-item comment-reply" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin-left:${ind}px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;margin-top:4px;">
       <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">↩ Reply to <span style="color:var(--accent2);font-weight:700;">@${m[1]}</span></div>
-      ${userLink}
+      ${avatarSpan}${userLink}
       <span style="font-size:13px;color:var(--text2);margin-left:8px;">${m[2]}</span>
       <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
       ${replyBtn}
     </div>`;
   }
   return `<div id="comment-${commentId}" class="comment-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}">
-      ${userLink}
+      ${avatarSpan}${userLink}
       <span style="font-size:13px;color:var(--text2);margin-left:8px;">${text}</span>
       <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
       ${replyBtn}
@@ -627,14 +629,14 @@ function showRepostModal(recId, btn) {
     <div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:460px;
                 box-shadow:0 24px 80px rgba(0,0,0,0.3);animation:modalIn .25s ease;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <div style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:var(--accent);">↩ REPOST</div>
+        <div style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:var(--accent);">↩ ${t('feed.repost_title','REPOST')}</div>
         <button onclick="document.getElementById('repost-modal').remove();document.body.style.overflow='';"
                 style="width:28px;height:28px;border-radius:50%;border:none;background:var(--bg2);cursor:pointer;font-size:14px;color:var(--muted);">✕</button>
       </div>
       <p style="color:var(--muted);font-size:13px;margin-bottom:18px;">
-        Add your comment or analysis on this recommendation. It will appear on your profile for others to see.
+        ${t('feed.repost_modal_copy', 'Add your comment or analysis on this recommendation. It will appear on your profile for others to see.')}
       </p>
-      <textarea id="repost-comment" placeholder="Share your thoughts on this trade… (optional)"
+      <textarea id="repost-comment" placeholder="${t('feed.repost_modal_placeholder', 'Share your thoughts on this trade… (optional)')}"
         style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:9px;
                font-family:var(--font-body);font-size:14px;resize:vertical;min-height:90px;
                outline:none;transition:border-color .2s;background:var(--bg2);"
@@ -646,13 +648,13 @@ function showRepostModal(recId, btn) {
         <button onclick="document.getElementById('repost-modal').remove();document.body.style.overflow='';"
                 style="flex:1;padding:11px;border:1.5px solid var(--border);border-radius:8px;
                        background:transparent;cursor:pointer;font-family:var(--font-body);font-weight:700;color:var(--muted);">
-          Cancel
+          ${t('login.cancel', 'Cancel')}
         </button>
         <button id="repost-confirm-btn"
                 style="flex:2;padding:11px;border:none;border-radius:8px;
                        background:var(--accent);color:#fff;cursor:pointer;
                        font-family:var(--font-body);font-weight:700;font-size:14px;">
-          ↩ Repost to Profile
+          ↩ ${t('feed.repost_submit', 'Repost to Profile')}
         </button>
       </div>
     </div>`;
@@ -678,7 +680,7 @@ function showRepostModal(recId, btn) {
     const comment = textarea.value.trim();
     const confirmBtn = modal.querySelector('#repost-confirm-btn');
     confirmBtn.disabled = true;
-    confirmBtn.textContent = 'Reposting…';
+    confirmBtn.textContent = t('feed.reposting', 'Reposting…');
     try {
       await API.repost(recId, comment);
       modal.remove();
@@ -686,15 +688,15 @@ function showRepostModal(recId, btn) {
       // Update the button
       if (btn) {
         btn.dataset.reposted = 'true';
-        btn.textContent = '✓ Undo Repost';
+        btn.textContent = '✓ ' + t('feed.undo_repost', 'Undo Repost');
         btn.style.color = 'var(--green)';
         btn.style.borderColor = 'var(--green)';
       }
-      toast('↩ Reposted to your profile!', 'success');
+      toast('↩ ' + t('feed.reposted_toast', 'Reposted to your profile!'), 'success');
     } catch (err) {
       toast(err.message, 'error');
       confirmBtn.disabled = false;
-      confirmBtn.textContent = '↩ Repost to Profile';
+      confirmBtn.textContent = '↩ ' + t('feed.repost_submit', 'Repost to Profile');
     }
   });
 }
@@ -709,7 +711,12 @@ function getAssetType(symbol) {
 }
 function assetTag(symbol) {
   const type = getAssetType(symbol);
-  const labels = { stock:'📈 Stock', commodity:'🥇 Commodity', crypto:'₿ Crypto', etf:'📊 ETF' };
+  const labels = {
+    stock: '📈 ' + t('feed.asset_stock', 'Stock'),
+    commodity: '🥇 ' + t('feed.asset_commodity', 'Commodity'),
+    crypto: '₿ ' + t('feed.asset_crypto', 'Crypto'),
+    etf: '📊 ' + t('feed.asset_etf', 'ETF'),
+  };
   return `<span class="asset-tag asset-${type}">${labels[type]}</span>`;
 }
 
@@ -775,25 +782,26 @@ function buildCard(r) {
       ${assetTag(r.symbol)}
       <span class="${isBuy?'badge-buy':'badge-sell'}">${isBuy?'▲':'▼'} ${r.direction}</span>
       ${outcomeBadge}
-      ${r.source === 'engine' ? '<span style="font-size:10px;background:#e8f0fe;color:#1565c0;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">⚡ ENGINE</span>' : ''}
-      ${r.source === 'repost' ? '<span style="font-size:10px;background:#f3e5f5;color:#7b1fa2;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">↩ REPOST</span>' : ''}
-      <div class="rec-time rec-opened-date" title="Trade opened date">Opened · ${openedDate}</div>
+      ${r.source === 'engine' ? '<span style="font-size:10px;background:#e8f0fe;color:#1565c0;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">⚡ ' + t('feed.engine_tag','ENGINE') + '</span>' : ''}
+      ${r.source === 'repost' ? '<span style="font-size:10px;background:#f3e5f5;color:#7b1fa2;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">↩ ' + t('feed.repost_title','REPOST') + '</span>' : ''}
+      <div class="rec-time rec-opened-date" title="Trade opened date">${t('feed.opened_label','Opened')} · ${openedDate}</div>
     </div>
-    <div class="rec-user" style="margin-bottom:12px;">
-      by <strong><a href="/profile.html?id=${r.user?._id || r.user}" style="color:var(--accent2);text-decoration:none;">@${r.user?.username || r.user?.fullName || 'trader'}</a></strong>
+    <div class="rec-user" style="margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+      <a href="/profile.html?id=${r.user?._id || r.user}" style="display:inline-flex;width:20px;height:20px;border-radius:50%;overflow:hidden;flex-shrink:0;background:#1565C0;color:#fff;align-items:center;justify-content:center;font-size:9px;font-weight:800;">${window.avatarHtml ? window.avatarHtml(r.user) : ''}</a>
+      <span>${t('feed.by_label','by')} <strong><a href="/profile.html?id=${r.user?._id || r.user}" style="color:var(--accent2);text-decoration:none;">@${r.user?.username || r.user?.fullName || t('feed.trader_fallback','trader')}</a></strong></span>
     </div>
     <div class="rec-prices">
       <div class="price-block">
         <div class="price-val">${fmtPrice(r.entryPrice)}</div>
-        <div class="price-lbl">Entry</div>
+        <div class="price-lbl">${t('feed.entry_label','Entry')}</div>
       </div>
       <div class="price-block">
         <div class="price-val tp-val">${fmtPrice(r.takeProfit)}</div>
-        <div class="price-lbl">Take Profit</div>
+        <div class="price-lbl">${t('feed.take_profit_label','Take Profit')}</div>
       </div>
       <div class="price-block">
         <div class="price-val sl-val">${r.stopLoss?fmtPrice(r.stopLoss):'—'}</div>
-        <div class="price-lbl">Stop Loss</div>
+        <div class="price-lbl">${t('feed.stop_loss_label','Stop Loss')}</div>
       </div>
     </div>
     <div class="rec-footer">
@@ -801,18 +809,18 @@ function buildCard(r) {
         <div class="rec-live-metrics">
           <span class="rec-live-metric"><span>${marketLabel}</span><strong class="live-change">—</strong></span>
           <span class="rec-live-metric"><span>${callLabel}</span><strong class="live-return" style="color:${retColor};">${openReturn >= 0 ? '+' : ''}${openReturn.toFixed(2)}%</strong></span>
-        </div>` : `<span class="live-price-tag">${r.manualClose?'✓ Closed manually':(r.outcome==='WIN'?'🎯 Hit TP':'🛑 Hit SL')} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.closePrice || (r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice)))}</span>
+        </div>` : `<span class="live-price-tag">${r.manualClose?'✓ '+t('feed.closed_manually','Closed manually'):(r.outcome==='WIN'?'🎯 '+t('feed.hit_tp_short','Hit TP'):'🛑 '+t('feed.hit_sl_short','Hit SL'))} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.closePrice || (r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice)))}</span>
         <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
       </span>`}
       ${r.isOpen ? '' : `<span class="live-return" style="color:${retColor};font-family:var(--font-mono);font-size:13px;font-weight:700;">${openReturn >= 0 ? '+' : ''}${openReturn.toFixed(2)}%</span>`}
       <button class="btn btn-sm btn-outline like-btn ${likedByViewer ? 'liked' : ''}" data-id="${r._id}" aria-pressed="${likedByViewer}" style="margin-left:auto;"><svg class="sr-ic sr-ic-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 5.6a5.4 5.4 0 0 0-7.7 0l-1.1 1.1-1.1-1.1a5.4 5.4 0 1 0-7.7 7.7l1.1 1.1 7.7 7.6 7.7-7.6 1.1-1.1a5.4 5.4 0 0 0 0-7.7z"/></svg> <span class="like-count" title="See who liked" style="cursor:pointer;">${r.likes?.length||0}</span></button>
       <button class="btn btn-sm btn-ghost comment-toggle" data-id="${r._id}"><svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> <span class="comment-count">${r.comments?.length||0}</span></button>
-      <button class="share-rec-btn">↗ Share</button>
+      <button class="share-rec-btn">↗ ${t('feed.share_btn','Share')}</button>
       ${(() => {
         const me = Auth.user();
         if (!me || r.user?._id === me.id) return '';
         const alreadyReposted = r.repostedBy && r.repostedBy.includes(me.id);
-        const label = alreadyReposted ? '✓ Undo Repost' : '↩ Repost';
+        const label = alreadyReposted ? '✓ ' + t('feed.undo_repost','Undo Repost') : '↩ ' + t('feed.repost_short','Repost');
         const style = alreadyReposted ? 'color:var(--green);border-color:var(--green);' : '';
         return `<button class="repost-btn btn btn-sm btn-outline" data-id="${r._id}" data-reposted="${alreadyReposted}" style="font-size:12px;${style}">${label}</button>`;
       })()}
@@ -821,8 +829,8 @@ function buildCard(r) {
     <div id="comments-${r._id}" class="comments-section" style="display:none;">
       <div class="comment-list">${commentsHtml}</div>
       <div class="comment-input-row">
-        <input id="comment-input-${r._id}" type="text" class="comment-input" placeholder="Add a comment… (recommend, analyze, discuss)" maxlength="500"/>
-        <button class="btn btn-primary btn-sm comment-submit" data-id="${r._id}">Post</button>
+        <input id="comment-input-${r._id}" type="text" class="comment-input" placeholder="${t('feed.comment_placeholder','Add a comment… (recommend, analyze, discuss)')}" maxlength="500"/>
+        <button class="btn btn-primary btn-sm comment-submit" data-id="${r._id}">${t('feed.post_btn','Post')}</button>
       </div>
     </div>
   </div>`;
@@ -859,6 +867,9 @@ window.closeSymbolModal   = closeSymbolModal;
       '.sr-act-item:hover{background:var(--surface2);}' +
       '.sr-act-item.fresh{animation:srActIn .45s ease;background:rgba(37,208,111,.10);}' +
       '.sr-act-ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}' +
+      '.sr-act-avatar-wrap{position:relative;width:26px;height:26px;flex-shrink:0;}' +
+      '.sr-act-avatar{width:26px;height:26px;border-radius:50%;overflow:hidden;background:#1565C0;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;}' +
+      '.sr-act-badge{position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;line-height:1;border:1.5px solid var(--surface);}' +
       '.sr-act-time{font-size:10px;color:var(--muted);margin-top:1px;}' +
       '.sr-news-item{display:block;padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;text-decoration:none;background:var(--surface);}' +
       '.sr-news-item:hover{background:var(--surface2);}' +
@@ -867,12 +878,12 @@ window.closeSymbolModal   = closeSymbolModal;
       '</style>' +
       '<div class="sr-rail-card">' +
         '<div class="sr-rail-head"><span style="width:8px;height:8px;border-radius:50%;background:#00E676;animation:srPulse 1.6s infinite;"></span>' +
-        '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">HAPPENING NOW</span>' +
-        '<span style="margin-left:auto;font-size:9px;color:#00E676;font-weight:700;letter-spacing:1px;">LIVE</span></div>' +
+        '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">' + t('feed.happening_now','HAPPENING NOW') + '</span>' +
+        '<span style="margin-left:auto;font-size:9px;color:#00E676;font-weight:700;letter-spacing:1px;">' + t('feed.live','LIVE') + '</span></div>' +
         '<div class="sr-rail-body" id="sr-activity-list"></div></div>' +
       '<div class="sr-rail-card">' +
         '<div class="sr-rail-head" style="background:#17231b;"><span style="font-size:12px;">\ud83d\udcf0</span>' +
-        '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">MARKET NEWS</span>' +
+        '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">' + t('feed.market_news','MARKET NEWS') + '</span>' +
         '<span style="margin-left:auto;font-size:9px;color:#7EE2B0;font-weight:700;letter-spacing:1px;">US</span></div>' +
         '<div class="sr-rail-body" id="sr-news-list"></div></div>';
     var lbCard = document.getElementById('leaderboard-card');
@@ -885,13 +896,13 @@ window.closeSymbolModal   = closeSymbolModal;
     var known = new Set(); var firstLoad = true;
     function icBg(k){return k==='new'?'#E3F2FD':k==='tp'?'#E3F8EC':k==='sl'?'#FFEBEE':k==='reply'?'#EDE7F6':'#FFF8E1';}
     function aIcon(k){return k==='new'?'\ud83d\udce1':k==='tp'?'\ud83c\udfaf':k==='sl'?'\ud83d\uded1':k==='reply'?'\u21a9\ufe0f':'\ud83d\udcac';}
-    function ago(t){var s=Math.max(1,Math.floor((Date.now()-new Date(t).getTime())/1000));if(s<60)return s+'s ago';var m2=Math.floor(s/60);if(m2<60)return m2+'m ago';var h=Math.floor(m2/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
+    function ago(tm){var s=Math.max(1,Math.floor((Date.now()-new Date(tm).getTime())/1000));if(s<60)return s+t('feed.ago_s','s ago');var m2=Math.floor(s/60);if(m2<60)return m2+t('feed.ago_m','m ago');var h=Math.floor(m2/60);if(h<24)return h+t('feed.ago_h','h ago');return Math.floor(h/24)+t('feed.ago_d','d ago');}
     function aLabel(a){
-      if(a.kind==='new')return '<b>@'+a.username+'</b> posted '+(a.direction==='BUY'?'\u25b2 BUY':'\u25bc SELL')+' $'+a.symbol;
-      if(a.kind==='tp')return '<b>@'+a.username+'</b> $'+a.symbol+' hit TP \ud83c\udf89'+(a.returnPct?' <span class="sr-soft-pulse" style="color:var(--green);font-weight:700;">+'+a.returnPct+'%</span>':'');
-      if(a.kind==='sl')return '<b>@'+a.username+'</b> $'+a.symbol+' hit SL'+(a.returnPct?' <span class="sr-soft-pulse" style="color:var(--red);font-weight:700;">'+a.returnPct+'%</span>':'');
-      if(a.kind==='reply')return '<b>@'+a.username+'</b> replied on $'+a.symbol;
-      return '<b>@'+a.username+'</b> commented on $'+a.symbol;
+      if(a.kind==='new')return '<b>@'+a.username+'</b> '+t('feed.act_posted','posted')+' '+(a.direction==='BUY'?'\u25b2 '+t('feed.stat_buy','BUY'):'\u25bc '+t('feed.stat_sell','SELL'))+' $'+a.symbol;
+      if(a.kind==='tp')return '<b>@'+a.username+'</b> $'+a.symbol+' '+t('feed.act_hit_tp','hit TP')+' \ud83c\udf89'+(a.returnPct?' <span class="sr-soft-pulse" style="color:var(--green);font-weight:700;">+'+a.returnPct+'%</span>':'');
+      if(a.kind==='sl')return '<b>@'+a.username+'</b> $'+a.symbol+' '+t('feed.act_hit_sl','hit SL')+(a.returnPct?' <span class="sr-soft-pulse" style="color:var(--red);font-weight:700;">'+a.returnPct+'%</span>':'');
+      if(a.kind==='reply')return '<b>@'+a.username+'</b> '+t('feed.act_replied','replied on')+' $'+a.symbol;
+      return '<b>@'+a.username+'</b> '+t('feed.act_commented','commented on')+' $'+a.symbol;
     }
     function keyOf(a){return a.kind+'|'+a.recId+'|'+(a.at||'')+'|'+(a.text||'');}
     async function loadActivity(){
@@ -904,12 +915,13 @@ window.closeSymbolModal   = closeSymbolModal;
         list.innerHTML=acts.map(function(a){
           var fresh=!firstLoad&&!known.has(keyOf(a));
           known.add(keyOf(a));
+          var avatarInner = window.avatarHtml ? window.avatarHtml({ avatar: a.avatar, username: a.username }) : (a.username||'?').charAt(0).toUpperCase();
           return '<div class="sr-act-item'+(fresh?' fresh':'')+'" onclick="location.href=\'/profile.html?id='+a.userId+'&rec='+a.recId+'\'">'+
-            '<span class="sr-act-ic" style="background:'+icBg(a.kind)+';">'+aIcon(a.kind)+'</span>'+
+            '<span class="sr-act-avatar-wrap"><span class="sr-act-avatar">'+avatarInner+'</span><span class="sr-act-badge" style="background:'+icBg(a.kind)+';">'+aIcon(a.kind)+'</span></span>'+
             '<span style="flex:1;">'+aLabel(a)+
             (a.text?'<div style="color:var(--text2);font-size:11px;font-style:italic;">&quot;'+a.text.replace(/</g,'&lt;')+'&quot;</div>':'')+
             '<div class="sr-act-time">'+(a.at?ago(a.at):'')+'</div></span></div>';
-        }).join('')||'<div style="color:var(--muted);font-size:12px;padding:14px;">Nothing yet</div>';
+        }).join('')||'<div style="color:var(--muted);font-size:12px;padding:14px;">' + t('feed.nothing_yet', 'Nothing yet') + '</div>';
         // Cap the "seen" set to the current batch so it can't grow unbounded
         // across a long session (it only needs the latest items to detect new ones).
         if(known.size>200){ known=new Set(acts.map(keyOf)); }
@@ -927,7 +939,7 @@ window.closeSymbolModal   = closeSymbolModal;
           return '<a class="sr-news-item" href="'+n.url+'" target="_blank" rel="noopener">'+
             '<div class="sr-news-h">'+String(n.headline||'').replace(/</g,'&lt;')+'</div>'+
             '<div class="sr-news-m">'+(n.source||'')+' \u00b7 '+(n.datetime?ago(n.datetime*1000):'')+'</div></a>';
-        }).join('')||'<div style="color:var(--muted);font-size:12px;padding:14px;">No news</div>';
+        }).join('')||'<div style="color:var(--muted);font-size:12px;padding:14px;">' + t('feed.no_news', 'No news') + '</div>';
       }catch(e){}
     }
     loadActivity(); loadNews();
@@ -955,7 +967,7 @@ window.openSymbolModal = async function(symbol) {
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   document.getElementById('modal-sym-name').textContent = symbol;
-  document.getElementById('modal-sym-price').textContent = 'Loading\u2026';
+  document.getElementById('modal-sym-price').textContent = t('scanner.loading', 'Loading\u2026');
   document.getElementById('modal-stats').innerHTML = '<div class="spinner"></div>';
   document.getElementById('modal-recs').innerHTML = '';
   try {
@@ -975,14 +987,14 @@ window.openSymbolModal = async function(symbol) {
     var sellPct = openTotalCt > 0 ? 100 - buyPct : 0;
     document.getElementById('modal-stats').innerHTML =
       '<div class="modal-stat-grid">' +
-      '<div class="modal-stat"><div class="ms-val">' + stats.total + '</div><div class="ms-lbl">Total Trades</div></div>' +
-      '<div class="modal-stat"><div class="ms-val c-green">' + stats.buys + '</div><div class="ms-lbl">BUY</div></div>' +
-      '<div class="modal-stat"><div class="ms-val c-red">' + stats.sells + '</div><div class="ms-lbl">SELL</div></div>' +
-      '<div class="modal-stat"><div class="ms-val">' + stats.winRate + '%</div><div class="ms-lbl">Win Rate</div></div></div>' +
-      '<div style="margin:16px 0 8px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Market Sentiment</div>' +
+      '<div class="modal-stat"><div class="ms-val">' + stats.total + '</div><div class="ms-lbl">' + t('feed.total_trades','Total Trades') + '</div></div>' +
+      '<div class="modal-stat"><div class="ms-val c-green">' + stats.buys + '</div><div class="ms-lbl">' + t('feed.stat_buy','BUY') + '</div></div>' +
+      '<div class="modal-stat"><div class="ms-val c-red">' + stats.sells + '</div><div class="ms-lbl">' + t('feed.stat_sell','SELL') + '</div></div>' +
+      '<div class="modal-stat"><div class="ms-val">' + stats.winRate + '%</div><div class="ms-lbl">' + t('feed.win_rate','Win Rate') + '</div></div></div>' +
+      '<div style="margin:16px 0 8px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">' + t('feed.market_sentiment','Market Sentiment') + '</div>' +
       '<div class="sentiment-bar" style="height:28px;border-radius:8px;overflow:hidden;font-size:13px;">' +
-      '<div class="sentiment-buy" style="width:' + buyPct + '%;height:100%;display:flex;align-items:center;justify-content:center;">' + buyPct + '% BUY</div>' +
-      '<div class="sentiment-sell" style="width:' + sellPct + '%;height:100%;display:flex;align-items:center;justify-content:center;">' + sellPct + '% SELL</div></div>';
+      '<div class="sentiment-buy" style="width:' + buyPct + '%;height:100%;display:flex;align-items:center;justify-content:center;">' + buyPct + '% ' + t('feed.stat_buy','BUY') + '</div>' +
+      '<div class="sentiment-sell" style="width:' + sellPct + '%;height:100%;display:flex;align-items:center;justify-content:center;">' + sellPct + '% ' + t('feed.stat_sell','SELL') + '</div></div>';
     drawDonut(buyPct, sellPct);
     renderProEngineSection('modal-pro-section', 'modal-chart', symbol);
     window._modalRecs = recommendations;
@@ -992,14 +1004,14 @@ window.openSymbolModal = async function(symbol) {
     var cS = recommendations.filter(function(r){return r.outcome==='LOSS';}).length;
     document.getElementById('modal-recs').innerHTML =
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 12px;font-size:11.5px;font-weight:700;">' +
-      '<span style="background:#E3F8EC;color:#00893E;border-radius:10px;padding:4px 11px;">\u25b2 ' + oB + ' OPEN BUY</span>' +
-      '<span style="background:#FFEBEE;color:#C62828;border-radius:10px;padding:4px 11px;">\u25bc ' + oS + ' OPEN SELL</span>' +
-      '<span style="background:#E8F5E9;color:#2E7D32;border-radius:10px;padding:4px 11px;">\ud83c\udfaf ' + cT + ' HIT TP</span>' +
-      '<span style="background:#FBE9E7;color:#BF360C;border-radius:10px;padding:4px 11px;">\ud83d\uded1 ' + cS + ' HIT SL</span></div>' +
+      '<span style="background:#E3F8EC;color:#00893E;border-radius:10px;padding:4px 11px;">\u25b2 ' + oB + ' ' + t('feed.open_buy','OPEN BUY') + '</span>' +
+      '<span style="background:#FFEBEE;color:#C62828;border-radius:10px;padding:4px 11px;">\u25bc ' + oS + ' ' + t('feed.open_sell','OPEN SELL') + '</span>' +
+      '<span style="background:#E8F5E9;color:#2E7D32;border-radius:10px;padding:4px 11px;">\ud83c\udfaf ' + cT + ' ' + t('feed.hit_tp','HIT TP') + '</span>' +
+      '<span style="background:#FBE9E7;color:#BF360C;border-radius:10px;padding:4px 11px;">\ud83d\uded1 ' + cS + ' ' + t('feed.hit_sl','HIT SL') + '</span></div>' +
       '<div style="display:flex;gap:6px;margin-bottom:12px;">' +
-      '<button class="sr-mf" data-f="all" onclick="renderModalRecs(\'all\')">All</button>' +
-      '<button class="sr-mf" data-f="open" onclick="renderModalRecs(\'open\')">\u25cf Open</button>' +
-      '<button class="sr-mf" data-f="closed" onclick="renderModalRecs(\'closed\')">\u2713 Closed</button></div>' +
+      '<button class="sr-mf" data-f="all" onclick="renderModalRecs(\'all\')">' + t('feed.filter_all_short','All') + '</button>' +
+      '<button class="sr-mf" data-f="open" onclick="renderModalRecs(\'open\')">\u25cf ' + t('feed.filter_open_short','Open') + '</button>' +
+      '<button class="sr-mf" data-f="closed" onclick="renderModalRecs(\'closed\')">\u2713 ' + t('feed.filter_closed_short','Closed') + '</button></div>' +
       '<div id="modal-recs-list"></div>';
     renderModalRecs('all');
   } catch (err) {
@@ -1020,18 +1032,18 @@ window.renderModalRecs = function(filter) {
   });
   list.innerHTML =
     '<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">' +
-    (filter==='all'?'All':filter==='open'?'Open':'Closed') + ' Trades (' + rows.length + ')</div>' +
+    (filter==='all'?t('feed.filter_all_short','All'):filter==='open'?t('feed.filter_open_short','Open'):t('feed.filter_closed_short','Closed')) + ' ' + t('feed.trades_paren','Trades') + ' (' + rows.length + ')</div>' +
     (rows.slice(0,15).map(function(r) {
       var openedDate = new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar' : 'en-GB',{day:'2-digit',month:'short'}).format(new Date(r.openedAt||r.createdAt));
-      var trader = r.user&&r.user.username?'@'+r.user.username:((r.user&&r.user.fullName)||'Trader');
+      var trader = r.user&&r.user.username?'@'+r.user.username:((r.user&&r.user.fullName)||t('feed.trader_fallback','Trader'));
       return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bg3);white-space:nowrap;">' +
         '<span class="' + (r.direction==='BUY'?'badge-buy':'badge-sell') + '" style="flex-shrink:0;">' + (r.direction==='BUY'?'\u25b2':'\u25bc') + ' ' + r.direction + '</span>' +
-        '<span style="font-size:13px;flex-shrink:0;">Entry <strong>' + fmtPrice(r.entryPrice) + '</strong></span>' +
-        '<span style="font-size:13px;flex-shrink:0;">TP <strong class="flash-green">' + fmtPrice(r.takeProfit) + '</strong></span>' +
+        '<span style="font-size:13px;flex-shrink:0;">' + t('feed.entry_short','Entry') + ' <strong>' + fmtPrice(r.entryPrice) + '</strong></span>' +
+        '<span style="font-size:13px;flex-shrink:0;">' + t('feed.tp_short','TP') + ' <strong class="flash-green">' + fmtPrice(r.takeProfit) + '</strong></span>' +
         '<span style="margin-left:auto;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;min-width:0;"><a href="/profile.html?id=' + (r.user && (r.user._id || r.user)) + '" style="color:var(--accent2);text-decoration:none;font-weight:600;">' + trader + '</a> · ' + openedDate + '</span>' +
         (r.outcome!=='OPEN'?'<span class="' + (r.outcome==='WIN'?'badge-win':'badge-loss') + '" style="flex-shrink:0;">' + (r.outcome==='WIN'?'\ud83c\udfc6':'\ud83d\udcb8') + ' ' + r.outcome + '</span>':'') +
         '</div>';
-    }).join('')||'<div style="color:var(--muted);font-size:13px;padding:12px 0;">No trades in this view</div>');
+    }).join('')||'<div style="color:var(--muted);font-size:13px;padding:12px 0;">' + t('feed.no_trades_in_view','No trades in this view') + '</div>');
 };
 
 
@@ -1059,10 +1071,10 @@ window.openProUpgradeModal = function() {
   m.style.cssText = 'position:fixed;inset:0;z-index:30000;background:rgba(8,15,36,0.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
   m.innerHTML = '<div style="background:#fff;border-radius:18px;padding:32px 28px;max-width:420px;width:100%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.3);">' +
     '<div style="font-size:40px;margin-bottom:8px;">��</div>' +
-    '<h3 style="font-size:20px;color:#0D2244;margin-bottom:10px;">AI Pro Analysis is a Pro feature</h3>' +
-    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">Unlock real Claude AI news analysis, catalysts, and risk detection combined with technical scoring.</p>' +
-    '<a href="/payment.html" style="display:block;background:#0D2244;color:#fff;font-weight:700;padding:11px;border-radius:10px;text-decoration:none;margin-bottom:10px;font-size:14px;">Continue to Payment</a>' +
-    '<button onclick="document.getElementById(\'sr-pro-upgrade-modal\').remove()" style="width:100%;background:transparent;color:#475569;border:none;padding:8px;cursor:pointer;font-size:13px;">Cancel</button>' +
+    '<h3 style="font-size:20px;color:#0D2244;margin-bottom:10px;">' + t('feed.pe_locked_title', 'AI Pro Analysis is a Pro feature') + '</h3>' +
+    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">' + t('feed.pe_locked_copy', 'Unlock real Claude AI news analysis, catalysts, and risk detection combined with technical scoring.') + '</p>' +
+    '<a href="/payment.html" style="display:block;background:#0D2244;color:#fff;font-weight:700;padding:11px;border-radius:10px;text-decoration:none;margin-bottom:10px;font-size:14px;">' + t('home.continue_payment', 'Continue to Payment') + '</a>' +
+    '<button onclick="document.getElementById(\'sr-pro-upgrade-modal\').remove()" style="width:100%;background:transparent;color:#475569;border:none;padding:8px;cursor:pointer;font-size:13px;">' + t('login.cancel', 'Cancel') + '</button>' +
     '</div>';
   m.addEventListener('click', function(e) { if (e.target === m) m.remove(); });
   document.body.appendChild(m);
@@ -1080,9 +1092,9 @@ window.renderProEngineSection = function(containerId, afterElementId, symbol) {
     container.innerHTML =
       '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:14px;padding:18px 20px;color:#fff;display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="openProUpgradeModal()">' +
       '<div style="font-size:28px;">🧠🔒</div>' +
-      '<div style="flex:1;"><div style="font-weight:800;font-size:14px;">AI Pro Analysis</div>' +
-      '<div style="font-size:12px;opacity:0.85;margin-top:2px;">Real Claude AI news reasoning, catalysts & risks — Pro members only</div></div>' +
-      '<div style="background:rgba(255,255,255,0.2);padding:6px 14px;border-radius:10px;font-size:12px;font-weight:700;">Unlock ⚡</div>' +
+      '<div style="flex:1;"><div style="font-weight:800;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</div>' +
+      '<div style="font-size:12px;opacity:0.85;margin-top:2px;">' + t('feed.pe_locked_sub', 'Real Claude AI news reasoning, catalysts & risks — Pro members only') + '</div></div>' +
+      '<div style="background:rgba(255,255,255,0.2);padding:6px 14px;border-radius:10px;font-size:12px;font-weight:700;">' + t('feed.pe_unlock', 'Unlock') + ' ⚡</div>' +
       '</div>';
     return;
   }
@@ -1090,20 +1102,29 @@ window.renderProEngineSection = function(containerId, afterElementId, symbol) {
   container.innerHTML =
     '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:14px;">' +
     '<div style="font-size:28px;">🧠</div>' +
-    '<div style="flex:1;"><div style="font-weight:800;color:#0D2244;font-size:14px;">AI Pro Analysis</div>' +
-    '<div style="font-size:12px;color:#64748b;margin-top:2px;">Run real Claude AI reasoning on ' + symbol + ' — news, catalysts, risks</div></div>' +
-    '<button onclick="runProEngineAnalysis(\'' + containerId + '\', \'' + symbol + '\')" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">Analyze 🧠</button>' +
+    '<div style="flex:1;"><div style="font-weight:800;color:#0D2244;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</div>' +
+    '<div style="font-size:12px;color:#64748b;margin-top:2px;">' + t('feed.pe_run_copy', 'Run real Claude AI reasoning on') + ' ' + symbol + ' — ' + t('feed.pe_run_copy2', 'news, catalysts, risks') + '</div></div>' +
+    '<button onclick="runProEngineAnalysis(\'' + containerId + '\', \'' + symbol + '\')" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">' + t('feed.pe_analyze_btn', 'Analyze') + ' 🧠</button>' +
     '</div>';
 };
 
 // ── Shared loading state: spinner + rotating status text so a 10-25s ──
 // AI analysis never looks stuck. Reuses the global `spin` keyframe from main.css.
-var SR_PE_STEPS = ['Fetching latest news…', 'Checking analyst ratings…', 'Reading technical indicators…', 'Reasoning with Claude AI…', 'Finalizing score…'];
+function SR_PE_STEPS_LIST() {
+  return [
+    t('feed.pe_step_1', 'Fetching latest news…'),
+    t('feed.pe_step_2', 'Checking analyst ratings…'),
+    t('feed.pe_step_3', 'Reading technical indicators…'),
+    t('feed.pe_step_4', 'Reasoning with Claude AI…'),
+    t('feed.pe_step_5', 'Finalizing score…'),
+  ];
+}
+var SR_PE_STEPS = SR_PE_STEPS_LIST();
 window.srProEngineLoadingHtml = function(stepElId, symbol) {
   return '<div style="text-align:center;padding:20px 0;">' +
     '<div style="width:30px;height:30px;margin:0 auto 12px;border:3px solid #E3EEFF;border-top-color:#0D2244;border-radius:50%;animation:spin 0.8s linear infinite;"></div>' +
-    '<div id="' + stepElId + '" style="color:#475569;font-size:13px;font-weight:600;">Analyzing ' + symbol + '…</div>' +
-    '<div style="color:#94a3b8;font-size:11px;margin-top:5px;">Real AI reasoning — usually 10-25 seconds</div>' +
+    '<div id="' + stepElId + '" style="color:#475569;font-size:13px;font-weight:600;">' + t('feed.pe_analyzing', 'Analyzing') + ' ' + symbol + '…</div>' +
+    '<div style="color:#94a3b8;font-size:11px;margin-top:5px;">' + t('feed.pe_real_ai', 'Real AI reasoning — usually 10-25 seconds') + '</div>' +
     '</div>';
 };
 window.srStartProEngineTicker = function(stepElId) {
@@ -1111,7 +1132,8 @@ window.srStartProEngineTicker = function(stepElId) {
   return setInterval(function() {
     var e = document.getElementById(stepElId);
     if (!e) return;
-    e.textContent = SR_PE_STEPS[i % SR_PE_STEPS.length];
+    var steps = SR_PE_STEPS_LIST();
+    e.textContent = steps[i % steps.length];
     i++;
   }, 3000);
 };
@@ -1132,7 +1154,7 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
   container.innerHTML =
     '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:18px 20px;">' +
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">' +
-    '<span style="font-size:18px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:14px;">AI Pro Analysis</span>' +
+    '<span style="font-size:18px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</span>' +
     '<span style="margin-left:auto;font-size:10px;background:#F5D061;color:#4A3B10;padding:2px 9px;border-radius:8px;font-weight:800;">PRO</span></div>' +
     window.srProEngineLoadingHtml('sr-pe-step-' + containerId, symbol) + '</div>';
   var _peTimer = window.srStartProEngineTicker('sr-pe-step-' + containerId);
@@ -1145,12 +1167,12 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
     clearInterval(_peTimer);
     if (!res.ok) {
       container.querySelector('div > div:last-child').innerHTML =
-        '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || 'Analysis unavailable') + '</p>';
+        '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || t('feed.pe_unavailable', 'Analysis unavailable')) + '</p>';
       return;
     }
     if (d.insufficientData) {
       container.querySelector('div > div:last-child').innerHTML =
-        '<p style="color:#94a3b8;font-size:13px;text-align:center;">Not enough price history for this symbol.</p>';
+        '<p style="color:#94a3b8;font-size:13px;text-align:center;">' + t('feed.pe_insufficient_generic', 'Not enough price history for this symbol.') + '</p>';
       return;
     }
 
@@ -1163,51 +1185,51 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
     }).join('');
 
     var catalystsHtml = (d.catalysts || []).length
-      ? '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:800;color:#00893E;letter-spacing:0.5px;margin-bottom:4px;">📈 CATALYSTS</div>' +
+      ? '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:800;color:#00893E;letter-spacing:0.5px;margin-bottom:4px;">📈 ' + t('home.eng_catalysts', 'CATALYSTS') + '</div>' +
         d.catalysts.map(function(c) { return '<div style="font-size:12px;color:#1A2540;padding:3px 0;">• ' + c + '</div>'; }).join('') + '</div>'
       : '';
 
     var risksHtml = (d.risks || []).length
-      ? '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:800;color:#C62828;letter-spacing:0.5px;margin-bottom:4px;">⚠️ RISKS</div>' +
+      ? '<div style="margin-top:10px;"><div style="font-size:11px;font-weight:800;color:#C62828;letter-spacing:0.5px;margin-bottom:4px;">⚠️ ' + t('home.eng_risks', 'RISKS') + '</div>' +
         d.risks.map(function(r) { return '<div style="font-size:12px;color:#1A2540;padding:3px 0;">• ' + r + '</div>'; }).join('') + '</div>'
       : '';
 
     container.innerHTML =
       '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:18px 20px;">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">' +
-      '<span style="font-size:18px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:14px;">AI Pro Analysis</span>' +
+      '<span style="font-size:18px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</span>' +
       '<span style="margin-left:auto;font-size:10px;background:#F5D061;color:#4A3B10;padding:2px 9px;border-radius:8px;font-weight:800;">PRO</span></div>' +
 
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
       '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;">' + d.direction + '</span>' +
-      '<span style="font-size:13px;color:#475569;">Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</span></div>' +
-      '<div style="display:flex;gap:14px;font-size:12px;color:#64748b;margin-bottom:12px;padding:8px 10px;background:#F8FAFF;border-radius:8px;"><span>Technical: <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>News (AI): <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>Total: <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
-      (d.holdingPeriod ? '<div style="font-size:11px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ Suggested holding period: ' + d.holdingPeriod + '</div>' : '') +
-      (d.upcomingEarnings && d.upcomingEarnings.length ? (function(){ var ed=d.upcomingEarnings[0]&&d.upcomingEarnings[0].date; var days=ed?Math.round((new Date(ed+'T00:00:00')-new Date(new Date().toDateString()))/86400000):null; var imm=days!==null&&days>=0&&days<=3; var badge=imm?'<div style="display:inline-block;background:#DC2626;color:#fff;font-weight:800;font-size:10px;letter-spacing:.4px;padding:4px 10px;border-radius:6px;margin-bottom:8px;box-shadow:0 2px 8px rgba(220,38,38,.35);">⚠️ EARNINGS '+(days===0?'TODAY':days===1?'TOMORROW':'IN '+days+' DAYS')+'</div><br>':''; return badge+'<div style="font-size:11px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 Next earnings:</strong> '+d.upcomingEarnings.map(function(x){return x.date;}).join(' · ')+'</div>'; })() : '') +
+      '<span style="font-size:13px;color:#475569;">' + t('home.eng_combined_score','Combined Score') + ': <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' ' + t('home.eng_confidence','Confidence') + '</span></div>' +
+      '<div style="display:flex;gap:14px;font-size:12px;color:#64748b;margin-bottom:12px;padding:8px 10px;background:#F8FAFF;border-radius:8px;"><span>' + t('home.eng_technical','Technical') + ': <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + t('home.eng_news_ai','News (AI)') + ': <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + t('home.eng_total','Total') + ': <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      (d.holdingPeriod ? '<div style="font-size:11px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period','Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
+      (d.upcomingEarnings && d.upcomingEarnings.length ? (function(){ var ed=d.upcomingEarnings[0]&&d.upcomingEarnings[0].date; var days=ed?Math.round((new Date(ed+'T00:00:00')-new Date(new Date().toDateString()))/86400000):null; var imm=days!==null&&days>=0&&days<=3; var badge=imm?'<div style="display:inline-block;background:#DC2626;color:#fff;font-weight:800;font-size:10px;letter-spacing:.4px;padding:4px 10px;border-radius:6px;margin-bottom:8px;box-shadow:0 2px 8px rgba(220,38,38,.35);">⚠️ EARNINGS '+(days===0?t('feed.pe_today','TODAY'):days===1?t('feed.pe_tomorrow','TOMORROW'):t('feed.pe_in_days','IN')+' '+days+' '+t('feed.pe_days','DAYS'))+'</div><br>':''; return badge+'<div style="font-size:11px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 ' + t('home.eng_next_earnings','Next earnings') + ':</strong> '+d.upcomingEarnings.map(function(x){return x.date;}).join(' · ')+'</div>'; })() : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">' +
-        '<div style="background:#F8FAFF;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry' + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:13px;color:#0D2244;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:9.5px;color:#94a3b8;margin-top:2px;">Close: $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
-        '<div style="background:#E3F8EC;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#00893E;">TP</div><div style="font-weight:700;font-size:13px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
-        '<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#C62828;">SL</div><div style="font-weight:700;font-size:13px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
+        '<div style="background:#F8FAFF;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">' + t('home.eng_entry_label','Entry') + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:13px;color:#0D2244;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:9.5px;color:#94a3b8;margin-top:2px;">' + t('home.eng_regular_session_close','Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
+        '<div style="background:#E3F8EC;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#00893E;">' + t('feed.tp_short','TP') + '</div><div style="font-weight:700;font-size:13px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
+        '<div style="background:#FFEBEE;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#C62828;">' + t('feed.sl_short','SL') + '</div><div style="font-weight:700;font-size:13px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
         '</div>' : '') +
 
-      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">TECHNICAL BREAKDOWN (' + d.technicalScore + ' pts)</div>' +
+      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_technical_breakdown','TECHNICAL BREAKDOWN') + ' (' + d.technicalScore + ' ' + t('home.eng_pts','pts') + ')</div>' +
       breakdownHtml +
 
       '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #F0F5FC;">' +
-      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">NEWS ANALYSIS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
+      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_news_analysis','NEWS ANALYSIS') + ' (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' ' + t('home.eng_pts','pts') + ') — ' + d.newsLabel + '</div>' +
       '<p style="font-size:12.5px;color:#1A2540;line-height:1.5;margin:0;">' + (d.newsSummary || '') + '</p>' +
-      (d.newsReasoning ? '<p style="font-size:11.5px;color:#4A5A78;line-height:1.5;margin:8px 0 0;"><strong style="color:#7E9BC4;">Why this score:</strong> ' + d.newsReasoning + '</p>' : '') +
+      (d.newsReasoning ? '<p style="font-size:11.5px;color:#4A5A78;line-height:1.5;margin:8px 0 0;"><strong style="color:#7E9BC4;">' + t('feed.pe_why_score','Why this score:') + '</strong> ' + d.newsReasoning + '</p>' : '') +
       (d.analystSummary ? '<p style="font-size:11.5px;color:#64748b;margin-top:6px;">' + d.analystSummary + '</p>' : '') +
       catalystsHtml + risksHtml +
       '</div>' +
 
-      '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles analyzed' + (d.newsFromCache ? ' · cached' : '') + '</div>' +
+      '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
       '</div>';
     if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
   } catch (err) {
     clearInterval(_peTimer);
-    var msg = err.name === 'AbortError' ? 'Analysis timed out — please try again.' : 'AI Pro Analysis failed to load.';
+    var msg = err.name === 'AbortError' ? t('feed.pe_timeout','Analysis timed out — please try again.') : t('feed.pe_failed','AI Pro Analysis failed to load.');
     container.innerHTML = '<p style="color:#C62828;font-size:13px;">' + msg + '</p>';
   }
 };
@@ -1234,10 +1256,10 @@ window.openProEngineModal = function() {
     '</div>' +
     '<div style="padding:20px 22px;">' +
     '<div style="display:flex;gap:8px;margin-bottom:16px;">' +
-    '<input id="pe-modal-sym" type="text" placeholder="Enter any symbol (e.g. TSLA, NVDA, AAPL)..." style="flex:1;border:1.5px solid #D6E4F5;border-radius:10px;padding:11px 14px;font-size:14px;outline:none;" autocomplete="off"/>' +
-    '<button onclick="runProEngineModal()" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:0 20px;font-weight:700;cursor:pointer;font-size:14px;">Analyze 🧠</button>' +
+    '<input id="pe-modal-sym" type="text" placeholder="' + t('feed.pe_modal_placeholder', 'Enter any symbol (e.g. TSLA, NVDA, AAPL)...') + '" style="flex:1;border:1.5px solid #D6E4F5;border-radius:10px;padding:11px 14px;font-size:14px;outline:none;" autocomplete="off"/>' +
+    '<button onclick="runProEngineModal()" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:0 20px;font-weight:700;cursor:pointer;font-size:14px;">' + t('feed.pe_analyze_btn', 'Analyze') + ' 🧠</button>' +
     '</div>' +
-    '<div id="pe-modal-result"><p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px 0;">Enter a symbol above to run the AI Pro Engine.</p></div>' +
+    '<div id="pe-modal-result"><p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px 0;">' + t('feed.pe_modal_empty', 'Enter a symbol above to run the AI Pro Engine.') + '</p></div>' +
     '</div></div>';
 
   m.addEventListener('click', function(e) { if (e.target === m) m.remove(); });
@@ -1261,9 +1283,9 @@ window.runProEngineModal = async function() {
     resultEl.innerHTML =
       '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:14px;padding:20px;color:#fff;text-align:center;">' +
       '<div style="font-size:32px;margin-bottom:8px;">🧠🔒</div>' +
-      '<div style="font-weight:800;font-size:15px;margin-bottom:6px;">AI Pro Engine is a Pro feature</div>' +
-      '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">Analyze any stock with real Claude AI reasoning on news, catalysts, and risks — combined with 8 technical indicators.</div>' +
-      '<a href="/payment.html" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:9px 18px;border-radius:10px;text-decoration:none;font-size:13px;">Upgrade to Pro</a>' +
+      '<div style="font-weight:800;font-size:15px;margin-bottom:6px;">' + t('feed.pe_engine_locked_title', 'AI Pro Engine is a Pro feature') + '</div>' +
+      '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">' + t('feed.pe_engine_locked_copy', 'Analyze any stock with real Claude AI reasoning on news, catalysts, and risks — combined with 8 technical indicators.') + '</div>' +
+      '<a href="/payment.html" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:9px 18px;border-radius:10px;text-decoration:none;font-size:13px;">' + t('feed.pe_upgrade_to_pro', 'Upgrade to Pro') + '</a>' +
       '</div>';
     return;
   }
@@ -1278,11 +1300,11 @@ window.runProEngineModal = async function() {
     var d = await res.json();
     clearInterval(_peModalTimer);
     if (!res.ok) {
-      resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || 'Analysis failed') + '</p>';
+      resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || t('feed.pe_analysis_failed', 'Analysis failed')) + '</p>';
       return;
     }
     if (d.insufficientData) {
-      resultEl.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;">Not enough price history for ' + sym + '.</p>';
+      resultEl.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;">' + t('home.eng_insufficient_data', 'Not enough price history for') + ' ' + sym + '.</p>';
       return;
     }
 
@@ -1295,12 +1317,12 @@ window.runProEngineModal = async function() {
     }).join('');
 
     var catalystsHtml = (d.catalysts || []).length
-      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:#00893E;letter-spacing:0.5px;margin-bottom:5px;">📈 CATALYSTS</div>' +
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:#00893E;letter-spacing:0.5px;margin-bottom:5px;">📈 ' + t('home.eng_catalysts', 'CATALYSTS') + '</div>' +
         d.catalysts.map(function(c) { return '<div style="font-size:13px;color:#1A2540;padding:3px 0;">• ' + c + '</div>'; }).join('') + '</div>'
       : '';
 
     var risksHtml = (d.risks || []).length
-      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:#C62828;letter-spacing:0.5px;margin-bottom:5px;">⚠️ RISKS</div>' +
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:#C62828;letter-spacing:0.5px;margin-bottom:5px;">⚠️ ' + t('home.eng_risks', 'RISKS') + '</div>' +
         d.risks.map(function(r) { return '<div style="font-size:13px;color:#1A2540;padding:3px 0;">• ' + r + '</div>'; }).join('') + '</div>'
       : '';
 
@@ -1312,36 +1334,36 @@ window.runProEngineModal = async function() {
       (d.marketState && d.marketState !== 'Regular Session' ? '<span style="font-size:10.5px;color:#F59E0B;font-weight:700;background:#FEF3D7;padding:2px 8px;border-radius:6px;">' + d.marketState + '</span>' : '') +
       '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
       '</div>' +
-      (d.marketState && d.marketState !== 'Regular Session' ? '<div style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">Regular Session Close: $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
+      (d.marketState && d.marketState !== 'Regular Session' ? '<div style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">' + t('home.eng_regular_session_close','Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
 
-      '<div style="font-size:13px;color:#475569;margin-bottom:6px;">Combined Score: <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' Confidence</div>' +
-      '<div style="display:flex;gap:14px;font-size:12.5px;color:#64748b;margin-bottom:14px;padding:9px 12px;background:#F8FAFF;border-radius:8px;"><span>Technical: <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>News (AI): <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>Total: <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
-      (d.holdingPeriod ? '<div style="font-size:12px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ Suggested holding period: ' + d.holdingPeriod + '</div>' : '') +
-      (d.upcomingEarnings && d.upcomingEarnings.length ? (function(){ var ed=d.upcomingEarnings[0]&&d.upcomingEarnings[0].date; var days=ed?Math.round((new Date(ed+'T00:00:00')-new Date(new Date().toDateString()))/86400000):null; var imm=days!==null&&days>=0&&days<=3; var badge=imm?'<div style="display:inline-block;background:#DC2626;color:#fff;font-weight:800;font-size:10.5px;letter-spacing:.4px;padding:4px 10px;border-radius:6px;margin-bottom:8px;box-shadow:0 2px 8px rgba(220,38,38,.35);">⚠️ EARNINGS '+(days===0?'TODAY':days===1?'TOMORROW':'IN '+days+' DAYS')+'</div><br>':''; return badge+'<div style="font-size:12px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 Next earnings:</strong> '+d.upcomingEarnings.map(function(x){return x.date;}).join(' · ')+'</div>'; })() : '') +
+      '<div style="font-size:13px;color:#475569;margin-bottom:6px;">' + t('home.eng_combined_score','Combined Score') + ': <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' ' + t('home.eng_confidence','Confidence') + '</div>' +
+      '<div style="display:flex;gap:14px;font-size:12.5px;color:#64748b;margin-bottom:14px;padding:9px 12px;background:#F8FAFF;border-radius:8px;"><span>' + t('home.eng_technical','Technical') + ': <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + t('home.eng_news_ai','News (AI)') + ': <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + t('home.eng_total','Total') + ': <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      (d.holdingPeriod ? '<div style="font-size:12px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period','Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
+      (d.upcomingEarnings && d.upcomingEarnings.length ? (function(){ var ed=d.upcomingEarnings[0]&&d.upcomingEarnings[0].date; var days=ed?Math.round((new Date(ed+'T00:00:00')-new Date(new Date().toDateString()))/86400000):null; var imm=days!==null&&days>=0&&days<=3; var badge=imm?'<div style="display:inline-block;background:#DC2626;color:#fff;font-weight:800;font-size:10.5px;letter-spacing:.4px;padding:4px 10px;border-radius:6px;margin-bottom:8px;box-shadow:0 2px 8px rgba(220,38,38,.35);">⚠️ EARNINGS '+(days===0?t('feed.pe_today','TODAY'):days===1?t('feed.pe_tomorrow','TOMORROW'):t('feed.pe_in_days','IN')+' '+days+' '+t('feed.pe_days','DAYS'))+'</div><br>':''; return badge+'<div style="font-size:12px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 ' + t('home.eng_next_earnings','Next earnings') + ':</strong> '+d.upcomingEarnings.map(function(x){return x.date;}).join(' · ')+'</div>'; })() : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
-        '<div style="background:#F8FAFF;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">Entry' + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:14px;color:#0D2244;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">Close: $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
-        '<div style="background:#E3F8EC;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#00893E;">Take Profit</div><div style="font-weight:700;font-size:14px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
-        '<div style="background:#FFEBEE;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#C62828;">Stop Loss</div><div style="font-weight:700;font-size:14px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
-        '</div>' : '<p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">No clear directional signal — score too low for a trade setup.</p>') +
+        '<div style="background:#F8FAFF;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">' + t('home.eng_entry_label','Entry') + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:14px;color:#0D2244;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">' + t('home.eng_regular_session_close','Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
+        '<div style="background:#E3F8EC;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#00893E;">' + t('home.eng_take_profit_label','Take Profit') + '</div><div style="font-weight:700;font-size:14px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
+        '<div style="background:#FFEBEE;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#C62828;">' + t('home.eng_stop_loss_label','Stop Loss') + '</div><div style="font-weight:700;font-size:14px;color:#C62828;">$' + d.stopLoss + '</div></div>' +
+        '</div>' : '<p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">' + t('home.eng_no_directional_signal', 'No clear directional signal — score too low for a trade setup.') + '</p>') +
 
-      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">TECHNICAL BREAKDOWN (' + d.technicalScore + ' pts)</div>' +
+      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_technical_breakdown','TECHNICAL BREAKDOWN') + ' (' + d.technicalScore + ' ' + t('home.eng_pts','pts') + ')</div>' +
       breakdownHtml +
 
       '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #E3EEFF;">' +
-      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">NEWS ANALYSIS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
+      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_news_analysis','NEWS ANALYSIS') + ' (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' ' + t('home.eng_pts','pts') + ') — ' + d.newsLabel + '</div>' +
       '<p style="font-size:13px;color:#1A2540;line-height:1.55;margin:0;">' + (d.newsSummary || '') + '</p>' +
-      (d.newsReasoning ? '<p style="font-size:12px;color:#4A5A78;line-height:1.55;margin:8px 0 0;"><strong style="color:#7E9BC4;">Why this score:</strong> ' + d.newsReasoning + '</p>' : '') +
+      (d.newsReasoning ? '<p style="font-size:12px;color:#4A5A78;line-height:1.55;margin:8px 0 0;"><strong style="color:#7E9BC4;">' + t('feed.pe_why_score','Why this score:') + '</strong> ' + d.newsReasoning + '</p>' : '') +
       (d.analystSummary ? '<p style="font-size:12px;color:#64748b;margin-top:8px;">' + d.analystSummary + '</p>' : '') +
       catalystsHtml + risksHtml +
       '</div>' +
 
-      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles analyzed' + (d.newsFromCache ? ' · cached' : '') + '</div>' +
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
       '</div>';
     if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
   } catch (err) {
     clearInterval(_peModalTimer);
-    var modalMsg = err.name === 'AbortError' ? 'Analysis timed out — please try again.' : 'Analysis failed to load.';
+    var modalMsg = err.name === 'AbortError' ? t('feed.pe_timeout','Analysis timed out — please try again.') : t('feed.pe_failed_generic','Analysis failed to load.');
     resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">' + modalMsg + '</p>';
   }
 };

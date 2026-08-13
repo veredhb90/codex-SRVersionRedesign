@@ -8,7 +8,8 @@ router.get('/', protect, async (req, res) => {
   try {
     const notifs = await Notification.find({ user: req.user._id })
       .sort({ createdAt: -1 })
-      .limit(50);
+      .limit(50)
+      .populate('fromUser', 'avatar');
     const unread = notifs.filter(n => !n.read).length;
     res.json({ notifications: notifs, unread });
   } catch (err) { res.status(500).json({ message: err.message }); }

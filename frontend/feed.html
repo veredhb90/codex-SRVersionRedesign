@@ -131,7 +131,7 @@
         </div>
       </div>
     </div>
-    <span style="color:var(--muted);font-size:14px;">Hi, <strong class="nav-username"></strong></span>
+    <span style="color:var(--muted);font-size:14px;"><span data-i18n="feed.hi">Hi,</span> <strong class="nav-username"></strong></span>
     <a href="/profile.html" class="btn btn-outline btn-sm" data-i18n="nav.profile">Profile</a>
     <button onclick="Auth.logout()" class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1.5px solid var(--red);" data-i18n="nav.logout">Logout</button>
   </div>
@@ -139,7 +139,7 @@
 
 <div class="ticker-wrap">
   <div class="ticker-inner" id="ticker-inner">
-    <span class="ticker-item"><span class="sym">Loading live data…</span></span>
+    <span class="ticker-item"><span class="sym" data-i18n="home.loading_live_data">Loading live data…</span></span>
   </div>
 </div>
 
@@ -176,17 +176,17 @@
 <div id="repost-overlay" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(2,4,10,0.75);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px;">
   <div style="background:linear-gradient(165deg, rgba(199,146,255,0.06), rgba(11,15,26,0.98) 40%), rgba(11,15,26,0.98);border:1px solid var(--border2);border-radius:18px;padding:28px;width:100%;max-width:460px;box-shadow:0 28px 80px rgba(0,0,0,0.6);animation:modalIn .25s ease;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <span style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:#fff;">↩ REPOST</span>
+      <span style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:#fff;">↩ <span data-i18n="feed.repost_title">REPOST</span></span>
       <button onclick="closeRepostModal()" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--bg3);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--muted);">✕</button>
     </div>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">Add your thoughts on this trade (optional). Visible on your profile.</p>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:16px;" data-i18n="feed.repost_copy">Add your thoughts on this trade (optional). Visible on your profile.</p>
     <div id="repost-rec-preview" style="background:var(--bg2);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
-    <textarea id="repost-comment" placeholder="Add your analysis or comment… (optional)" maxlength="280"
+    <textarea id="repost-comment" placeholder="Add your analysis or comment… (optional)" data-i18n-placeholder="feed.repost_placeholder" maxlength="280"
       style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-family:var(--font-body);font-size:14px;color:var(--text);resize:vertical;min-height:80px;outline:none;background:var(--bg2);transition:all .2s;"></textarea>
     <div style="font-size:11px;color:var(--muted);margin-top:4px;text-align:right;" id="repost-char-count">0 / 280</div>
     <div style="display:flex;gap:10px;margin-top:14px;">
-      <button onclick="closeRepostModal()" class="btn btn-outline" style="flex:1;justify-content:center;">Cancel</button>
-      <button onclick="submitRepost()" class="btn btn-primary" style="flex:2;justify-content:center;" id="repost-submit-btn">↩ Repost to Profile</button>
+      <button onclick="closeRepostModal()" class="btn btn-outline" style="flex:1;justify-content:center;" data-i18n="login.cancel">Cancel</button>
+      <button onclick="submitRepost()" class="btn btn-primary" style="flex:2;justify-content:center;" id="repost-submit-btn" data-i18n="feed.repost_submit">↩ Repost to Profile</button>
     </div>
   </div>
 </div>
@@ -268,6 +268,7 @@
 <script src="/js/onboarding.js?v=1785528146"></script>
 <script src="/js/feed_v2.js?v=1786181800"></script>
 <script>
+  function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
   // ── Leaderboard ──────────────────────────────────────────────
   let leaderData = null;
   let leaderTab  = 'return';
@@ -278,7 +279,7 @@
       renderLeaderboard();
     } catch (err) {
       document.getElementById('leaderboard-list').innerHTML =
-        '<div style="font-size:12px;color:var(--muted);text-align:center;">No data yet</div>';
+        '<div style="font-size:12px;color:var(--muted);text-align:center;">' + t('feed.no_data_yet', 'No data yet') + '</div>';
     }
   }
 
@@ -301,25 +302,25 @@
     if (!leaderData) return;
     const list = leaderTab === 'winrate' ? leaderData.byWinRate : leaderData.byTotalReturn;
     if (!list || !list.length) {
-      el.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px;">No closed trades yet</div>';
+      el.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px;">' + t('feed.no_closed_trades', 'No closed trades yet') + '</div>';
       return;
     }
-    el.innerHTML = list.map((t, i) => {
+    el.innerHTML = list.map((tr, i) => {
       const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;
       const stat  = leaderTab === 'winrate'
-        ? `<span class="sr-soft-pulse" style="color:var(--green);font-weight:700;">${t.winRate}%</span> <span style="color:var(--muted);font-size:10px;">(${t.wins}W/${t.losses}L)</span>`
-        : `<span class="sr-soft-pulse" style="color:${t.totalReturn>=0?'var(--green)':'var(--red)'};font-weight:700;">${t.totalReturn>=0?'+':''}${t.totalReturn}%</span>`;
-      return `<div onclick="location.href='/profile.html?id=${t.userId}'"
+        ? `<span class="sr-soft-pulse" style="color:var(--green);font-weight:700;">${tr.winRate}%</span> <span style="color:var(--muted);font-size:10px;">(${tr.wins}W/${tr.losses}L)</span>`
+        : `<span class="sr-soft-pulse" style="color:${tr.totalReturn>=0?'var(--green)':'var(--red)'};font-weight:700;">${tr.totalReturn>=0?'+':''}${tr.totalReturn}%</span>`;
+      return `<div onclick="location.href='/profile.html?id=${tr.userId}'"
         style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;transition:background .15s;"
         onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='transparent'">
         <span style="font-size:14px;width:22px;text-align:center;">${medal}</span>
         <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));
           display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden;">
-          ${avatarHtml(t)}
+          ${avatarHtml(tr)}
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:700;color:var(--accent2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@${t.username}</div>
-          <div style="font-size:10px;color:var(--muted);">${t.total} trades</div>
+          <div style="font-size:12px;font-weight:700;color:var(--accent2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@${tr.username}</div>
+          <div style="font-size:10px;color:var(--muted);">${tr.total} ${t('feed.trades_suffix', 'trades')}</div>
         </div>
         <div style="text-align:right;font-size:12px;">${stat}</div>
       </div>`;
@@ -366,9 +367,14 @@
     list.innerHTML = notifications.slice(0,20).map(n => {
       const icons = { new_rec:'📡', win:'🏆', loss:'💸', like:'❤️', comment:'💬', repost:'↩', instrument:'🔔', follow:'👤' };
       const goRec  = n.recId ? String(n.recId) : '';
-      const goUser = n.fromUser ? String(n.fromUser) : '';
+      const fromUserId = n.fromUser && n.fromUser._id ? n.fromUser._id : n.fromUser;
+      const goUser = fromUserId ? String(fromUserId) : '';
+      const theAvatar = n.avatar || (n.fromUser && n.fromUser.avatar) || null;
+      const iconHtml = theAvatar
+        ? `<div class="notif-icon" style="position:relative;padding:0;background:none;"><span style="display:block;width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;">${window.avatarHtml ? window.avatarHtml({ avatar: theAvatar }) : ''}</span><span style="position:absolute;bottom:-2px;right:-2px;width:14px;height:14px;border-radius:50%;background:var(--surface,#0d1220);display:flex;align-items:center;justify-content:center;font-size:9px;line-height:1;border:1.5px solid var(--bg,#05070d);">${icons[n.type]||'🔔'}</span></div>`
+        : `<div class="notif-icon">${icons[n.type]||'🔔'}</div>`;
       return `<div class="notif-item" data-rec="${goRec}" data-user="${goUser}" data-type="${n.type}" onclick="notifClick(this)" style="${(goRec||goUser)?'cursor:pointer;':''}">
-        <div class="notif-icon">${icons[n.type]||'🔔'}</div>
+        ${iconHtml}
         <div class="notif-body">
           <div class="notif-title">${n.title}</div>
           ${n.body?`<div class="notif-sub">${n.body}</div>`:''}
@@ -513,17 +519,17 @@
            <span style="font-size:13px;color:var(--muted);margin-left:8px;">${quote.shortName||''}</span>`;
       }
       document.getElementById('search-stats').innerHTML = `
-        <div class="ss-box"><div class="ss-val">${stats.total}</div><div class="ss-lbl">Total</div></div>
-        <div class="ss-box"><div class="ss-val c-green">${stats.buys}</div><div class="ss-lbl">BUY</div></div>
-        <div class="ss-box"><div class="ss-val c-red">${stats.sells}</div><div class="ss-lbl">SELL</div></div>
-        <div class="ss-box"><div class="ss-val">${stats.winRate}%</div><div class="ss-lbl">Win Rate</div></div>`;
+        <div class="ss-box"><div class="ss-val">${stats.total}</div><div class="ss-lbl">${t('feed.stat_total', 'Total')}</div></div>
+        <div class="ss-box"><div class="ss-val c-green">${stats.buys}</div><div class="ss-lbl">${t('feed.stat_buy', 'BUY')}</div></div>
+        <div class="ss-box"><div class="ss-val c-red">${stats.sells}</div><div class="ss-lbl">${t('feed.stat_sell', 'SELL')}</div></div>
+        <div class="ss-box"><div class="ss-val">${stats.winRate}%</div><div class="ss-lbl">${t('feed.win_rate', 'Win Rate')}</div></div>`;
       const openForSent = recommendations.filter(r => r.outcome === 'OPEN');
       const openBuysCt   = openForSent.filter(r => r.direction === 'BUY').length;
       const buyPct  = openForSent.length > 0 ? Math.round((openBuysCt / openForSent.length) * 100) : 0;
       const sellPct = openForSent.length > 0 ? 100 - buyPct : 0;
       document.getElementById('search-sentiment').innerHTML =
-        `<div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct}% BUY</div>
-         <div class="sentiment-sell" style="width:${sellPct}%;">${sellPct}% SELL</div>`;
+        `<div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct}% ${t('feed.stat_buy', 'BUY')}</div>
+         <div class="sentiment-sell" style="width:${sellPct}%;">${sellPct}% ${t('feed.stat_sell', 'SELL')}</div>`;
       // Donut
       const r=48,cx=65,cy=65,sw=16,circ=2*Math.PI*r,buyDash=(buyPct/100)*circ;
       document.getElementById('search-chart').innerHTML = `
@@ -534,7 +540,7 @@
             stroke-dashoffset="${circ/4}" stroke-linecap="round"
             style="transition:stroke-dasharray 1.2s ease;"/>
           <text x="${cx}" y="${cy-6}"  text-anchor="middle" font-family="Bebas Neue,sans-serif" font-size="22" fill="var(--green)">${buyPct}%</text>
-          <text x="${cx}" y="${cy+14}" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="var(--muted)">OPEN BUY SENTIMENT</text>
+          <text x="${cx}" y="${cy+14}" text-anchor="middle" font-family="DM Sans,sans-serif" font-size="11" fill="var(--muted)">${t('feed.open_buy_sentiment', 'OPEN BUY SENTIMENT')}</text>
         </svg>`;
       window._searchRecs = recommendations;
       const oB2 = openForSent.filter(r => r.direction==='BUY').length;
@@ -543,15 +549,15 @@
       const cS2 = recommendations.filter(r => r.outcome==='LOSS').length;
       document.getElementById('search-recs').innerHTML =
         `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 12px;font-size:11.5px;font-weight:700;">
-          <span style="background:#E3F8EC;color:#00893E;border-radius:10px;padding:4px 11px;">▲ ${oB2} OPEN BUY</span>
-          <span style="background:#FFEBEE;color:#C62828;border-radius:10px;padding:4px 11px;">▼ ${oS2} OPEN SELL</span>
-          <span style="background:#E8F5E9;color:#2E7D32;border-radius:10px;padding:4px 11px;">🎯 ${cT2} HIT TP</span>
-          <span style="background:#FBE9E7;color:#BF360C;border-radius:10px;padding:4px 11px;">🛑 ${cS2} HIT SL</span>
+          <span style="background:#E3F8EC;color:#00893E;border-radius:10px;padding:4px 11px;">▲ ${oB2} ${t('feed.open_buy', 'OPEN BUY')}</span>
+          <span style="background:#FFEBEE;color:#C62828;border-radius:10px;padding:4px 11px;">▼ ${oS2} ${t('feed.open_sell', 'OPEN SELL')}</span>
+          <span style="background:#E8F5E9;color:#2E7D32;border-radius:10px;padding:4px 11px;">🎯 ${cT2} ${t('feed.hit_tp', 'HIT TP')}</span>
+          <span style="background:#FBE9E7;color:#BF360C;border-radius:10px;padding:4px 11px;">🛑 ${cS2} ${t('feed.hit_sl', 'HIT SL')}</span>
         </div>
         <div style="display:flex;gap:6px;margin-bottom:12px;">
-          <button class="sr-mf" data-f="all" onclick="renderSearchRecs('all')">All</button>
-          <button class="sr-mf" data-f="open" onclick="renderSearchRecs('open')">● Open</button>
-          <button class="sr-mf" data-f="closed" onclick="renderSearchRecs('closed')">✓ Closed</button>
+          <button class="sr-mf" data-f="all" onclick="renderSearchRecs('all')">${t('feed.filter_all_short', 'All')}</button>
+          <button class="sr-mf" data-f="open" onclick="renderSearchRecs('open')">● ${t('feed.filter_open_short', 'Open')}</button>
+          <button class="sr-mf" data-f="closed" onclick="renderSearchRecs('closed')">✓ ${t('feed.filter_closed_short', 'Closed')}</button>
         </div>
         <div id="search-recs-list"></div>`;
       renderSearchRecs('all');
@@ -576,19 +582,19 @@
       return filter==='all' ? true : filter==='open' ? r.outcome==='OPEN' : r.outcome!=='OPEN';
     });
     if (!rows.length) {
-      list.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No trades in this view.</p>';
+      list.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">' + t('feed.no_trades_in_view', 'No trades in this view.') + '</p>';
       return;
     }
     list.innerHTML = rows.slice(0,15).map(function(r) {
       var openedDate = new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar' : 'en-GB',{day:'2-digit',month:'short'}).format(new Date(r.openedAt||r.createdAt));
-      var trader = (r.user && r.user.fullName) || 'Trader';
+      var trader = (r.user && r.user.fullName) || t('feed.trader_fallback', 'Trader');
       return '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--bg3);white-space:nowrap;">' +
         '<span class="' + (r.direction==='BUY'?'badge-buy':'badge-sell') + '" style="flex-shrink:0;">' + (r.direction==='BUY'?'▲':'▼') + ' ' + r.direction + '</span>' +
-        '<span style="font-size:13px;flex-shrink:0;">Entry <strong>' + fmtPrice(r.entryPrice) + '</strong></span>' +
-        '<span style="font-size:13px;flex-shrink:0;">TP <strong style="color:var(--green);">' + fmtPrice(r.takeProfit) + '</strong></span>' +
-        (r.stopLoss ? '<span style="font-size:13px;flex-shrink:0;">SL <strong style="color:var(--red);">' + fmtPrice(r.stopLoss) + '</strong></span>' : '') +
+        '<span style="font-size:13px;flex-shrink:0;">' + t('feed.entry_short', 'Entry') + ' <strong>' + fmtPrice(r.entryPrice) + '</strong></span>' +
+        '<span style="font-size:13px;flex-shrink:0;">' + t('feed.tp_short', 'TP') + ' <strong style="color:var(--green);">' + fmtPrice(r.takeProfit) + '</strong></span>' +
+        (r.stopLoss ? '<span style="font-size:13px;flex-shrink:0;">' + t('feed.sl_short', 'SL') + ' <strong style="color:var(--red);">' + fmtPrice(r.stopLoss) + '</strong></span>' : '') +
         '<span style="margin-left:auto;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;min-width:0;"><a href="/profile.html?id=' + (r.user && r.user._id) + '" style="color:var(--accent2);text-decoration:none;">' + trader + '</a> · ' + openedDate + '</span>' +
-        (r.outcome!=='OPEN' ? '<span class="' + (r.outcome==='WIN'?'badge-win':'badge-loss') + '" style="flex-shrink:0;">' + (r.outcome==='WIN'?'🏆':'💸') + ' ' + r.outcome + '</span>' : '<span class="badge-open" style="flex-shrink:0;">● OPEN</span>') +
+        (r.outcome!=='OPEN' ? '<span class="' + (r.outcome==='WIN'?'badge-win':'badge-loss') + '" style="flex-shrink:0;">' + (r.outcome==='WIN'?'🏆':'💸') + ' ' + r.outcome + '</span>' : '<span class="badge-open" style="flex-shrink:0;">● ' + t('feed.open_badge', 'OPEN') + '</span>') +
         '</div>';
     }).join('');
   };
@@ -615,9 +621,9 @@
           </div>
           <div style="flex:1;">
             <div style="font-weight:700;color:var(--accent2);">@${u.username}</div>
-            <div style="font-size:12px;color:var(--muted);">${u.fullName} · ${u.followers?.length||0} followers</div>
+            <div style="font-size:12px;color:var(--muted);">${u.fullName} · ${u.followers?.length||0} ${t('feed.followers_suffix', 'followers')}</div>
           </div>
-          <div style="font-size:12px;color:var(--accent2);font-weight:600;">View →</div>
+          <div style="font-size:12px;color:var(--accent2);font-weight:600;">${t('feed.view_arrow', 'View →')}</div>
         </div>`).join('');
     } catch (err) {
       panel.style.display = 'none';
@@ -654,11 +660,11 @@
       if (res.subscribed) {
         if (!_watchlist.includes(_currentSearchSym)) _watchlist.push(_currentSearchSym);
         setSubBtn(btn, true, _currentSearchSym);
-        toast(`🔔 Following $${_currentSearchSym} — you'll be notified of new trades!`, 'success');
+        toast(`🔔 ${t('feed.following_toast', 'Following')} $${_currentSearchSym} — ${t('feed.following_toast_sub', "you'll be notified of new trades!")}`, 'success');
       } else {
         _watchlist = _watchlist.filter(s => s !== _currentSearchSym);
         setSubBtn(btn, false, _currentSearchSym);
-        toast(`Unfollowed $${_currentSearchSym}`, 'info');
+        toast(`${t('feed.unfollowed_toast', 'Unfollowed')} $${_currentSearchSym}`, 'info');
       }
     } catch (err) { toast(err.message, 'error'); }
     finally { if (btn) btn.disabled = false; }
@@ -686,18 +692,18 @@
         return `<div class="popular-item" onclick="openSymbolModal('${item._id}')" style="cursor:pointer;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span class="popular-sym">${item._id}</span>
-            <span style="font-size:11px;color:var(--muted);">${item.count} trades</span>
+            <span style="font-size:11px;color:var(--muted);">${item.count} ${t('feed.trades_suffix', 'trades')}</span>
           </div>
           <div class="sentiment-bar sr-bar-pulse">
             <div class="sentiment-buy"  style="width:${buyPct}%;">${buyPct>20?buyPct+'%':''}</div>
             <div class="sentiment-sell" style="width:${sellPct}%;">${sellPct>20?sellPct+'%':''}</div>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px;">
-            <span style="color:var(--green);">▲ ${item.buys} BUY</span>
-            <span style="color:var(--red);">▼ ${item.sells} SELL</span>
+            <span style="color:var(--green);">▲ ${item.buys} ${t('feed.stat_buy', 'BUY')}</span>
+            <span style="color:var(--red);">▼ ${item.sells} ${t('feed.stat_sell', 'SELL')}</span>
           </div>
         </div>`;
-      }).join('') : '<p style="color:var(--muted);font-size:12px;text-align:center;padding:10px;">No trades today yet</p>';
+      }).join('') : '<p style="color:var(--muted);font-size:12px;text-align:center;padding:10px;">' + t('feed.no_trades_today', 'No trades today yet') + '</p>';
     } catch (_) {}
   }
   updatePopular();
@@ -749,7 +755,7 @@
     const el = document.getElementById('scanner-countdown');
     if (!el || !nextScanAt) return;
     const ms = new Date(nextScanAt).getTime() - Date.now();
-    el.textContent = ms > 0 ? formatScannerRemaining(ms) : 'Scanning now…';
+    el.textContent = ms > 0 ? formatScannerRemaining(ms) : t('feed.scanning_now', 'Scanning now…');
   }
 
   async function loadScannerSchedule() {

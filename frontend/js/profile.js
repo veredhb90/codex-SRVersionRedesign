@@ -1,4 +1,5 @@
 // ── Profile Page ───────────────────────────────────────────────────
+function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
 (function () {
   if (!Auth.require()) return;
 
@@ -32,18 +33,19 @@
     var planBadge = document.getElementById('prof-plan-badge');
     if (planBadge) {
       if (user.plan === 'pro') {
-        planBadge.textContent = '⚡ PRO';
+        planBadge.textContent = '⚡ ' + t('payment.pro_badge', 'PRO');
         planBadge.style.cssText += 'display:inline-block;background:linear-gradient(135deg,#F5D061,#E6A817);color:#4A3B10;box-shadow:0 2px 8px rgba(245,208,97,0.4);';
       } else {
-        planBadge.textContent = 'FREE';
+        planBadge.textContent = t('profile.free_badge', 'FREE');
         planBadge.style.cssText += 'display:inline-block;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.75);border:1px solid rgba(255,255,255,0.25);';
       }
     }
     var expiryEl = document.getElementById('prof-plan-expiry');
     if (expiryEl) {
       if (isOwn && user.plan === 'pro' && user.subscriptionEnd) {
-        var dateStr = new Date(user.subscriptionEnd).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
-        expiryEl.textContent = (user.cancelledAt ? 'Access ends ' : 'Renews ') + dateStr + ' →';
+        var locale = document.documentElement.lang === 'ar' ? 'ar' : undefined;
+        var dateStr = new Date(user.subscriptionEnd).toLocaleDateString(locale, { month:'short', day:'numeric', year:'numeric' });
+        expiryEl.textContent = (user.cancelledAt ? t('payment.access_ends', 'Access ends') : t('profile.renews_label', 'Renews')) + ' ' + dateStr + ' →';
         expiryEl.style.display = 'block';
       } else {
         expiryEl.style.display = 'none';
@@ -54,7 +56,7 @@
       ? SRLang.t('profile.your_workspace', 'YOUR TRADING WORKSPACE')
       : SRLang.t('profile.trader_workspace', 'TRADER WORKSPACE');
     const accountStatus = document.getElementById('profile-snapshot-status');
-    if (accountStatus) accountStatus.textContent = user.plan === 'pro' ? 'PRO' : 'FREE';
+    if (accountStatus) accountStatus.textContent = user.plan === 'pro' ? t('payment.pro_badge', 'PRO') : t('profile.free_badge', 'FREE');
     document.getElementById('prof-avatar').innerHTML = avatarHtml(user);
     if (isOwn) {
       document.getElementById('prof-email').textContent = user.email || '';
@@ -126,7 +128,7 @@
       try {
         const res = await API.follow(userId);
         setFollowBtn(btn, res.following, userId, theyFollowMe);
-        toast(res.following ? 'Now following!' : 'Unfollowed', 'info');
+        toast(res.following ? t('profile.now_following_toast', 'Now following!') : t('profile.unfollowed_toast', 'Unfollowed'), 'info');
       } catch (err) { toast(err.message, 'error'); }
     };
   }
@@ -177,13 +179,13 @@
     const reposts    = recs.filter(r => r.source === 'repost');
     const engineRecs = recs.filter(r => r.source === 'engine');
 
-    const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n + ' trades'; };
+    const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n + ' ' + t('feed.trades_suffix', 'trades'); };
     setCount('count-reposts', reposts.length);
     setCount('count-engine',  engineRecs.length);
 
     renderProfileTrades();
-    renderBox('profile-reposts',    reposts,    'No reposts yet.', isOwn);
-    renderBox('profile-engine-recs',engineRecs, 'No engine signals saved yet.', isOwn);
+    renderBox('profile-reposts',    reposts,    t('profile.no_reposts_yet', 'No reposts yet.'), isOwn);
+    renderBox('profile-engine-recs',engineRecs, t('profile.no_engine_signals_yet', 'No engine signals saved yet.'), isOwn);
   }
 
   function renderProfileTrades() {
@@ -194,16 +196,16 @@
         : manualTrades;
     const count = document.getElementById('count-my');
     if (count) count.textContent = profileTradeFilter === 'all'
-      ? manualTrades.length + ' trades'
-      : filtered.length + ' of ' + manualTrades.length + ' trades';
+      ? manualTrades.length + ' ' + t('feed.trades_suffix', 'trades')
+      : filtered.length + ' ' + t('profile.of_label', 'of') + ' ' + manualTrades.length + ' ' + t('feed.trades_suffix', 'trades');
     document.querySelectorAll('.profile-trade-filter').forEach(button => {
       button.classList.toggle('active', button.dataset.tradeFilter === profileTradeFilter);
     });
     const empty = profileTradeFilter === 'open'
-      ? 'No open trades.'
+      ? t('profile.no_open_trades', 'No open trades.')
       : profileTradeFilter === 'closed'
-        ? 'No closed trades yet.'
-        : 'No trades yet. Share your first trade when you are ready.';
+        ? t('profile.no_closed_trades_period', 'No closed trades yet.')
+        : t('profile.no_trades_share_first', 'No trades yet. Share your first trade when you are ready.');
     renderBox('profile-recs', filtered, empty, isOwn);
   }
 
@@ -248,7 +250,7 @@
     const text  = String(c.text || '');
     const m     = text.match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
     const ind   = 20 * Math.min(Math.max(depth || (m ? 1 : 0), m ? 1 : 0), 2);
-    const initial  = (dataU || '?').charAt(0).toUpperCase();
+    const avatarInner = window.avatarHtml ? window.avatarHtml(c.user) : (dataU || '?').charAt(0).toUpperCase();
     const isReply  = !!m;
     const bodyText = m ? m[2] : text;
     const commentId = String(c._id || '');
@@ -260,7 +262,7 @@
     return `<div id="profile-comment-${commentId}" class="pc-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin:6px 0 6px ${ind}px;${isReply?'border-left:2.5px solid #90CAF9;':''}padding:9px 11px;background:${isReply?'rgba(21,101,192,0.045)':'#fff'};border:1px solid #E3EEFF;border-radius:${isReply?'0 12px 12px 12px':'12px'};">
       ${replyChip}
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${initial}</span>
+        <span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${avatarInner}</span>
         ${nameLink}
         <span class="pc-time" style="font-size:10.5px;">${timeAgo(c.createdAt||new Date())}</span>
         ${replyBtn}
@@ -281,15 +283,15 @@
     if (unsaveBtn) {
       const recId = unsaveBtn.dataset.recid;
       unsaveBtn.disabled = true;
-      unsaveBtn.textContent = 'Removing…';
+      unsaveBtn.textContent = t('profile.removing', 'Removing…');
       try {
         await API.unsaveEngine(recId);
-        toast('Saved engine trade removed', 'success');
+        toast(t('profile.engine_trade_removed', 'Saved engine trade removed'), 'success');
         window.reloadSwingRushProfile && window.reloadSwingRushProfile();
       } catch (err) {
         toast(err.message, 'error');
         unsaveBtn.disabled = false;
-        unsaveBtn.textContent = 'Unsave Signal';
+        unsaveBtn.textContent = t('profile.unsave_signal', 'Unsave Signal');
       }
       return;
     }
@@ -299,15 +301,15 @@
     if (undoBtn) {
       const recId = undoBtn.dataset.recid;
       undoBtn.disabled = true;
-      undoBtn.textContent = 'Removing…';
+      undoBtn.textContent = t('profile.removing', 'Removing…');
       try {
         await API.undoRepost(recId);
-        toast('Repost removed', 'success');
+        toast(t('profile.repost_removed_toast', 'Repost removed'), 'success');
         window.reloadSwingRushProfile && window.reloadSwingRushProfile();
       } catch (err) {
         toast(err.message, 'error');
         undoBtn.disabled = false;
-        undoBtn.textContent = '✕ Undo Repost';
+        undoBtn.textContent = '✕ ' + t('feed.undo_repost', 'Undo Repost');
       }
       return;
     }
@@ -354,15 +356,15 @@
           if (!placed) list.appendChild(el2);
         }
         delete inp.dataset.replyTo;
-        inp.placeholder = 'Add a comment… (Enter to post)';
+        inp.placeholder = t('profile.comment_placeholder', 'Add a comment… (Enter to post)');
         // Update count
         const tb = document.querySelector(`[data-action="toggle-comments"][data-recid="${recId}"]`);
         if (tb) {
           const n = (tb.dataset.count|0) + 1;
           tb.dataset.count = n;
-          tb.innerHTML = `<svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> ${n} Comments`;
+          tb.innerHTML = `<svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> ${n} ${t('profile.comments_label', 'Comments')}`;
         }
-        toast('Comment posted!', 'success');
+        toast(t('profile.comment_posted_toast', 'Comment posted!'), 'success');
       } catch (err) { toast(err.message, 'error'); }
       finally { submitBtn.disabled = false; }
       return;
@@ -383,7 +385,7 @@
         setTimeout(function() {
           realInput.dataset.replyTo = pcReply.dataset.commentId || '';
           realInput.value = '@' + pcReply.dataset.username + ' ';
-          realInput.placeholder = 'Replying to @' + pcReply.dataset.username + '…';
+          realInput.placeholder = t('feed.replying_to', 'Replying to') + ' @' + pcReply.dataset.username + '…';
           realInput.focus();
           realInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }, 120);
@@ -433,7 +435,7 @@
            <span style="color:${up?'var(--green)':'var(--red)'};font-size:12px;">${up?'▲':'▼'}${Math.abs(q.changePct||0).toFixed(2)}%</span>`;
       } catch {
         livePrice = null;
-        priceDisp.innerHTML = '<span style="color:var(--red);font-size:12px;">Not found. Try: AAPL, GLD, SLV, USO</span>';
+        priceDisp.innerHTML = '<span style="color:var(--red);font-size:12px;">' + t('profile.symbol_not_found', 'Not found. Try: AAPL, GLD, SLV, USO') + '</span>';
       }
     }, 600);
   });
@@ -449,25 +451,25 @@
     const errEl = document.getElementById('share-error');
     errEl && (errEl.textContent = '');
 
-    if (!sym)       return errEl && (errEl.textContent = 'Enter a symbol');
-    if (!livePrice) return errEl && (errEl.textContent = 'Fetch a valid symbol first');
-    if (!Number.isFinite(entry) || entry <= 0) return errEl && (errEl.textContent = 'Enter a valid entry price');
-    if (tp && dir==='BUY'  && tp<=entry) return errEl && (errEl.textContent = 'TP must be above entry for BUY');
-    if (tp && dir==='SELL' && tp>=entry) return errEl && (errEl.textContent = 'TP must be below entry for SELL');
-    if (sl&&dir==='BUY'  &&sl>=entry) return errEl && (errEl.textContent = 'SL must be below entry for BUY');
-    if (sl&&dir==='SELL' &&sl<=entry) return errEl && (errEl.textContent = 'SL must be above entry for SELL');
+    if (!sym)       return errEl && (errEl.textContent = t('profile.err_enter_symbol', 'Enter a symbol'));
+    if (!livePrice) return errEl && (errEl.textContent = t('profile.err_fetch_symbol', 'Fetch a valid symbol first'));
+    if (!Number.isFinite(entry) || entry <= 0) return errEl && (errEl.textContent = t('profile.err_valid_entry', 'Enter a valid entry price'));
+    if (tp && dir==='BUY'  && tp<=entry) return errEl && (errEl.textContent = t('profile.err_tp_above_buy', 'TP must be above entry for BUY'));
+    if (tp && dir==='SELL' && tp>=entry) return errEl && (errEl.textContent = t('profile.err_tp_below_sell', 'TP must be below entry for SELL'));
+    if (sl&&dir==='BUY'  &&sl>=entry) return errEl && (errEl.textContent = t('profile.err_sl_below_buy', 'SL must be below entry for BUY'));
+    if (sl&&dir==='SELL' &&sl<=entry) return errEl && (errEl.textContent = t('profile.err_sl_above_sell', 'SL must be above entry for SELL'));
 
     const btn = e.target.querySelector('[type=submit]');
-    btn.disabled = true; btn.textContent = 'Posting…';
+    btn.disabled = true; btn.textContent = t('profile.posting', 'Posting…');
     try {
       await API.postRec({ symbol:sym, entryPrice:entryInput?.value || undefined, takeProfit:tp, stopLoss:sl, direction:dir, note });
-      toast('🚀 Posted to feed!', 'success');
+      toast('🚀 ' + t('profile.posted_to_feed_toast', 'Posted to feed!'), 'success');
       e.target.reset(); priceDisp.innerHTML = ''; livePrice = null;
       if (typeof closeShareForm === 'function') closeShareForm();
       loadProfile();
     } catch (err) {
       errEl && (errEl.textContent = err.message);
-    } finally { btn.disabled=false; btn.textContent='🚀 Post to Feed'; }
+    } finally { btn.disabled=false; btn.textContent='🚀 ' + t('profile.post_feed', 'Post to Feed'); }
   });
 
   loadProfile();
@@ -491,7 +493,7 @@
       avInput.value = ''; // allow re-picking the same file later
       if (!file) return;
       if (!/^image\/(jpeg|jpg|png|webp)$/.test(file.type)) {
-        return toast('Please choose a JPEG, PNG or WebP image', 'error');
+        return toast(t('profile.err_image_type', 'Please choose a JPEG, PNG or WebP image'), 'error');
       }
       try {
         const dataUrl = await resizeImageToDataUrl(file, 320);
@@ -500,24 +502,24 @@
         document.getElementById('prof-avatar').innerHTML = avatarHtml({ avatar: res.avatar });
         avRemove.style.display = 'flex';
         avEdit.classList.remove('no-photo');
-        toast('✅ Profile photo updated', 'success');
+        toast('✅ ' + t('profile.photo_updated_toast', 'Profile photo updated'), 'success');
       } catch (err) {
-        toast(err.message || 'Could not update photo', 'error');
+        toast(err.message || t('profile.err_update_photo', 'Could not update photo'), 'error');
       }
     });
 
     avRemove && avRemove.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm('Remove your profile photo?')) return;
+      if (!confirm(t('profile.confirm_remove_photo', 'Remove your profile photo?'))) return;
       try {
         await API.removeAvatar();
         Auth.updateUser({ avatar: null });
         document.getElementById('prof-avatar').innerHTML = avatarHtml({ avatar: null, fullName: me?.fullName });
         avRemove.style.display = 'none';
         avEdit.classList.add('no-photo');
-        toast('Profile photo removed', 'success');
+        toast(t('profile.photo_removed_toast', 'Profile photo removed'), 'success');
       } catch (err) {
-        toast(err.message || 'Could not remove photo', 'error');
+        toast(err.message || t('profile.err_remove_photo', 'Could not remove photo'), 'error');
       }
     });
   }
@@ -554,9 +556,9 @@
     try {
       const res = await API.getWatchlist();
       const wl  = res.watchlist || [];
-      if (count) count.textContent = wl.length + ' instruments';
+      if (count) count.textContent = wl.length + ' ' + t('profile.instruments_suffix', 'instruments');
       if (!wl.length) {
-        el.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No instruments followed yet.<br>Search a symbol in the feed and click 🔔 Follow Instrument.</p>';
+        el.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">' + t('profile.no_instruments_yet', 'No instruments followed yet.') + '<br>' + t('profile.search_symbol_hint', 'Search a symbol in the feed and click 🔔 Follow Instrument.') + '</p>';
         return;
       }
       el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;">
@@ -575,16 +577,16 @@
 async function unfollowInstrument(sym) {
   try {
     await API.subscribeInstrument(sym);
-    toast(`Unfollowed $${sym}`, 'info');
+    toast(`${t('feed.unfollowed_toast', 'Unfollowed')} $${sym}`, 'info');
     // Reload watchlist
     const res = await API.getWatchlist();
     const wl  = res.watchlist || [];
     const el  = document.getElementById('watchlist-list');
     const cnt = document.getElementById('count-watchlist');
-    if (cnt) cnt.textContent = wl.length + ' instruments';
+    if (cnt) cnt.textContent = wl.length + ' ' + t('profile.instruments_suffix', 'instruments');
     if (el) {
       if (!wl.length) {
-        el.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No instruments followed yet.</p>';
+        el.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">' + t('profile.no_instruments_yet', 'No instruments followed yet.') + '</p>';
       } else {
         el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;">
           ${wl.map(s => `
@@ -604,10 +606,10 @@ async function unfollowInstrument(sym) {
 function renderWatchlist(watchlist) {
   const el    = document.getElementById('profile-watchlist');
   const count = document.getElementById('count-watchlist');
-  if (count) count.textContent = watchlist.length + ' instruments';
+  if (count) count.textContent = watchlist.length + ' ' + t('profile.instruments_suffix', 'instruments');
   if (!el) return;
   if (!watchlist.length) {
-    el.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">No instruments followed yet. Search in the feed and click 🔔 Follow Instrument.</p>';
+    el.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">' + t('profile.no_instruments_search_hint', 'No instruments followed yet. Search in the feed and click 🔔 Follow Instrument.') + '</p>';
     return;
   }
   el.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:10px;padding:4px 0;">
@@ -624,12 +626,12 @@ function renderWatchlist(watchlist) {
 async function unfollowInstrument(sym) {
   try {
     await API.subscribeInstrument(sym); // toggles off
-    toast(`Unfollowed $${sym}`, 'info');
+    toast(`${t('feed.unfollowed_toast', 'Unfollowed')} $${sym}`, 'info');
     // Reload profile to update list
     const data = await API.me();
     renderWatchlist(data.user.watchlist || []);
     const count = document.getElementById('count-watchlist');
-    if (count) count.textContent = (data.user.watchlist||[]).length + ' instruments';
+    if (count) count.textContent = (data.user.watchlist||[]).length + ' ' + t('profile.instruments_suffix', 'instruments');
   } catch(err) { toast(err.message, 'error'); }
 }
 
@@ -642,10 +644,10 @@ async function openCloseCall(recId, symbol, entryPrice, direction) {
   const stateEl = document.getElementById('close-call-market-state');
   const submit = document.getElementById('close-call-submit');
   const summary = document.getElementById('close-call-summary');
-  document.getElementById('close-call-title').textContent = 'Close $' + symbol + ' ' + direction + ' trade';
-  summary.textContent = 'Checking the current market price. Your realized return will be recorded at the live quote when you confirm.';
+  document.getElementById('close-call-title').textContent = t('profile.close_dollar_trade', 'Close') + ' $' + symbol + ' ' + direction + ' ' + t('profile.trade_word', 'trade');
+  summary.textContent = t('profile.checking_market_price', 'Checking the current market price. Your realized return will be recorded at the live quote when you confirm.');
   priceEl.textContent = '—';
-  stateEl.textContent = 'Fetching live price…';
+  stateEl.textContent = t('profile.fetching_live_price', 'Fetching live price…');
   submit.disabled = true;
   document.getElementById('close-call-error').textContent = '';
   overlay.style.display = 'flex';
@@ -654,13 +656,13 @@ async function openCloseCall(recId, symbol, entryPrice, direction) {
     if (!activeCloseCall || activeCloseCall.recId !== recId) return;
     activeCloseCall.quote = quote;
     priceEl.textContent = fmtPrice(quote.price);
-    stateEl.textContent = quote.marketState || 'Market price';
-    summary.textContent = 'Entry: ' + fmtPrice(entryPrice) + ' · This is the latest ' + (quote.marketState || 'market price') + ' quote. The price is refreshed once more when you confirm.';
+    stateEl.textContent = quote.marketState || t('profile.market_price', 'Market price');
+    summary.textContent = t('feed.entry_short', 'Entry') + ': ' + fmtPrice(entryPrice) + ' · ' + t('profile.latest_quote_pre', 'This is the latest') + ' ' + (quote.marketState || t('profile.market_price', 'market price')) + ' ' + t('profile.latest_quote_post', 'quote. The price is refreshed once more when you confirm.');
     submit.disabled = false;
   } catch (err) {
     if (!activeCloseCall || activeCloseCall.recId !== recId) return;
-    stateEl.textContent = 'Price unavailable';
-    document.getElementById('close-call-error').textContent = err.message || 'Could not retrieve the current market price. Please try again.';
+    stateEl.textContent = t('profile.price_unavailable', 'Price unavailable');
+    document.getElementById('close-call-error').textContent = err.message || t('profile.err_price_fetch', 'Could not retrieve the current market price. Please try again.');
   }
 }
 
@@ -679,17 +681,17 @@ document.getElementById('close-call-submit')?.addEventListener('click', async fu
   const error = document.getElementById('close-call-error');
   if (!activeCloseCall.quote) return;
   btn.disabled = true;
-  btn.textContent = 'Closing…';
+  btn.textContent = t('profile.closing', 'Closing…');
   try {
     const rec = await API.closeRec(activeCloseCall.recId);
-    toast((rec.returnPct >= 0 ? 'Profit closed: +' : 'Loss closed: ') + rec.returnPct.toFixed(2) + '% at ' + fmtPrice(rec.closePrice), rec.returnPct >= 0 ? 'success' : 'info');
+    toast((rec.returnPct >= 0 ? t('profile.profit_closed', 'Profit closed: +') : t('profile.loss_closed', 'Loss closed: ')) + rec.returnPct.toFixed(2) + '% ' + t('profile.at_word', 'at') + ' ' + fmtPrice(rec.closePrice), rec.returnPct >= 0 ? 'success' : 'info');
     closeCallModal();
     window.reloadSwingRushProfile && window.reloadSwingRushProfile();
   } catch (err) {
     error.textContent = err.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Close Trade';
+    btn.textContent = t('profile.close_trade_btn', 'Close Trade');
   }
 });
 
@@ -712,15 +714,15 @@ function buildProfileCard(r, isOwn) {
 
   const outcomeBadge = isClosed
     ? (isWin ? '<span class="badge-win">🏆 WIN</span>' : '<span class="badge-loss">💸 LOSS</span>')
-    : '<span class="badge-open">● OPEN</span>';
+    : '<span class="badge-open">● ' + t('feed.open_badge', 'OPEN') + '</span>';
 
   const repostOrigin = r.source==='repost' && r.repostedFrom
     ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:5px 8px;background:var(--bg2);border-radius:6px;display:flex;align-items:center;gap:6px;">
-        ↩ Originally by <a href="/profile.html?id=${r.repostedFrom._id||r.repostedFrom}" style="color:var(--accent2);text-decoration:none;font-weight:700;">${r.repostedFrom.user?.username || r.repostedFrom.user?.fullName || 'trader'}</a>
+        ↩ ${t('profile.originally_by', 'Originally by')} <a href="/profile.html?id=${r.repostedFrom._id||r.repostedFrom}" style="color:var(--accent2);text-decoration:none;font-weight:700;">${r.repostedFrom.user?.username || r.repostedFrom.user?.fullName || t('feed.trader_fallback', 'trader')}</a>
        </div>`
     : '';
 
-  const commentsHtml = threadProfileComments(r.comments||[]).map(t => renderProfileComment(t.c, r._id, t.depth)).join('');
+  const commentsHtml = threadProfileComments(r.comments||[]).map(ct => renderProfileComment(ct.c, r._id, ct.depth)).join('');
 
   const commentCount = r.comments?.length || 0;
 
@@ -733,35 +735,35 @@ function buildProfileCard(r, isOwn) {
       </div>
       <span class="${isBuy?'badge-buy':'badge-sell'}">${isBuy?'▲':'▼'} ${r.direction}</span>
       ${outcomeBadge}
-      <div class="rec-time rec-opened-date" style="margin-left:auto;" title="Trade opened date">Opened · ${openedDate}</div>
+      <div class="rec-time rec-opened-date" style="margin-left:auto;" title="Trade opened date">${t('feed.opened_label','Opened')} · ${openedDate}</div>
     </div>
     ${repostOrigin}
     <div class="rec-prices">
-      <div class="price-block"><div class="price-val">${fmtPrice(r.entryPrice)}</div><div class="price-lbl">Entry</div></div>
-      <div class="price-block"><div class="price-val tp-val">${fmtPrice(r.takeProfit)}</div><div class="price-lbl">Take Profit</div></div>
-      <div class="price-block"><div class="price-val sl-val">${r.stopLoss?fmtPrice(r.stopLoss):'—'}</div><div class="price-lbl">Stop Loss</div></div>
+      <div class="price-block"><div class="price-val">${fmtPrice(r.entryPrice)}</div><div class="price-lbl">${t('feed.entry_label','Entry')}</div></div>
+      <div class="price-block"><div class="price-val tp-val">${fmtPrice(r.takeProfit)}</div><div class="price-lbl">${t('feed.take_profit_label','Take Profit')}</div></div>
+      <div class="price-block"><div class="price-val sl-val">${r.stopLoss?fmtPrice(r.stopLoss):'—'}</div><div class="price-lbl">${t('feed.stop_loss_label','Stop Loss')}</div></div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-      ${r.isOpen ? `<span style="font-size:12px;color:var(--muted);">Live: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
+      ${r.isOpen ? `<span style="font-size:12px;color:var(--muted);">${t('feed.live','Live')}: <span class="live-price" style="font-weight:700;font-family:var(--font-mono);border-radius:4px;padding:1px 4px;">${fmtPrice(r.currentPrice||r.entryPrice)}</span>
       <span class="live-change" style="font-size:11px;color:var(--muted);margin-left:4px;"></span>
-    </span>` : `<span style="font-size:12px;color:var(--muted);">${r.manualClose?'✓ Closed manually':(r.outcome==='WIN'?'🎯 Hit TP':'🛑 Hit SL')} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.closePrice || (r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice)))}</span>
+    </span>` : `<span style="font-size:12px;color:var(--muted);">${r.manualClose?'✓ '+t('feed.closed_manually','Closed manually'):(r.outcome==='WIN'?'🎯 '+t('feed.hit_tp_short','Hit TP'):'🛑 '+t('feed.hit_sl_short','Hit SL'))} @ <span style="font-weight:700;font-family:var(--font-mono);color:${r.outcome==='WIN'?'var(--green)':'var(--red)'};">${fmtPrice(r.closePrice || (r.outcome==='WIN'?r.takeProfit:(r.stopLoss||r.currentPrice)))}</span>
       <span style="font-size:11px;color:var(--muted);margin-left:4px;">${r.closedAt?new Date(r.closedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+new Date(r.closedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}):''}</span>
     </span>`}
       <span class="live-return" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:${retColor};">${openReturn >= 0 ? '+' : ''}${openReturn.toFixed(2)}%</span>
       <button class="like-btn ${likedByViewer ? 'liked' : ''}" data-id="${r._id}" aria-pressed="${likedByViewer}" style="margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;"><svg class="sr-ic sr-ic-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 5.6a5.4 5.4 0 0 0-7.7 0l-1.1 1.1-1.1-1.1a5.4 5.4 0 1 0-7.7 7.7l1.1 1.1 7.7 7.6 7.7-7.6 1.1-1.1a5.4 5.4 0 0 0 0-7.7z"/></svg> <span class="like-count" title="See who liked" style="cursor:pointer;font-weight:700;">${r.likes?.length||0}</span></button>
-      ${!isOwn && r.source !== 'repost' ? `<button class="pf-repost-btn" data-id="${r._id}" style="font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">↻ Repost</button>` : ''}
+      ${!isOwn && r.source !== 'repost' ? `<button class="pf-repost-btn" data-id="${r._id}" style="font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:14px;padding:4px 11px;cursor:pointer;">↻ ${t('feed.repost_short','Repost')}</button>` : ''}
       <button class="btn btn-sm btn-ghost"
         data-action="toggle-comments" data-recid="${r._id}" data-count="${commentCount}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;">
-        <svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> ${commentCount} Comment${commentCount!==1?'s':''}
+        <svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> ${commentCount} ${commentCount!==1 ? t('profile.comments_label','Comments') : t('profile.comment_label','Comment')}
       </button>
       ${isOwn && r.source==='repost' ? `<button class="btn btn-sm btn-outline" data-action="undo-repost" data-recid="${r._id}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--red);border-color:var(--red);">
-        ✕ Undo Repost
+        ✕ ${t('feed.undo_repost','Undo Repost')}
       </button>` : ''}
       ${isOwn && r.source==='engine' ? `<button class="btn btn-sm btn-outline" data-action="unsave-engine" data-recid="${r._id}"
-        style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--gold);border-color:rgba(246,183,60,.5);">Unsave Signal</button>` : ''}
-      ${isOwn && r.isOpen && (!r.source || r.source === 'manual') ? `<button type="button" class="btn btn-sm btn-outline" onclick="openCloseCall('${r._id}','${r.symbol}',${Number(r.entryPrice)},'${r.direction}')" style="font-size:12px;padding:5px 10px;color:var(--gold);border-color:rgba(246,183,60,.5);">Close Trade</button>` : ''}
+        style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.unsave_signal','Unsave Signal')}</button>` : ''}
+      ${isOwn && r.isOpen && (!r.source || r.source === 'manual') ? `<button type="button" class="btn btn-sm btn-outline" onclick="openCloseCall('${r._id}','${r.symbol}',${Number(r.entryPrice)},'${r.direction}')" style="font-size:12px;padding:5px 10px;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.close_trade_btn','Close Trade')}</button>` : ''}
     </div>
     ${r.note?`<div class="rec-note">"${r.note}"</div>`:''}
     <div id="pcs-${r._id}" style="display:none;margin-top:10px;border-top:1px solid var(--bg3);padding-top:10px;">
@@ -770,11 +772,11 @@ function buildProfileCard(r, isOwn) {
       </div>
       <div style="display:flex;gap:8px;">
         <input id="pci-${r._id}" class="pc-input" type="text" data-recid="${r._id}"
-          placeholder="Add a comment… (Enter to post)" maxlength="500"
+          placeholder="${t('profile.comment_placeholder','Add a comment… (Enter to post)')}" maxlength="500"
           style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;background:var(--bg2);font-family:var(--font-body);transition:border-color .2s;"
           onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'"/>
         <button class="btn btn-primary btn-sm"
-          data-action="submit-comment" data-recid="${r._id}">Post</button>
+          data-action="submit-comment" data-recid="${r._id}">${t('feed.post_btn','Post')}</button>
       </div>
     </div>
   </div>`;
@@ -834,11 +836,11 @@ function buildProfileCard(r, isOwn) {
       m.style.cssText = 'position:fixed;inset:0;z-index:25000;background:rgba(8,15,36,0.6);display:flex;align-items:center;justify-content:center;padding:20px;';
       var items = users.length
         ? users.map(function(u) {
-            var initial = (u.username || u.fullName || '?').charAt(0).toUpperCase();
-            return '<a href="/profile.html?id=' + u._id + '" style="display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid #EEF3FB;text-decoration:none;color:#1A2540;"><span style="width:32px;height:32px;border-radius:50%;background:#1565C0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">' + initial + '</span><span style="font-weight:600;">@' + (u.username || u.fullName) + '</span></a>';
+            var avatarInner = window.avatarHtml ? window.avatarHtml(u) : (u.username || u.fullName || '?').charAt(0).toUpperCase();
+            return '<a href="/profile.html?id=' + u._id + '" style="display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid #EEF3FB;text-decoration:none;color:#1A2540;"><span style="width:32px;height:32px;border-radius:50%;background:#1565C0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;overflow:hidden;">' + avatarInner + '</span><span style="font-weight:600;">@' + (u.username || u.fullName) + '</span></a>';
           }).join('')
-        : '<div style="text-align:center;color:#94a3b8;padding:16px;">No likes yet</div>';
-      m.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;max-height:70vh;overflow-y:auto;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,0.3);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><strong style="color:#0D2244;">&#10084;&#65039; Liked by</strong><button id="sr-likes-close" style="background:none;border:none;font-size:16px;cursor:pointer;color:#94a3b8;">&#10005;</button></div>' + items + '</div>';
+        : '<div style="text-align:center;color:#94a3b8;padding:16px;">' + t('feed.no_likes_yet', 'No likes yet') + '</div>';
+      m.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:100%;max-height:70vh;overflow-y:auto;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,0.3);"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><strong style="color:#0D2244;">&#10084;&#65039; ' + t('feed.liked_by', 'Liked by') + '</strong><button id="sr-likes-close" style="background:none;border:none;font-size:16px;cursor:pointer;color:#94a3b8;">&#10005;</button></div>' + items + '</div>';
       m.addEventListener('click', function(ev) { if (ev.target === m || ev.target.id === 'sr-likes-close') m.remove(); });
       document.body.appendChild(m);
     } catch (e) { if (window.toast) toast(e.message, 'error'); }
@@ -851,8 +853,8 @@ function buildProfileCard(r, isOwn) {
       rp.disabled = true;
       try {
         await API.repost(rp.dataset.id, '');
-        rp.textContent = '✓ Reposted';
-        if (window.toast) toast('Reposted!', 'success');
+        rp.textContent = '✓ ' + t('profile.reposted_short', 'Reposted');
+        if (window.toast) toast(t('profile.reposted_toast', 'Reposted!'), 'success');
       } catch (err) { if (window.toast) toast(err.message, 'error'); rp.disabled = false; }
       return;
     }

@@ -259,23 +259,23 @@
     '}' +
     '@media(max-width:680px) and (orientation:landscape){#sr-chat-btn{bottom:10px;}}' +
     '</style>' +
-    '<button id="sr-selection-popup">💬 Reply to this</button>' +
+    '<button id="sr-selection-popup">' + chatCopy('💬 Reply to this', '💬 الرد على هذا') + '</button>' +
     '<input type="file" id="sr-img-input" accept="image/*" style="display:none">'+
     '<button id="sr-chat-btn" title="SwingRush AI"><div id="sr-chat-pulse"></div><svg viewBox="0 0 500 460" width="78" height="72"><path d="M159,178 A105,105 0 0,1 341,178" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M159,282 A105,105 0 0,0 226,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M341,282 A105,105 0 0,1 274,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path fill="#F5D061" d="M250,160 C258,172 270,190 282,204 C310,193 345,187 372,189 C405,192 428,199 446,224 C430,232 410,233 394,236 C360,243 330,252 313,267 C300,277 290,283 282,292 C270,305 263,325 262,345 L262,398 Q262,408 250,408 Q238,408 238,398 L238,345 C237,325 230,305 218,292 C210,283 200,277 187,267 C170,252 140,243 106,236 C90,233 70,232 54,224 C72,199 95,192 128,189 C155,187 190,193 218,204 C230,190 242,172 250,160 Z"/></svg><span id="sr-chat-badge"></span></button>' +
     '<div id="sr-chat-box" class="normal">' +
-    '<div id="sr-history-panel"><div style="font-weight:700;font-size:14px;color:#0D47A1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #E3EEFF;">💬 Previous Chats</div><div id="sr-history-list"></div></div>'+
+    '<div id="sr-history-panel"><div style="font-weight:700;font-size:14px;color:#0D47A1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #E3EEFF;">' + chatCopy('💬 Previous Chats', '💬 المحادثات السابقة') + '</div><div id="sr-history-list"></div></div>'+
     '<div id="sr-chat-header">' +
       '<div id="sr-chat-avatar"><svg viewBox="0 0 500 460" width="32" height="30"><path d="M159,178 A105,105 0 0,1 341,178" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M159,282 A105,105 0 0,0 226,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M341,282 A105,105 0 0,1 274,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path fill="#F5D061" d="M250,160 C258,172 270,190 282,204 C310,193 345,187 372,189 C405,192 428,199 446,224 C430,232 410,233 394,236 C360,243 330,252 313,267 C300,277 290,283 282,292 C270,305 263,325 262,345 L262,398 Q262,408 250,408 Q238,408 238,398 L238,345 C237,325 230,305 218,292 C210,283 200,277 187,267 C170,252 140,243 106,236 C90,233 70,232 54,224 C72,199 95,192 128,189 C155,187 190,193 218,204 C230,190 242,172 250,160 Z"/></svg></div>' +
-      '<div id="sr-chat-hinfo"><div id="sr-chat-title">SwingRush AI</div><div id="sr-chat-status">Online — Ask about any stock</div></div>' +
-      '<button class="sr-header-btn" id="sr-history-btn" title="Chat History">🕐</button>' +
-      '<button class="sr-header-btn" id="sr-newchat-btn" title="New Chat" style="font-size:11px;width:auto;padding:0 8px;">+New</button>' +
-      '<button class="sr-header-btn" id="sr-fullscreen-btn" title="Fullscreen">⛶</button>' +
-      '<button class="sr-header-btn" id="sr-chat-close" title="Close">✕</button>' +
+      '<div id="sr-chat-hinfo"><div id="sr-chat-title">SwingRush AI</div><div id="sr-chat-status">' + chatCopy('Online — Ask about any stock', 'متصل — اسأل عن أي سهم') + '</div></div>' +
+      '<button class="sr-header-btn" id="sr-history-btn" title="' + chatCopy('Chat History', 'سجل المحادثات') + '">🕐</button>' +
+      '<button class="sr-header-btn" id="sr-newchat-btn" title="' + chatCopy('New Chat', 'محادثة جديدة') + '" style="font-size:11px;width:auto;padding:0 8px;">' + chatCopy('+New', '+ جديدة') + '</button>' +
+      '<button class="sr-header-btn" id="sr-fullscreen-btn" title="' + chatCopy('Fullscreen', 'ملء الشاشة') + '">⛶</button>' +
+      '<button class="sr-header-btn" id="sr-chat-close" title="' + chatCopy('Close', 'إغلاق') + '">✕</button>' +
     '</div>' +
     '<div id="sr-chat-messages"></div>' +
     '<div id="sr-img-preview"><img id="sr-img-thumb" src=""><span id="sr-img-name" style="font-size:12px;color:#64748b;flex:1;"></span><button id="sr-img-remove">✕</button></div>'+
-    '<div id="sr-chat-suggestions"><button class="sr-sug" onclick="srSuggest(\'Analyze AAPL with full signals\')">📊 Analyze AAPL</button><button class="sr-sug" onclick="srSuggest(\'Show top stocks today from scanner\')">🔥 Top stocks</button><button class="sr-sug" onclick="srSuggest(\'Is the market bullish or bearish?\')">📈 Market mood</button><button class="sr-sug" onclick="srSuggest(\'Explain RSI and how it works\')">📚 What is RSI?</button><button class="sr-sug" onclick="srSuggest(\'What stocks have best risk reward today?\')">🎯 Best R:R</button></div>' +
-    '<div id="sr-chat-input-row"><button id="sr-chat-img-btn" title="Upload chart/image">📎</button><textarea id="sr-chat-input" placeholder="Ask about any stock, indicator, or market..." rows="1"></textarea><button id="sr-chat-send">➤</button></div>' +
+    '<div id="sr-chat-suggestions"><button class="sr-sug" onclick="srSuggest(\'Analyze AAPL with full signals\')">' + chatCopy('📊 Analyze AAPL', '📊 حلل AAPL') + '</button><button class="sr-sug" onclick="srSuggest(\'Show top stocks today from scanner\')">' + chatCopy('🔥 Top stocks', '🔥 أفضل الأسهم') + '</button><button class="sr-sug" onclick="srSuggest(\'Is the market bullish or bearish?\')">' + chatCopy('📈 Market mood', '📈 مزاج السوق') + '</button><button class="sr-sug" onclick="srSuggest(\'Explain RSI and how it works\')">' + chatCopy('📚 What is RSI?', '📚 ما هو RSI؟') + '</button><button class="sr-sug" onclick="srSuggest(\'What stocks have best risk reward today?\')">' + chatCopy('🎯 Best R:R', '🎯 أفضل مخاطرة/عائد') + '</button></div>' +
+    '<div id="sr-chat-input-row"><button id="sr-chat-img-btn" title="' + chatCopy('Upload chart/image', 'رفع رسم بياني/صورة') + '">📎</button><textarea id="sr-chat-input" placeholder="' + chatCopy('Ask about any stock, indicator, or market...', 'اسأل عن أي سهم أو مؤشر أو السوق...') + '" rows="1"></textarea><button id="sr-chat-send">➤</button></div>' +
     '</div>';
 
   document.body.appendChild(widget);
@@ -384,7 +384,7 @@
     var lastDateLabel = '';
     session.messages.forEach(function(m) {
       var msgDate = m.time ? new Date(m.time) : new Date();
-      var dateLabel = msgDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+      var dateLabel = msgDate.toLocaleDateString(isArabicChat() ? 'ar' : 'en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
       if (dateLabel !== lastDateLabel) {
         var divider = document.createElement('div');
         divider.style.cssText = 'text-align:center;margin:14px 0 6px;font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:0.5px;';
@@ -526,27 +526,28 @@
   async function loadHistoryList() {
     var listEl = document.getElementById('sr-history-list');
     if (!listEl || !Auth.token()) return;
-    listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">Loading...</div>';
+    listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('Loading...', 'جار التحميل...') + '</div>';
     try {
       var sessions = await API.getChatSessions();
       if (!sessions || !sessions.length) {
-        listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">No previous chats</div>';
+        listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('No previous chats', 'لا توجد محادثات سابقة') + '</div>';
         return;
       }
       listEl.innerHTML = '';
       sessions.forEach(function(s) {
-        var d = new Date(s.updatedAt).toLocaleDateString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        var histLocale = isArabicChat() ? 'ar' : 'en-US';
+        var d = new Date(s.updatedAt).toLocaleDateString(histLocale, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
         var isActive = s._id === currentSessionId;
         var div = document.createElement('div');
         div.style.cssText = 'padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:6px;background:' + (isActive?'#EEF4FF':'#F8FAFF') + ';border:1.5px solid ' + (isActive?'#1565C0':'#E3EEFF') + ';';
-        div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:13px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">' + (s.title || 'Chat') + '</div><button onclick="srDeleteSession(event,\'' + s._id + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;">🗑</button></div><div style="font-size:11px;color:#94a3b8;margin-top:3px;">' + d + ' · ' + (s.messages?s.messages.length:0) + ' messages</div>';
+        div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:13px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">' + (s.title || chatCopy('Chat', 'محادثة')) + '</div><button onclick="srDeleteSession(event,\'' + s._id + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;">🗑</button></div><div style="font-size:11px;color:#94a3b8;margin-top:3px;">' + d + ' · ' + (s.messages?s.messages.length:0) + ' ' + chatCopy('messages', 'رسالة') + '</div>';
         div.addEventListener('click', function(e) { if (e.target.tagName !== 'BUTTON') loadSession(s._id); });
         div.addEventListener('mouseover', function() { if (s._id !== currentSessionId) this.style.background = '#EEF4FF'; });
         div.addEventListener('mouseout', function() { if (s._id !== currentSessionId) this.style.background = '#F8FAFF'; });
         listEl.appendChild(div);
       });
     } catch(e) {
-      listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">Could not load</div>';
+      listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('Could not load', 'تعذر التحميل') + '</div>';
     }
   }
 
@@ -562,13 +563,13 @@
 
   window.srDeleteSession = async function(event, sessionId) {
     event.stopPropagation();
-    if (!confirm('Delete this chat?')) return;
+    if (!confirm(chatCopy('Delete this chat?', 'حذف هذه المحادثة؟'))) return;
     try {
       await API.deleteChatSession(sessionId);
       if (currentSessionId === sessionId) {
         currentSessionId = 'NEW';
         messages.innerHTML = '';
-        addMessage('ai', 'Chat deleted. Start a new conversation!');
+        addMessage('ai', chatCopy('Chat deleted. Start a new conversation!', 'تم حذف المحادثة. ابدأ محادثة جديدة!'));
       }
       loadHistoryList();
     } catch(e) {}
@@ -580,7 +581,7 @@
   imgInput.addEventListener('change', function() {
     var file = imgInput.files[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert('Image must be under 5MB'); return; }
+    if (file.size > 5 * 1024 * 1024) { alert(chatCopy('Image must be under 5MB', 'يجب أن تكون الصورة أقل من 5 ميغابايت')); return; }
     var reader = new FileReader();
     reader.onload = function(e) {
       var base64 = e.target.result.split(',')[1];
@@ -696,7 +697,7 @@
       quotePreview.style.display = 'flex';
       if (!isOpen) openChat();
       input.focus();
-      input.placeholder = 'Write your reply about the quoted text...';
+      input.placeholder = chatCopy('Write your reply about the quoted text...', 'اكتب ردك على النص المقتبس...');
     }
   });
 
@@ -704,7 +705,7 @@
     quotedText = null;
     var qp = document.getElementById('sr-quote-preview');
     if (qp) qp.style.display = 'none';
-    input.placeholder = 'Ask about any stock, indicator, or market...';
+    input.placeholder = chatCopy('Ask about any stock, indicator, or market...', 'اسأل عن أي سهم أو مؤشر أو السوق...');
   };
 
   function dismissSelectionPopupIfOutside(e) {
@@ -753,7 +754,7 @@
     }
 
     if (text) addMessage('user', text);
-    if (pendingImage) addMessage('user', '📎 Image uploaded for analysis');
+    if (pendingImage) addMessage('user', chatCopy('📎 Image uploaded for analysis', '📎 تم رفع صورة للتحليل'));
     input.value = '';
     input.style.height = 'auto';
     isTyping = true;
@@ -807,7 +808,10 @@
       removeTyping(typingEl);
       if (!result.ok) {
         if (result.data.requireSubscription) {
-          addMessage('ai', 'AI Chat is a SwingRush Pro feature.\n\nUpgrade to Pro for unlimited access to the AI analyst \u2014 real Claude AI reasoning combined with technical analysis on every stock.');
+          addMessage('ai', chatCopy(
+            'AI Chat is a SwingRush Pro feature.\n\nUpgrade to Pro for unlimited access to the AI analyst \u2014 real Claude AI reasoning combined with technical analysis on every stock.',
+            '\u0645\u062d\u0627\u062f\u062b\u0629 \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a \u0645\u064a\u0632\u0629 \u062d\u0635\u0631\u064a\u0629 \u0644\u0640 SwingRush Pro.\n\n\u062a\u0631\u0642\u064e\u0651 \u0625\u0644\u0649 Pro \u0644\u0644\u0648\u0635\u0648\u0644 \u063a\u064a\u0631 \u0627\u0644\u0645\u062d\u062f\u0648\u062f \u0625\u0644\u0649 \u0627\u0644\u0645\u062d\u0644\u0644 \u0627\u0644\u0630\u0643\u064a \u2014 \u062a\u0641\u0643\u064a\u0631 Claude AI \u062d\u0642\u064a\u0642\u064a \u0645\u062f\u0645\u062c \u0645\u0639 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0641\u0646\u064a \u0639\u0644\u0649 \u0643\u0644 \u0633\u0647\u0645.'
+          ));
           setTimeout(function() { if (window.Paywall) Paywall.showSubscribePaywall('chat'); }, 500);
           return;
         }
@@ -833,7 +837,7 @@
     })
     .catch(function(err) {
       removeTyping(typingEl);
-      addMessage('ai', 'Connection error. Please try again in a moment.');
+      addMessage('ai', chatCopy('Connection error. Please try again in a moment.', 'خطأ في الاتصال. حاول مرة أخرى بعد لحظات.'));
     })
     .finally(function() {
       // We reached here => this page survived (no navigation), so the answer
@@ -846,9 +850,10 @@
   }
 
   function addMessage(role, text, realTime) {
+    var timeLocale = isArabicChat() ? 'ar' : 'en-US';
     var now = realTime
-      ? new Date(realTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-      : new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      ? new Date(realTime).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' })
+      : new Date().toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' });
     var wasNearBottom = isNearBottom();
     var div = document.createElement('div');
     div.className = 'sr-msg ' + role;
@@ -1068,10 +1073,10 @@
     overlay.innerHTML =
       '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.3);">' +
       '<div style="font-size:32px;margin-bottom:10px;">\ud83d\udcac</div>' +
-      '<div style="font-weight:800;color:#0D2244;font-size:16px;margin-bottom:6px;">Ask SwingRush AI</div>' +
-      '<div style="font-size:13px;color:#64748b;margin-bottom:18px;">Start a fresh conversation, or continue where you left off?</div>' +
-      '<button id="sr-choice-new" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:10px;">Start New Chat</button>' +
-      '<button id="sr-choice-continue" style="width:100%;background:#F5F9FF;color:#0D2244;border:1px solid #E3EEFF;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;">Continue Recent Chat</button>' +
+      '<div style="font-weight:800;color:#0D2244;font-size:16px;margin-bottom:6px;">' + chatCopy('Ask SwingRush AI', '\u0627\u0633\u0623\u0644 SwingRush AI') + '</div>' +
+      '<div style="font-size:13px;color:#64748b;margin-bottom:18px;">' + chatCopy('Start a fresh conversation, or continue where you left off?', '\u0627\u0628\u062f\u0623 \u0645\u062d\u0627\u062f\u062b\u0629 \u062c\u062f\u064a\u062f\u0629\u060c \u0623\u0645 \u062a\u0643\u0645\u0644 \u0645\u0646 \u062d\u064a\u062b \u062a\u0648\u0642\u0641\u062a\u061f') + '</div>' +
+      '<button id="sr-choice-new" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:10px;">' + chatCopy('Start New Chat', '\u0628\u062f\u0621 \u0645\u062d\u0627\u062f\u062b\u0629 \u062c\u062f\u064a\u062f\u0629') + '</button>' +
+      '<button id="sr-choice-continue" style="width:100%;background:#F5F9FF;color:#0D2244;border:1px solid #E3EEFF;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;">' + chatCopy('Continue Recent Chat', '\u0645\u062a\u0627\u0628\u0639\u0629 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629 \u0627\u0644\u0623\u062e\u064a\u0631\u0629') + '</button>' +
       '</div>';
     overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);

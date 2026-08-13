@@ -64,7 +64,7 @@ const checkOutcome = async (rec, io) => {
       await rec.save();
       io.emit('recommendation:win', { recId:rec._id, symbol:rec.symbol, returnPct:rec.returnPct });
 
-      const author = await User.findById(rec.user).select('fullName username email');
+      const author = await User.findById(rec.user).select('fullName username email avatar');
 
       // ── Notify & email the REC OWNER ─────────────────────────────
       io.notifyUser && io.notifyUser(ownerId(rec.user), 'notification', {
@@ -82,7 +82,7 @@ const checkOutcome = async (rec, io) => {
         try {
           io.notifyUser && io.notifyUser(String(f._id), 'notification', {
             type:'win', title:`🏆 @${author?.username||author?.fullName}'s $${rec.symbol} hit Take Profit!`,
-            body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:ownerId(rec.user), time:new Date(),
+            body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:ownerId(rec.user), avatar:author?.avatar||null, time:new Date(),
           });
           if (f.email) {
             sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
@@ -98,7 +98,7 @@ const checkOutcome = async (rec, io) => {
         if (wid !== ownerId(rec.user)) {
           io.notifyUser && io.notifyUser(wid, 'notification', {
             type:'win', title:`🏆 $${rec.symbol} hit Take Profit!`,
-            body:`+${rec.returnPct}% — @${author?.username||author?.fullName}`, recId:rec._id, fromUser:ownerId(rec.user), time:new Date(),
+            body:`+${rec.returnPct}% — @${author?.username||author?.fullName}`, recId:rec._id, fromUser:ownerId(rec.user), avatar:author?.avatar||null, time:new Date(),
           });
         }
       });
@@ -109,7 +109,7 @@ const checkOutcome = async (rec, io) => {
       await rec.save();
       io.emit('recommendation:loss', { recId:rec._id, symbol:rec.symbol });
 
-      const author = await User.findById(rec.user).select('fullName username email');
+      const author = await User.findById(rec.user).select('fullName username email avatar');
 
       // ── Notify & email the REC OWNER on LOSS ─────────────────────
       io.notifyUser && io.notifyUser(ownerId(rec.user), 'notification', {
@@ -127,7 +127,7 @@ const checkOutcome = async (rec, io) => {
         try {
           io.notifyUser && io.notifyUser(String(f._id), 'notification', {
             type:'loss', title:`💸 @${author?.username||author?.fullName}'s $${rec.symbol} hit Stop Loss`,
-            body:`${rec.returnPct}%`, recId:rec._id, fromUser:ownerId(rec.user), time:new Date(),
+            body:`${rec.returnPct}%`, recId:rec._id, fromUser:ownerId(rec.user), avatar:author?.avatar||null, time:new Date(),
           });
           if (f.email) {
             sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
@@ -195,9 +195,9 @@ router.get('/feed', protect, async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const recs = await Recommendation.find({ isOpen:true, profileOnly:{ $ne:true }, source:{ $ne:'repost' } })
       .sort({ openedAt:-1, createdAt:-1 }).skip((page-1)*20).limit(20)
-      .populate('user','fullName username email')
-      .populate('comments.user','fullName username')
-      .populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username' } });
+      .populate('user','fullName username email avatar')
+      .populate('comments.user','fullName username avatar')
+      .populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username avatar' } });
     recs.forEach(r => checkOutcome(r, io));
     res.json(recs);
   } catch (err) { res.status(500).json({ message:err.message }); }
@@ -211,8 +211,8 @@ router.get('/following', protect, async (req, res) => {
     if (!followingIds.length) return res.json([]);
     const recs = await Recommendation.find({ isOpen:true, user:{ $in:followingIds }, profileOnly:{ $ne:true }, source:{ $ne:'repost' } })
       .sort({ openedAt:-1, createdAt:-1 }).limit(50)
-      .populate('user','fullName username email')
-      .populate('comments.user','fullName username');
+      .populate('user','fullName username email avatar')
+      .populate('comments.user','fullName username avatar');
     res.json(recs);
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
@@ -261,8 +261,8 @@ router.get('/symbol/:symbol', protect, async (req, res) => {
     const symbol = req.params.symbol.toUpperCase();
     const recs = await Recommendation.find({ symbol, profileOnly:{ $ne:true } })
       .sort({ openedAt:-1, createdAt:-1 }).limit(50)
-      .populate('user','fullName username email')
-      .populate('comments.user','fullName username');
+      .populate('user','fullName username email avatar')
+      .populate('comments.user','fullName username avatar');
     const total=recs.length, buys=recs.filter(r=>r.direction==='BUY').length;
     const wins=recs.filter(r=>r.outcome==='WIN').length, closed=recs.filter(r=>!r.isOpen).length;
     res.json({ symbol, stats:{ total, buys, sells:total-buys, wins, closed, avgReturn:0, winRate:closed>0?+((wins/closed)*100).toFixed(1):0 }, recommendations:recs });
@@ -327,7 +327,7 @@ router.post('/', protect, async (req, res) => {
       direction, note, currentPrice:quote.price, openedAt,
       customEntryPrice:customEntry, source:'manual', profileOnly:false,
     });
-    await rec.populate('user','fullName username email');
+    await rec.populate('user','fullName username email avatar');
     io.emit('recommendation:new', rec);
 
     // Notify followers + instrument subscribers
@@ -339,7 +339,7 @@ router.post('/', protect, async (req, res) => {
       notified.add(fid);
       io.notifyUser && io.notifyUser(fid, 'notification', {
         type:'new_rec', title:`📡 @${req.user.username||req.user.fullName} posted ${direction} on $${sym}`,
-        body:`TP: $${tp} · Entry: $${entry.toFixed(2)}`, recId:rec._id, fromUser:String(req.user._id), time:new Date(),
+        body:`TP: $${tp} · Entry: $${entry.toFixed(2)}`, recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
       });
       sendFollowAlert(f.email, '@' + (req.user.username || req.user.fullName), sym, direction, tp).catch(()=>{});
     });
@@ -357,7 +357,7 @@ router.post('/', protect, async (req, res) => {
           type:'instrument',
           title:`🔔 New ${direction} on $${sym}`,
           body:`By @${req.user.username||req.user.fullName} · TP: $${tp}`,
-          recId: rec._id, fromUser: String(req.user._id), time: new Date(),
+          recId: rec._id, fromUser: String(req.user._id), avatar: req.user.avatar||null, time: new Date(),
         });
         // Email notification
         sendInstrumentAlert(sub.email, sym, direction, '@' + (req.user.username || req.user.fullName), tp, rec._id).catch(()=>{});
@@ -411,7 +411,7 @@ router.post('/:id/close', protect, async (req, res) => {
     rec.manualClose = true;
     rec.closedAt = new Date();
     await rec.save();
-    await rec.populate('user','fullName username email');
+    await rec.populate('user','fullName username email avatar');
     req.app.get('io')?.emit('recommendation:closed', {
       recId:rec._id, symbol:rec.symbol, returnPct:rec.returnPct, outcome:rec.outcome,
     });
@@ -442,7 +442,7 @@ router.post('/engine-save', protect, async (req, res) => {
       stopLoss:stopLoss?Number(stopLoss):null, direction, note,
       currentPrice:entry, openedAt, source:'engine', profileOnly:true,
     });
-    await rec.populate('user','fullName username email');
+    await rec.populate('user','fullName username email avatar');
     res.status(201).json(rec);
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
@@ -470,10 +470,10 @@ router.post('/:id/repost', protect, async (req, res) => {
     const io = req.app.get('io');
     io.notifyUser && io.notifyUser(String(original.user._id), 'notification', {
       type:'repost', title:`↩ @${req.user.username||req.user.fullName} reposted your $${original.symbol} trade`,
-      body:comment?.trim()||'', recId:original._id, time:new Date(),
+      body:comment?.trim()||'', recId:original._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
     });
-    await repost.populate('user','fullName username email');
-    await repost.populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username' } });
+    await repost.populate('user','fullName username email avatar');
+    await repost.populate({ path:'repostedFrom', populate:{ path:'user', select:'fullName username avatar' } });
     res.status(201).json(repost);
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
@@ -507,7 +507,7 @@ router.post('/:id/like', protect, async (req, res) => {
       const io = req.app.get('io');
       io.notifyUser && io.notifyUser(String(rec.user._id), 'notification', {
         type:'like', title:`❤️ @${req.user.username||req.user.fullName} liked your $${rec.symbol} trade`,
-        body:'', recId:rec._id, time:new Date(),
+        body:'', recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
       });
     }
     res.json({ likes:rec.likes.length, liked: !liked });
@@ -521,7 +521,7 @@ router.get('/:id/likes', protect, async (req, res) => {
     if (!rec) return res.status(404).json({ message:'Not found' });
     const users = await require('../models/User')
       .find({ _id: { $in: rec.likes || [] } })
-      .select('username fullName');
+      .select('username fullName avatar');
     res.json(users);
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
@@ -538,7 +538,7 @@ router.post('/:id/comment', protect, async (req, res) => {
     }
     rec.comments.push({ user:req.user._id, text:text.trim(), parentCommentId: parentCommentId || null });
     await rec.save();
-    await rec.populate('comments.user','fullName username');
+    await rec.populate('comments.user','fullName username avatar');
     const newComment = rec.comments[rec.comments.length-1];
     const io = req.app.get('io');
     io.emit('recommendation:comment', { recId:rec._id, comment:newComment });
@@ -546,7 +546,7 @@ router.post('/:id/comment', protect, async (req, res) => {
     if (String(rec.user._id) !== String(req.user._id)) {
       io.notifyUser && io.notifyUser(String(rec.user._id), 'notification', {
         type:'comment', title:`💬 @${req.user.username||req.user.fullName} commented on your $${rec.symbol} trade`,
-        body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), time:new Date(),
+        body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
       });
     }
     // Notify mentioned users (@username replies)
@@ -559,7 +559,7 @@ router.post('/:id/comment', protect, async (req, res) => {
           if (String(mu._id) === String(rec.user._id)) return;
           io.notifyUser && io.notifyUser(String(mu._id), 'notification', {
             type:'comment', title:`↩ @${req.user.username||req.user.fullName} replied to you on $${rec.symbol}`,
-            body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), time:new Date(),
+            body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
           });
         });
       }
@@ -613,9 +613,9 @@ router.get('/activity', protect, async (req, res) => {
   try {
     const [recent, closed, cmts] = await Promise.all([
       Recommendation.find({ profileOnly: { $ne: true } }).sort({ createdAt: -1 }).limit(15)
-        .populate('user', 'username fullName').select('symbol direction user createdAt'),
+        .populate('user', 'username fullName avatar').select('symbol direction user createdAt'),
       Recommendation.find({ isOpen: false }).sort({ closedAt: -1 }).limit(15)
-        .populate('user', 'username fullName').select('symbol direction outcome user closedAt returnPct'),
+        .populate('user', 'username fullName avatar').select('symbol direction outcome user closedAt returnPct'),
       Recommendation.aggregate([
         { $unwind: '$comments' },
         { $sort: { 'comments.createdAt': -1 } },
@@ -626,12 +626,12 @@ router.get('/activity', protect, async (req, res) => {
       ]),
     ]);
     const acts = [];
-    recent.forEach(r => acts.push({ kind:'new', at:r.createdAt, symbol:r.symbol, direction:r.direction, recId:String(r._id), userId:String(r.user?._id||''), username:r.user?.username||r.user?.fullName||'trader' }));
-    closed.forEach(r => acts.push({ kind: r.outcome==='WIN'?'tp':'sl', at:r.closedAt, symbol:r.symbol, direction:r.direction, recId:String(r._id), userId:String(r.user?._id||''), username:r.user?.username||r.user?.fullName||'trader', returnPct:r.returnPct }));
+    recent.forEach(r => acts.push({ kind:'new', at:r.createdAt, symbol:r.symbol, direction:r.direction, recId:String(r._id), userId:String(r.user?._id||''), username:r.user?.username||r.user?.fullName||'trader', avatar:r.user?.avatar||null }));
+    closed.forEach(r => acts.push({ kind: r.outcome==='WIN'?'tp':'sl', at:r.closedAt, symbol:r.symbol, direction:r.direction, recId:String(r._id), userId:String(r.user?._id||''), username:r.user?.username||r.user?.fullName||'trader', returnPct:r.returnPct, avatar:r.user?.avatar||null }));
     cmts.forEach(x => {
       const txt = String((x.comments && x.comments.text) || '');
       const isReply = /^@[a-zA-Z0-9_.\-]+\s/.test(txt);
-      acts.push({ kind: isReply ? 'reply' : 'comment', at: x.comments && x.comments.createdAt, symbol: x.symbol, recId: String(x._id), userId: String((x.ou && x.ou._id) || ''), username: (x.cu && (x.cu.username || x.cu.fullName)) || 'trader', text: txt.slice(0, 50) });
+      acts.push({ kind: isReply ? 'reply' : 'comment', at: x.comments && x.comments.createdAt, symbol: x.symbol, recId: String(x._id), userId: String((x.ou && x.ou._id) || ''), username: (x.cu && (x.cu.username || x.cu.fullName)) || 'trader', text: txt.slice(0, 50), avatar: (x.cu && x.cu.avatar) || null });
     });
     acts.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
     res.json(acts.slice(0, 25));

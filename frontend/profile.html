@@ -202,9 +202,9 @@
         <div class="price-disp" id="share-price-disp"></div>
       </div>
       <div class="form-group">
-        <label class="form-label">Entry Price <span style="font-weight:400;color:var(--muted);">optional</span></label>
-        <input id="share-entry" type="number" class="form-input" placeholder="Uses live price when empty" step="0.01" min="0"/>
-        <div style="margin-top:5px;font-size:11px;color:var(--muted);">For a custom entry, the opened date uses the latest trading day whose range reached that price.</div>
+        <label class="form-label"><span data-i18n="profile.entry_price">Entry Price</span> <span style="font-weight:400;color:var(--muted);" data-i18n="profile.optional">optional</span></label>
+        <input id="share-entry" type="number" class="form-input" placeholder="Uses live price when empty" data-i18n-placeholder="profile.entry_price_placeholder" step="0.01" min="0"/>
+        <div style="margin-top:5px;font-size:11px;color:var(--muted);" data-i18n="profile.entry_price_hint">For a custom entry, the opened date uses the latest trading day whose range reached that price.</div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -233,22 +233,22 @@
 <div id="close-call-overlay" style="display:none;position:fixed;inset:0;z-index:31000;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px;">
   <div id="close-call-box" style="width:min(420px,100%);padding:22px;">
     <div style="display:flex;justify-content:space-between;gap:16px;align-items:start;">
-      <div><div style="font:800 10px var(--font-mono);color:var(--gold);">CLOSE TRADE</div><h2 id="close-call-title" style="margin:6px 0 0;font:800 22px var(--font-disp);">Close position</h2></div>
+      <div><div style="font:800 10px var(--font-mono);color:var(--gold);" data-i18n="profile.close_trade_eyebrow">CLOSE TRADE</div><h2 id="close-call-title" style="margin:6px 0 0;font:800 22px var(--font-disp);" data-i18n="profile.close_position">Close position</h2></div>
       <button type="button" class="close-modal" onclick="closeCallModal()" aria-label="Close">✕</button>
     </div>
     <p id="close-call-summary" style="margin:14px 0;color:var(--text2);font-size:13px;line-height:1.5;"></p>
     <div class="form-group" style="margin-bottom:0;">
-      <label class="form-label">Live close price</label>
+      <label class="form-label" data-i18n="profile.live_close_price">Live close price</label>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);">
         <strong id="close-call-price" style="font:800 22px var(--font-mono);color:var(--text);">—</strong>
-        <span id="close-call-market-state" style="font:800 10px var(--font-mono);letter-spacing:.4px;color:var(--accent2);text-align:right;">Fetching live price…</span>
+        <span id="close-call-market-state" style="font:800 10px var(--font-mono);letter-spacing:.4px;color:var(--accent2);text-align:right;" data-i18n="profile.fetching_live_price">Fetching live price…</span>
       </div>
-      <div style="margin-top:8px;color:var(--muted);font-size:11px;line-height:1.4;">The price is fetched again when you confirm. Manual price entry is disabled.</div>
+      <div style="margin-top:8px;color:var(--muted);font-size:11px;line-height:1.4;" data-i18n="profile.close_price_hint">The price is fetched again when you confirm. Manual price entry is disabled.</div>
     </div>
     <div class="form-error" id="close-call-error"></div>
     <div style="display:flex;gap:10px;margin-top:14px;">
-      <button type="button" class="btn btn-outline" onclick="closeCallModal()" style="flex:1;justify-content:center;">Cancel</button>
-      <button type="button" class="btn btn-primary" id="close-call-submit" style="flex:1.4;justify-content:center;">Close Trade</button>
+      <button type="button" class="btn btn-outline" onclick="closeCallModal()" style="flex:1;justify-content:center;" data-i18n="login.cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="close-call-submit" style="flex:1.4;justify-content:center;" data-i18n="profile.close_trade_btn">Close Trade</button>
     </div>
   </div>
 </div>
@@ -350,7 +350,7 @@
       </div>
       <div class="prof-info">
         <div class="profile-kicker"><span class="profile-presence"></span><span id="prof-context" data-i18n="profile.workspace">TRADING WORKSPACE</span></div>
-        <h1 id="prof-name" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">Loading…<span id="prof-plan-badge" style="display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px;border-radius:12px;vertical-align:middle;"></span></h1>
+        <h1 id="prof-name" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span data-i18n="scanner.loading">Loading…</span><span id="prof-plan-badge" style="display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px;border-radius:12px;vertical-align:middle;"></span></h1>
         <div id="prof-username" style="color:rgba(255,255,255,0.4);font-size:13px;margin-bottom:2px;"></div>
         <a id="prof-plan-expiry" href="/payment.html" style="display:none;color:rgba(255,255,255,0.45);font-size:12px;text-decoration:none;margin-bottom:2px;"></a>
         <div id="prof-email"></div>
@@ -367,11 +367,11 @@
     <div class="follow-stats">
       <div class="follow-pill" onclick="openFollowModal('following')" title="View Following">
         <span class="fp-num" id="count-following">0</span>
-        <span class="fp-lbl">Following</span>
+        <span class="fp-lbl" data-i18n="profile.following">Following</span>
       </div>
       <div class="follow-pill" onclick="openFollowModal('followers')" title="View Followers">
         <span class="fp-num" id="count-followers">0</span>
-        <span class="fp-lbl">Followers</span>
+        <span class="fp-lbl" data-i18n="profile.followers">Followers</span>
       </div>
     </div>
 
@@ -483,12 +483,14 @@
     const listEl   = document.getElementById('follow-modal-list');
     const users    = _followData[type] || [];
 
-    title.textContent = type === 'following' ? 'FOLLOWING' : 'FOLLOWERS';
+    const T = (key, fallback) => (window.SRLang ? SRLang.t(key, fallback) : fallback);
+    title.textContent = type === 'following' ? T('profile.following_upper', 'FOLLOWING') : T('profile.followers_upper', 'FOLLOWERS');
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';
 
     if (!users.length) {
-      listEl.innerHTML = `<div class="fm-empty">No ${type} yet.</div>`;
+      const emptyMsg = type === 'following' ? T('profile.no_following_yet', 'No following yet.') : T('profile.no_followers_yet', 'No followers yet.');
+      listEl.innerHTML = `<div class="fm-empty">${emptyMsg}</div>`;
       return;
     }
 
@@ -500,7 +502,7 @@
           <div class="fm-email">${u.fullName}</div>
         </div>
         <div style="margin-left:auto;">
-          <span style="font-size:12px;color:var(--accent2);font-weight:600;">View →</span>
+          <span style="font-size:12px;color:var(--accent2);font-weight:600;">${T('feed.view_arrow', 'View →')}</span>
         </div>
       </div>`).join('');
   }
@@ -576,15 +578,15 @@ setInterval(refreshProfilePrices, 30000);
     </h2>
     <div class="form-group">
       <label class="form-label" data-i18n="profile.current_password">Current Password</label>
-      <input id="pwd-current" type="password" class="form-input" placeholder="Your current password"/>
+      <input id="pwd-current" type="password" class="form-input" placeholder="Your current password" data-i18n-placeholder="profile.current_password_ph"/>
     </div>
     <div class="form-group">
       <label class="form-label" data-i18n="profile.new_password">New Password</label>
-      <input id="pwd-new" type="password" class="form-input" placeholder="Min 6 characters"/>
+      <input id="pwd-new" type="password" class="form-input" placeholder="Min 6 characters" data-i18n-placeholder="profile.new_password_ph"/>
     </div>
     <div class="form-group">
       <label class="form-label" data-i18n="profile.confirm_password">Confirm New Password</label>
-      <input id="pwd-confirm" type="password" class="form-input" placeholder="Repeat new password"/>
+      <input id="pwd-confirm" type="password" class="form-input" placeholder="Repeat new password" data-i18n-placeholder="profile.confirm_password_ph"/>
     </div>
     <div class="form-error" id="pwd-err"></div>
     <div style="display:flex;gap:10px;margin-top:8px;">
@@ -612,11 +614,12 @@ setInterval(refreshProfilePrices, 30000);
     const confirm = document.getElementById('pwd-confirm').value;
     const errEl   = document.getElementById('pwd-err');
     const btn     = document.getElementById('pwd-submit-btn');
+    const T = (key, fallback) => (window.SRLang ? SRLang.t(key, fallback) : fallback);
     errEl.textContent = '';
-    if (!current || !newPwd || !confirm) { errEl.textContent = 'All fields are required'; return; }
-    if (newPwd.length < 6) { errEl.textContent = 'New password must be at least 6 characters'; return; }
-    if (newPwd !== confirm) { errEl.textContent = 'Passwords do not match'; return; }
-    btn.disabled = true; btn.textContent = 'Updating…';
+    if (!current || !newPwd || !confirm) { errEl.textContent = T('profile.err_all_fields', 'All fields are required'); return; }
+    if (newPwd.length < 6) { errEl.textContent = T('profile.err_pwd_length', 'New password must be at least 6 characters'); return; }
+    if (newPwd !== confirm) { errEl.textContent = T('profile.err_pwd_mismatch', 'Passwords do not match'); return; }
+    btn.disabled = true; btn.textContent = T('profile.updating', 'Updating…');
     try {
       const res = await API.changePassword({ currentPassword: current, newPassword: newPwd });
       toast(res.message, 'success');
@@ -624,7 +627,7 @@ setInterval(refreshProfilePrices, 30000);
     } catch (err) {
       errEl.textContent = err.message;
     } finally {
-      btn.disabled = false; btn.textContent = 'Update Password';
+      btn.disabled = false; btn.textContent = T('profile.update_password', 'Update Password');
     }
   }
   document.getElementById('pwd-overlay').addEventListener('click', e => {

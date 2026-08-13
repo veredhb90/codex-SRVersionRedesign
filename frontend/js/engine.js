@@ -1,5 +1,6 @@
 // ── Free Signal Engine ─────────────────────────────────────────────
 (function () {
+  function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
   const form     = document.getElementById('engine-form');
   const symInput = document.getElementById('engine-symbol');
   const resultEl = document.getElementById('engine-result');
@@ -22,7 +23,7 @@
     resultEl.innerHTML = `
       <div style="text-align:center;padding:32px;">
         <div class="spinner"></div>
-        <div style="color:var(--muted);font-size:13px;margin-top:12px;">Analyzing ${sym} — fetching data & news…</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:12px;">${t('home.eng_analyzing', 'Analyzing') + ' ' + sym + ' — ' + t('home.eng_fetching', 'fetching data & news…')}</div>
       </div>`;
     if (shareBtn) shareBtn.style.display = 'none';
     try {
@@ -72,12 +73,12 @@
       </div>
       <div style="background:var(--bg2);border:2px solid var(--border);border-radius:12px;padding:20px;text-align:center;margin:12px 0;">
         <div style="font-size:32px;margin-bottom:8px;">⏸</div>
-        <div style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">NO SIGNAL</div>
+        <div style="font-family:var(--font-disp);font-size:20px;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">${t('home.eng_no_signal', 'NO SIGNAL')}</div>
         <div style="font-size:13px;color:var(--text2);max-width:360px;margin:0 auto;">${r.noSignalReason}</div>
       </div>
-      ${gatesHtml ? `<div class="eng-signals"><div class="eng-signals-title">⚡ MARKET CONDITIONS</div>${gatesHtml}</div>` : ''}
+      ${gatesHtml ? `<div class="eng-signals"><div class="eng-signals-title">⚡ ${t('home.eng_market_conditions', 'MARKET CONDITIONS')}</div>${gatesHtml}</div>` : ''}
       <div class="eng-signals" style="margin-top:12px;">
-        <div class="eng-signals-title">📊 INDICATOR ANALYSIS</div>
+        <div class="eng-signals-title">📊 ${t('home.eng_indicator_analysis', 'INDICATOR ANALYSIS')}</div>
         ${signalHtml}
       </div>
     </div>`;
@@ -127,7 +128,7 @@
             </div>
           </a>`;
         }).join('')
-      : `<div style="font-size:12px;color:rgba(255,255,255,0.5);text-align:center;padding:12px;">${r.newsLabel || 'No recent news found'}</div>`;
+      : `<div style="font-size:12px;color:rgba(255,255,255,0.5);text-align:center;padding:12px;">${r.newsLabel || t('home.eng_no_news', 'No recent news found')}</div>`;
 
     resultEl.innerHTML = `
     <div class="eng-result" style="animation:fadeUp 0.4s ease;">
@@ -145,23 +146,23 @@
 
       <!-- Signal -->
       <div class="eng-signal" style="border-color:${col};background:${dimCol};">
-        <div class="eng-sig-label">SIGNAL</div>
+        <div class="eng-sig-label">${t('home.eng_signal_label', 'SIGNAL')}</div>
         <div class="eng-sig-dir flash-${isBuy?'green':'red'}">${isBuy?'▲':'▼'} ${r.direction}</div>
-        <div class="eng-sig-conf">Confidence: <strong>${r.confidence}</strong> &nbsp;|&nbsp; Trend: <strong>${r.trend}</strong></div>
+        <div class="eng-sig-conf">${t('home.eng_confidence', 'Confidence')}: <strong>${r.confidence}</strong> &nbsp;|&nbsp; ${t('home.eng_trend', 'Trend')}: <strong>${r.trend}</strong></div>
       </div>
 
       <!-- Levels -->
       <div class="eng-levels">
         <div class="eng-level">
-          <div class="el-lbl">ENTRY</div>
+          <div class="el-lbl">${t('home.eng_entry', 'ENTRY')}</div>
           <div class="el-val">$${Number(r.price).toFixed(2)}</div>
         </div>
         <div class="eng-level" style="border-color:var(--green);">
-          <div class="el-lbl">TAKE PROFIT</div>
+          <div class="el-lbl">${t('home.eng_take_profit', 'TAKE PROFIT')}</div>
           <div class="el-val flash-green">$${r.takeProfit}</div>
         </div>
         <div class="eng-level" style="border-color:var(--red);">
-          <div class="el-lbl">STOP LOSS</div>
+          <div class="el-lbl">${t('home.eng_stop_loss', 'STOP LOSS')}</div>
           <div class="el-val flash-red">$${r.stopLoss}</div>
         </div>
       </div>
@@ -169,7 +170,7 @@
       <!-- Score bar -->
       <div style="margin:12px 0;padding:10px 12px;background:var(--bg2);border-radius:9px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <span style="font-size:11px;color:var(--muted);letter-spacing:1px;">COMPOSITE SCORE</span>
+          <span style="font-size:11px;color:var(--muted);letter-spacing:1px;">${t('home.eng_composite_score', 'COMPOSITE SCORE')}</span>
           <span style="font-family:var(--font-mono);font-size:18px;font-weight:900;color:${scoreColor};">${scoreLabel}</span>
         </div>
         <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;">
@@ -181,22 +182,22 @@
         </div>
         ${r.timeframe ? `<div style="margin-top:8px;padding:6px 10px;background:var(--bg3);border-radius:6px;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;">
           <span>⏱</span>
-          <span><strong>Est. time to target:</strong> ${r.timeframe} (~${r.estDays} trading days)</span>
+          <span><strong>${t('home.eng_time_to_target', 'Est. time to target')}:</strong> ${r.timeframe} (~${r.estDays} ${t('home.eng_trading_days', 'trading days')})</span>
         </div>` : ''}
       </div>
 
       <!-- Market conditions / gates -->
-      ${gatesHtml ? `<div class="eng-signals" style="margin-bottom:8px;"><div class="eng-signals-title">⚡ MARKET CONDITIONS</div>${gatesHtml}</div>` : ''}
+      ${gatesHtml ? `<div class="eng-signals" style="margin-bottom:8px;"><div class="eng-signals-title">⚡ ${t('home.eng_market_conditions', 'MARKET CONDITIONS')}</div>${gatesHtml}</div>` : ''}
 
       <!-- Indicator signals -->
       <div class="eng-signals">
-        <div class="eng-signals-title">📊 INDICATOR ANALYSIS</div>
+        <div class="eng-signals-title">📊 ${t('home.eng_indicator_analysis', 'INDICATOR ANALYSIS')}</div>
         ${signalHtml}
       </div>
 
       <!-- News -->
       <div class="eng-signals" style="margin-top:12px;">
-        <div class="eng-signals-title">📰 RECENT NEWS SENTIMENT
+        <div class="eng-signals-title">📰 ${t('home.eng_news_sentiment', 'RECENT NEWS SENTIMENT')}
           <span style="margin-left:8px;font-size:11px;font-weight:400;color:${
             r.newsScore > 0 ? 'var(--green)' : r.newsScore < 0 ? 'var(--red)' : 'var(--muted)'
           };">${r.newsLabel || ''}</span>
@@ -209,9 +210,9 @@
   }
 
   shareBtn?.addEventListener('click', async () => {
-    if (!Auth.token()) { toast('Login to save engine recommendations to your profile', 'info'); return; }
+    if (!Auth.token()) { toast(t('home.eng_login_to_save', 'Login to save engine recommendations to your profile'), 'info'); return; }
     shareBtn.disabled = true;
-    shareBtn.textContent = 'Saving…';
+    shareBtn.textContent = t('home.eng_saving', 'Saving…');
     try {
       await API.engineShare({
         symbol:     lastRec.symbol,
@@ -221,13 +222,13 @@
         direction:  lastRec.direction,
         note:       `⚡ Engine: ${lastRec.confidence} confidence · Score ${lastRec.score > 0 ? '+' : ''}${lastRec.score} · ${lastRec.newsLabel || ''}`,
       });
-      toast('✅ Saved to your profile!', 'success', 4000);
-      shareBtn.textContent = '✓ Saved to Profile';
+      toast('✅ ' + t('home.eng_saved_toast', 'Saved to your profile!'), 'success', 4000);
+      shareBtn.textContent = '✓ ' + t('home.eng_saved_btn', 'Saved to Profile');
       shareBtn.style.background = 'var(--green)';
     } catch (err) {
       toast(err.message, 'error');
       shareBtn.disabled = false;
-      shareBtn.textContent = '💾 Save to Profile';
+      shareBtn.textContent = '💾 ' + t('home.save_profile', 'Save to Profile');
     }
   });
 
@@ -254,9 +255,9 @@
         '<div id="sr-eng-pro-body" style="padding:22px 20px;">' +
           '<div style="text-align:center;">' +
             '<div style="font-size:30px;margin-bottom:10px;color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + (dir === 'BUY' ? '▲' : '▼') + '</div>' +
-            '<div style="font-family:var(--font-disp,inherit);font-size:20px;letter-spacing:.5px;color:var(--text);margin-bottom:8px;">More accurate analysis for $' + sym + '</div>' +
-            '<p style="color:var(--text2);font-size:13.5px;line-height:1.6;max-width:400px;margin:0 auto 20px;">Your Free Signal Engine result is a <strong style="color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + dir + '</strong> based on technicals only. Run the <strong>AI Pro Engine</strong> for real Claude AI news analysis, catalysts, risks and a combined score.</p>' +
-            '<button id="sr-eng-pro-run" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;padding:12px 26px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(79,125,255,0.35);">Analyze with Pro Engine 🧠</button>' +
+            '<div style="font-family:var(--font-disp,inherit);font-size:20px;letter-spacing:.5px;color:var(--text);margin-bottom:8px;">' + t('home.eng_more_accurate', 'More accurate analysis for') + ' $' + sym + '</div>' +
+            '<p style="color:var(--text2);font-size:13.5px;line-height:1.6;max-width:400px;margin:0 auto 20px;">' + t('home.eng_popup_pre', 'Your Free Signal Engine result is a') + ' <strong style="color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + dir + '</strong> ' + t('home.eng_popup_post', 'based on technicals only. Run the') + ' <strong>AI Pro Engine</strong> ' + t('home.eng_popup_post2', 'for real Claude AI news analysis, catalysts, risks and a combined score.') + '</p>' +
+            '<button id="sr-eng-pro-run" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;padding:12px 26px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(79,125,255,0.35);">' + t('home.eng_analyze_with_pro', 'Analyze with Pro Engine') + ' 🧠</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -272,23 +273,23 @@
     body.innerHTML =
       '<div style="text-align:center;padding:34px 10px;">' +
         '<div class="spinner"></div>' +
-        '<div style="color:var(--text2);font-size:13px;margin-top:14px;">Running AI Pro Engine for ' + sym + '…<br>analyzing news, catalysts &amp; technicals</div>' +
+        '<div style="color:var(--text2);font-size:13px;margin-top:14px;">' + t('home.eng_running_pro', 'Running AI Pro Engine for') + ' ' + sym + '…<br>' + t('home.eng_running_pro_sub', 'analyzing news, catalysts &amp; technicals') + '</div>' +
       '</div>';
     try {
       var token = (window.Auth && Auth.token && Auth.token()) || localStorage.getItem('sr_token') || '';
       var res = await fetch('/api/pro-engine/' + sym, { headers: { 'Authorization': 'Bearer ' + token } });
       var d = await res.json();
       if (!res.ok) {
-        body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">' + (d.message || 'Analysis failed') + '</p>';
+        body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">' + (d.message || t('home.eng_analysis_failed', 'Analysis failed')) + '</p>';
         return;
       }
       if (d.insufficientData) {
-        body.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px;">Not enough price history for ' + sym + '.</p>';
+        body.innerHTML = '<p style="color:var(--muted);text-align:center;padding:24px;">' + t('home.eng_insufficient_data', 'Not enough price history for') + ' ' + sym + '.</p>';
         return;
       }
       body.innerHTML = renderProEngineResult(d);
     } catch (err) {
-      body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">AI Pro Engine failed to load. Please try again.</p>';
+      body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">' + t('home.eng_pro_failed', 'AI Pro Engine failed to load. Please try again.') + '</p>';
     }
   }
 
@@ -301,11 +302,11 @@
       return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--text2);">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
     }).join('');
     var catalysts = (d.catalysts || []).length
-      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:var(--green);letter-spacing:0.5px;margin-bottom:5px;">📈 CATALYSTS</div>' +
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:var(--green);letter-spacing:0.5px;margin-bottom:5px;">📈 ' + t('home.eng_catalysts', 'CATALYSTS') + '</div>' +
         d.catalysts.map(function(c) { return '<div style="font-size:13px;color:var(--text);padding:3px 0;">• ' + c + '</div>'; }).join('') + '</div>'
       : '';
     var risks = (d.risks || []).length
-      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:var(--red);letter-spacing:0.5px;margin-bottom:5px;">⚠️ RISKS</div>' +
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:var(--red);letter-spacing:0.5px;margin-bottom:5px;">⚠️ ' + t('home.eng_risks', 'RISKS') + '</div>' +
         d.risks.map(function(x) { return '<div style="font-size:13px;color:var(--text);padding:3px 0;">• ' + x + '</div>'; }).join('') + '</div>'
       : '';
     return '' +
@@ -315,26 +316,26 @@
         (special ? '<span style="font-size:10.5px;color:#F5D061;font-weight:700;background:rgba(245,208,97,0.12);padding:2px 8px;border-radius:6px;">' + d.marketState + '</span>' : '') +
         '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
       '</div>' +
-      (special ? '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Regular Session Close: $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
-      '<div style="font-size:13px;color:var(--text2);margin-bottom:6px;">Combined Score: <strong style="color:var(--text);">' + d.score + '</strong> · ' + d.confidence + ' Confidence</div>' +
-      '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text2);margin-bottom:14px;padding:9px 12px;background:var(--bg2);border-radius:8px;"><span>Technical: <strong style="color:var(--text);">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>News (AI): <strong style="color:var(--text);">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>Total: <strong style="color:var(--text);">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
-      (d.holdingPeriod ? '<div style="font-size:12px;color:var(--text);font-weight:700;margin-bottom:6px;">⏳ Suggested holding period: ' + d.holdingPeriod + '</div>' : '') +
-      (d.upcomingEarnings && d.upcomingEarnings.length ? '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;"><strong style="color:var(--text);">📅 Next earnings:</strong> ' + d.upcomingEarnings.map(function(x) { return x.date; }).join(' · ') + '</div>' : '') +
+      (special ? '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">' + t('home.eng_regular_session_close', 'Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
+      '<div style="font-size:13px;color:var(--text2);margin-bottom:6px;">' + t('home.eng_combined_score', 'Combined Score') + ': <strong style="color:var(--text);">' + d.score + '</strong> · ' + d.confidence + ' ' + t('home.eng_confidence', 'Confidence') + '</div>' +
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text2);margin-bottom:14px;padding:9px 12px;background:var(--bg2);border-radius:8px;"><span>' + t('home.eng_technical', 'Technical') + ': <strong style="color:var(--text);">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + t('home.eng_news_ai', 'News (AI)') + ': <strong style="color:var(--text);">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + t('home.eng_total', 'Total') + ': <strong style="color:var(--text);">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      (d.holdingPeriod ? '<div style="font-size:12px;color:var(--text);font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period', 'Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
+      (d.upcomingEarnings && d.upcomingEarnings.length ? '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;"><strong style="color:var(--text);">📅 ' + t('home.eng_next_earnings', 'Next earnings') + ':</strong> ' + d.upcomingEarnings.map(function(x) { return x.date; }).join(' · ') + '</div>' : '') +
       (d.takeProfit
         ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
-            '<div style="background:var(--bg2);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--muted);">Entry</div><div style="font-weight:700;font-size:14px;color:var(--text);">$' + d.price + '</div></div>' +
-            '<div style="background:var(--green-bg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--green);">Take Profit</div><div style="font-weight:700;font-size:14px;color:var(--green);">$' + d.takeProfit + '</div></div>' +
-            '<div style="background:var(--red-bg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--red);">Stop Loss</div><div style="font-weight:700;font-size:14px;color:var(--red);">$' + d.stopLoss + '</div></div>' +
+            '<div style="background:var(--bg2);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--muted);">' + t('home.eng_entry_label', 'Entry') + '</div><div style="font-weight:700;font-size:14px;color:var(--text);">$' + d.price + '</div></div>' +
+            '<div style="background:var(--green-bg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--green);">' + t('home.eng_take_profit_label', 'Take Profit') + '</div><div style="font-weight:700;font-size:14px;color:var(--green);">$' + d.takeProfit + '</div></div>' +
+            '<div style="background:var(--red-bg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--red);">' + t('home.eng_stop_loss_label', 'Stop Loss') + '</div><div style="font-weight:700;font-size:14px;color:var(--red);">$' + d.stopLoss + '</div></div>' +
           '</div>'
-        : '<p style="color:var(--muted);font-size:13px;margin-bottom:16px;">No clear directional signal — score too low for a trade setup.</p>') +
-      '<div style="font-size:11px;font-weight:800;color:var(--accent2);letter-spacing:1px;margin-bottom:6px;">TECHNICAL BREAKDOWN (' + d.technicalScore + ' pts)</div>' +
+        : '<p style="color:var(--muted);font-size:13px;margin-bottom:16px;">' + t('home.eng_no_directional_signal', 'No clear directional signal — score too low for a trade setup.') + '</p>') +
+      '<div style="font-size:11px;font-weight:800;color:var(--accent2);letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_technical_breakdown', 'TECHNICAL BREAKDOWN') + ' (' + d.technicalScore + ' ' + t('home.eng_pts', 'pts') + ')</div>' +
       breakdown +
       '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">' +
-        '<div style="font-size:11px;font-weight:800;color:var(--accent2);letter-spacing:1px;margin-bottom:6px;">NEWS ANALYSIS (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' pts) — ' + d.newsLabel + '</div>' +
+        '<div style="font-size:11px;font-weight:800;color:var(--accent2);letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_news_analysis', 'NEWS ANALYSIS') + ' (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' ' + t('home.eng_pts', 'pts') + ') — ' + d.newsLabel + '</div>' +
         '<p style="font-size:13px;color:var(--text);line-height:1.55;margin:0;">' + (d.newsSummary || '') + '</p>' +
         (d.analystSummary ? '<p style="font-size:12px;color:var(--text2);margin-top:8px;">' + d.analystSummary + '</p>' : '') +
         catalysts + risks +
       '</div>' +
-      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 Powered by Claude AI · ' + (d.articleCount || 0) + ' articles analyzed' + (d.newsFromCache ? ' · cached' : '') + '</div>';
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by', 'Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed', 'articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached', 'cached') : '') + '</div>';
   }
 })();
