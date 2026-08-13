@@ -769,7 +769,7 @@ function buildCard(r) {
   const commentsHtml = threadComments(r.comments||[]).map(t => renderCommentHtml(t.c, r._id, t.depth)).join('');
 
   return `
-  <div class="rec-card ${isBuy?'buy':'sell'} ${isClosed?'closed':''} ${isWin?'win-flash':''}"
+  <div id="rec-${r._id}" class="rec-card ${isBuy?'buy':'sell'} ${isClosed?'closed':''} ${isWin?'win-flash':''}"
        data-recid="${r._id}" data-symbol="${r.symbol}"
        data-tp="${r.takeProfit}" data-sl="${r.stopLoss||0}"
        data-entry="${r.entryPrice}" data-direction="${r.direction}"
@@ -1388,4 +1388,23 @@ window.runProEngineModal = async function() {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+})();
+
+// ── Email/notification deep-link: /feed.html?rec=<id> scrolls to the trade ──
+(function() {
+  var params = new URLSearchParams(location.search);
+  var recId = params.get('rec');
+  if (!recId) return;
+  var tries = 0;
+  var t = setInterval(function() {
+    tries++;
+    var el = document.getElementById('rec-' + recId);
+    if (el) {
+      clearInterval(t);
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.transition = 'box-shadow .4s';
+      el.style.boxShadow = '0 0 0 3px #F5D061, 0 8px 24px rgba(245,208,97,0.35)';
+      setTimeout(function() { el.style.boxShadow = ''; }, 3500);
+    } else if (tries > 40) { clearInterval(t); }
+  }, 250);
 })();

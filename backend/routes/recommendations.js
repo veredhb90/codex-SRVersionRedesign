@@ -72,7 +72,7 @@ const checkOutcome = async (rec, io) => {
         body:`+${rec.returnPct}% return · Great trade!`, recId:rec._id, time:new Date(),
       });
       if (author?.email) {
-        sendWinAlert(author.email, author.username||author.fullName, rec.symbol, rec.returnPct)
+        sendWinAlert(author.email, author.username||author.fullName, rec.symbol, rec.returnPct, rec._id)
           .catch(()=>{});
       }
 
@@ -85,7 +85,7 @@ const checkOutcome = async (rec, io) => {
             body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:ownerId(rec.user), avatar:author?.avatar||null, time:new Date(),
           });
           if (f.email) {
-            sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
+            sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct, rec._id)
               .catch(e => console.log('Follower win email failed for', f.email, ':', e.message));
           }
         } catch (e) { console.log('Follower win notification failed for', f._id, ':', e.message); }
@@ -117,7 +117,7 @@ const checkOutcome = async (rec, io) => {
         body:`${rec.returnPct}% · Review your analysis`, recId:rec._id, time:new Date(),
       });
       if (author?.email) {
-        sendLossAlert(author.email, author.username||author.fullName, rec.symbol, rec.returnPct)
+        sendLossAlert(author.email, author.username||author.fullName, rec.symbol, rec.returnPct, rec._id)
           .catch(()=>{});
       }
 
@@ -130,7 +130,7 @@ const checkOutcome = async (rec, io) => {
             body:`${rec.returnPct}%`, recId:rec._id, fromUser:ownerId(rec.user), avatar:author?.avatar||null, time:new Date(),
           });
           if (f.email) {
-            sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct)
+            sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct, rec._id)
               .catch(e => console.log('Follower loss email failed for', f.email, ':', e.message));
           }
         } catch (e) { console.log('Follower loss notification failed for', f._id, ':', e.message); }
@@ -341,7 +341,7 @@ router.post('/', protect, async (req, res) => {
         type:'new_rec', title:`📡 @${req.user.username||req.user.fullName} posted ${direction} on $${sym}`,
         body:`TP: $${tp} · Entry: $${entry.toFixed(2)}`, recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
       });
-      sendFollowAlert(f.email, '@' + (req.user.username || req.user.fullName), sym, direction, tp).catch(()=>{});
+      sendFollowAlert(f.email, '@' + (req.user.username || req.user.fullName), sym, direction, tp, rec._id).catch(()=>{});
     });
 
     // Notify instrument subscribers from DB watchlist

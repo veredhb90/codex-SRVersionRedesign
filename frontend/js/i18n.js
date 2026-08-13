@@ -741,6 +741,22 @@
     el.setAttribute(attr, api.lang === 'ar' ? (AR[key] || el.dataset[originalKey]) : el.dataset[originalKey]);
   }
 
+  // Real flag SVGs, not Unicode flag emoji -- regional-indicator flag emoji
+  // don't render as pictures on every OS/font (Windows/Linux commonly show
+  // plain "GB"/"SA" letter tiles instead), so an inline SVG is the only way
+  // to guarantee an actual flag image everywhere.
+  const FLAG_GB = '<svg viewBox="0 0 30 20" width="20" height="14" aria-hidden="true" style="flex-shrink:0;border-radius:2px;">' +
+    '<rect width="30" height="20" fill="#012169"/>' +
+    '<path d="M0,0 L30,20 M30,0 L0,20" stroke="#fff" stroke-width="4"/>' +
+    '<path d="M0,0 L30,20 M30,0 L0,20" stroke="#C8102E" stroke-width="2"/>' +
+    '<path d="M15,0 V20 M0,10 H30" stroke="#fff" stroke-width="6"/>' +
+    '<path d="M15,0 V20 M0,10 H30" stroke="#C8102E" stroke-width="3.6"/></svg>';
+  const FLAG_SA = '<svg viewBox="0 0 30 20" width="20" height="14" aria-hidden="true" style="flex-shrink:0;border-radius:2px;">' +
+    '<rect width="30" height="20" fill="#006C35"/>' +
+    '<text x="15" y="9.5" text-anchor="middle" fill="#fff" font-size="3.4" font-family="Arial,sans-serif" direction="rtl">لا إله إلا الله محمد رسول الله</text>' +
+    '<line x1="6" y1="14.5" x2="23" y2="14.5" stroke="#fff" stroke-width="1.1"/>' +
+    '<circle cx="24" cy="14.5" r="0.9" fill="#fff"/></svg>';
+
   function mountToggle() {
     const nav = document.querySelector('.navbar-actions');
     if (!nav || document.getElementById('sr-lang-toggle')) return;
@@ -748,6 +764,7 @@
     btn.id = 'sr-lang-toggle';
     btn.type = 'button';
     btn.className = 'btn btn-outline btn-sm lang-toggle';
+    btn.style.cssText = 'display:inline-flex;align-items:center;gap:6px;';
     btn.setAttribute('aria-label', 'Change language');
     btn.addEventListener('click', api.toggle);
     nav.insertBefore(btn, nav.firstChild);
@@ -764,7 +781,9 @@
     document.querySelectorAll('[data-i18n-title]').forEach(el => applyAttr(el, 'title', 'i18nTitle', 'i18nOriginalTitle'));
 
     document.querySelectorAll('.lang-toggle').forEach(btn => {
-      btn.textContent = api.lang === 'ar' ? 'EN' : 'عربي';
+      // Show the flag of the language you'll switch TO.
+      btn.innerHTML = (api.lang === 'ar' ? FLAG_GB : FLAG_SA) +
+        '<span>' + (api.lang === 'ar' ? 'EN' : 'عربي') + '</span>';
       btn.title = api.t('nav.language', 'Change language');
       btn.setAttribute('aria-label', btn.title);
     });
