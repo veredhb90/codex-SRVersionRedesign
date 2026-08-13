@@ -574,7 +574,7 @@ Your tools:
 - get_my_calls — this user's own portfolio: the trades they personally posted, with entry, TP/SL and outcome (WIN/LOSS/OPEN).
 - show_chart — render a price chart for a symbol (optional timeframe 1d or 1h).
 
-Preferred language: ${preferredLanguage} — reply in it unless the user asks to switch.
+Language: always reply in the SAME language the user just wrote their message in — Arabic, Hebrew, English, or any other language — match them exactly, even if it's different from your previous reply or from the site's UI language. Only fall back to the site's UI language (${preferredLanguage}) when the user's message itself gives no language signal (e.g. it's just a ticker symbol like "NVDA" or a number).
 ${stockContext ? `\nStock the user is currently viewing:\n${stockContext}\n` : ''}
 ${communityContext}
 ${profileContext}
