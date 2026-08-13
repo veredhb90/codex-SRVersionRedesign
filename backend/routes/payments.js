@@ -41,9 +41,14 @@ async function syncSubscription(subscriptionId) {
     user.paypalSubscriptionId = subscriptionId;
     user.billingCycle = cycle;
     await user.save();
+  } else if (['CANCELLED', 'SUSPENDED', 'EXPIRED'].includes(sub.status) && !user.cancelledAt) {
+    // Covers cancellation initiated on PayPal's side directly (not through our
+    // /cancel endpoint) — mark it the same way so the UI/reminder-email logic
+    // agree either way. No immediate downgrade — access lapses naturally once
+    // subscriptionEnd passes (isPro() already checks the date).
+    user.cancelledAt = new Date();
+    await user.save();
   }
-  // CANCELLED / SUSPENDED / EXPIRED: no immediate downgrade — access lapses
-  // naturally once subscriptionEnd passes (isPro() already checks the date).
 
   return { user, status: sub.status };
 }
@@ -121,10 +126,22 @@ router.post('/confirm', protect, async (req, res) => {
       ? new Date(sub.billing_info.next_billing_time)
       : fallbackEnd(cycle);
 
+    // Upgrade path (e.g. monthly -> yearly): the old subscription is still
+    // active and would keep auto-charging unless we cancel it here. Do this
+    // BEFORE overwriting paypalSubscriptionId, since that's the only place
+    // the old id is still on hand.
+    const oldSubId = req.user.paypalSubscriptionId;
+    if (oldSubId && oldSubId !== subscriptionID) {
+      await paypalRequest(`/v1/billing/subscriptions/${oldSubId}/cancel`, {
+        method: 'POST', body: { reason: 'Upgraded to a different SwingRush Pro plan' },
+      }).catch(e => console.error('Could not cancel previous subscription', oldSubId, ':', e.message));
+    }
+
     req.user.plan = 'pro';
     req.user.subscriptionEnd = end;
     req.user.paypalSubscriptionId = subscriptionID;
     req.user.billingCycle = cycle;
+    req.user.cancelledAt = null; // fresh/replacement subscription is active again
     await req.user.save();
 
     // One 'activation' row per subscription, guarded so repeat /confirm calls
@@ -144,6 +161,33 @@ router.post('/confirm', protect, async (req, res) => {
   } catch (err) {
     console.error('payments/confirm error:', err.details || err.message);
     res.status(err.status || 500).json({ message: err.message });
+  }
+});
+
+// ── GET /api/payments/my-history — the logged-in user's own charges
+router.get('/my-history', protect, async (req, res) => {
+  try {
+    const history = await PaymentHistory.find({ user: req.user._id }).sort({ occurredAt: -1 });
+    res.json(history);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// ── POST /api/payments/cancel — stop auto-renewal, keep access until subscriptionEnd
+router.post('/cancel', protect, async (req, res) => {
+  try {
+    if (!req.user.paypalSubscriptionId) return res.status(400).json({ message: 'No active subscription to cancel' });
+    if (req.user.cancelledAt) return res.status(400).json({ message: 'Subscription is already cancelled' });
+
+    await paypalRequest(`/v1/billing/subscriptions/${req.user.paypalSubscriptionId}/cancel`, {
+      method: 'POST', body: { reason: 'Cancelled by user from SwingRush' },
+    });
+
+    req.user.cancelledAt = new Date();
+    await req.user.save();
+    res.json({ message: 'Subscription cancelled — Pro access continues until it expires', subscriptionEnd: req.user.subscriptionEnd });
+  } catch (err) {
+    console.error('payments/cancel error:', err.details || err.message);
+    res.status(err.status || 500).json({ message: err.message || 'Could not cancel subscription' });
   }
 });
 

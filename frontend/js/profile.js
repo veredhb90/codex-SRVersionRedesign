@@ -39,6 +39,16 @@
         planBadge.style.cssText += 'display:inline-block;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.75);border:1px solid rgba(255,255,255,0.25);';
       }
     }
+    var expiryEl = document.getElementById('prof-plan-expiry');
+    if (expiryEl) {
+      if (isOwn && user.plan === 'pro' && user.subscriptionEnd) {
+        var dateStr = new Date(user.subscriptionEnd).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+        expiryEl.textContent = (user.cancelledAt ? 'Access ends ' : 'Renews ') + dateStr + ' →';
+        expiryEl.style.display = 'block';
+      } else {
+        expiryEl.style.display = 'none';
+      }
+    }
     const context = document.getElementById('prof-context');
     if (context) context.textContent = isOwn
       ? SRLang.t('profile.your_workspace', 'YOUR TRADING WORKSPACE')
@@ -50,7 +60,7 @@
       document.getElementById('prof-email').textContent = user.email || '';
       const editBtn = document.getElementById('prof-av-edit');
       const removeBtn = document.getElementById('prof-av-remove');
-      if (editBtn) editBtn.style.display = 'flex';
+      if (editBtn) { editBtn.style.display = 'flex'; editBtn.classList.toggle('no-photo', !user.avatar); }
       if (removeBtn) removeBtn.style.display = user.avatar ? 'flex' : 'none';
     }
     // Show @username under name
@@ -489,6 +499,7 @@
         Auth.updateUser({ avatar: res.avatar });
         document.getElementById('prof-avatar').innerHTML = avatarHtml({ avatar: res.avatar });
         avRemove.style.display = 'flex';
+        avEdit.classList.remove('no-photo');
         toast('✅ Profile photo updated', 'success');
       } catch (err) {
         toast(err.message || 'Could not update photo', 'error');
@@ -503,6 +514,7 @@
         Auth.updateUser({ avatar: null });
         document.getElementById('prof-avatar').innerHTML = avatarHtml({ avatar: null, fullName: me?.fullName });
         avRemove.style.display = 'none';
+        avEdit.classList.add('no-photo');
         toast('Profile photo removed', 'success');
       } catch (err) {
         toast(err.message || 'Could not remove photo', 'error');

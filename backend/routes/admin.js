@@ -86,7 +86,7 @@ router.get('/users', protect, adminOnly, async (req, res) => {
       : {};
     const users = await mongoose.connection.db.collection('users')
       .find(query)
-      .project({ fullName:1, username:1, email:1, plan:1, subscriptionEnd:1, createdAt:1, chatUsed:1, engineUsed:1, isAdmin:1 })
+      .project({ fullName:1, username:1, email:1, plan:1, subscriptionEnd:1, billingCycle:1, cancelledAt:1, createdAt:1, chatUsed:1, engineUsed:1, isAdmin:1 })
       .sort({ createdAt: -1 })
       .limit(300)
       .toArray();

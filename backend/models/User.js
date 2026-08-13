@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema({
   subscriptionEnd: { type: Date },
   paypalSubscriptionId: { type: String },
   billingCycle:    { type: String, enum: ['monthly', 'yearly'] },
+  cancelledAt:     { type: Date, default: null }, // set when the subscription won't auto-renew; access still runs until subscriptionEnd
   renewalReminderSentFor: { type: Date },
   engineUsed:      { type: Number, default: 0 },
   chatUsed:        { type: Number, default: 0 },

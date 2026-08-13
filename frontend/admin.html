@@ -334,14 +334,19 @@
     users.forEach(function(u) {
       var tr = document.createElement('tr');
       var isPro = u.plan === 'pro';
+      var isCancelled = isPro && !!u.cancelledAt;
+      var cycleLabel = u.billingCycle === 'yearly' ? 'Yearly' : (u.billingCycle === 'monthly' ? 'Monthly' : '');
       var until = isPro && u.subscriptionEnd ? new Date(u.subscriptionEnd).toLocaleDateString() : '—';
       var joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—';
       var usage = 'chat ' + (u.chatUsed || 0) + ' · eng ' + (u.engineUsed || 0);
+      var planCell = isPro
+        ? '<span class="badge-pro">⚡ PRO</span>' + (cycleLabel ? '<div class="sub-until" style="margin-top:3px;">' + cycleLabel + (isCancelled ? ' · <span style="color:var(--red2,#ff5c7a);">cancelled</span>' : '') + '</div>' : '')
+        : '<span class="badge-free">FREE</span>';
       tr.innerHTML =
         '<td><strong>' + esc(u.fullName || '') + '</strong><br><span style="color:var(--muted);font-size:11px;">@' + esc(u.username || '') + '</span>' + (u.isAdmin ? '<span class="badge-adm">ADMIN</span>' : '') + '</td>' +
         '<td>' + esc(u.email || '') + '</td>' +
-        '<td>' + (isPro ? '<span class="badge-pro">⚡ PRO</span>' : '<span class="badge-free">FREE</span>') + '</td>' +
-        '<td class="sub-until">' + until + '</td>' +
+        '<td>' + planCell + '</td>' +
+        '<td class="sub-until">' + until + (isCancelled ? '<br><span style="color:var(--red2,#ff5c7a);font-size:10px;">won\'t renew</span>' : '') + '</td>' +
         '<td class="sub-until">' + usage + '</td>' +
         '<td class="sub-until">' + joined + '</td>' +
         '<td>' +

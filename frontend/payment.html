@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Upgrade to SwingRush Pro</title>
+  <title>SwingRush Pro — Subscription</title>
   <link rel="stylesheet" href="/css/main.css"/>
   <style>
     body { background:#05070d; color:#f4f6fb; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
@@ -20,34 +20,75 @@
     .pay-save { color:#00e676; font-size:13px; font-weight:700; margin-top:4px; }
     .pay-features { list-style:none; padding:0; margin:20px 0 0; }
     .pay-features li { padding:8px 0; color:#dfe3ee; font-size:14px; border-top:1px solid rgba(255,255,255,0.06); }
-    #paypal-buttons { min-height:55px; margin-top:20px; }
+    #paypal-buttons, #upgrade-paypal-buttons { min-height:55px; margin-top:20px; }
     .pay-msg { text-align:center; font-size:14px; color:#aab3cc; margin-top:16px; }
     .pay-error { color:#ff5c7a; }
+    .status-badge { display:inline-flex; align-items:center; gap:6px; background:linear-gradient(135deg,#F5D061,#E6A817); color:#4A3B10; font-weight:800; font-size:12px; letter-spacing:1px; padding:5px 14px; border-radius:20px; margin-bottom:14px; }
+    .status-badge.cancelled { background:rgba(255,255,255,0.1); color:#dfe3ee; }
+    .status-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-top:1px solid rgba(255,255,255,0.06); font-size:14px; }
+    .status-row:first-of-type { border-top:none; }
+    .status-row .label { color:#aab3cc; }
+    .status-row .val { font-weight:700; color:#fff; }
+    .btn-cancel { width:100%; margin-top:18px; padding:12px; background:transparent; border:1.5px solid rgba(255,91,124,0.4); color:#ff5c7a; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; }
+    .btn-cancel:hover { background:rgba(255,91,124,0.08); }
+    .upgrade-banner { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .upgrade-banner .u-copy { font-size:14px; color:#dfe3ee; }
+    .upgrade-banner .u-save { color:#00e676; font-weight:700; }
+    .history-item { display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-top:1px solid rgba(255,255,255,0.06); font-size:13px; }
+    .history-item:first-child { border-top:none; }
+    .history-item .h-date { color:#aab3cc; }
+    .history-item .h-type { color:#dfe3ee; font-weight:600; }
+    .history-item .h-amount { color:#00e676; font-weight:700; font-family:monospace; }
+    .section-title { font-size:12px; letter-spacing:1.5px; color:#6d7690; text-transform:uppercase; font-weight:700; margin:0 0 12px; }
   </style>
 </head>
 <body>
   <div class="pay-wrap">
     <a href="/feed.html" class="pay-back"><span class="why-link-arrow" aria-hidden="true">&larr;</span> <span data-i18n="payment.back">Back</span></a>
-    <div class="pay-title" data-i18n="payment.title">Upgrade to SwingRush Pro</div>
-    <div class="pay-sub" data-i18n="payment.subtitle">Unlimited AI Signal Engine, Pro Engine analysis, and AI chat.</div>
+    <div class="pay-title" id="pay-title" data-i18n="payment.title">Upgrade to SwingRush Pro</div>
+    <div class="pay-sub" id="pay-sub" data-i18n="payment.subtitle">Unlimited AI Signal Engine, Pro Engine analysis, and AI chat.</div>
 
-    <div class="pay-toggle">
-      <button id="btn-monthly" class="active" data-i18n="payment.monthly">Monthly</button>
-      <button id="btn-yearly" data-i18n="payment.yearly">Yearly</button>
+    <!-- Current subscription status (shown for any Pro user, active or cancelled) -->
+    <div class="pay-card" id="status-section" style="display:none;">
+      <div id="status-badge" class="status-badge"></div>
+      <div id="status-rows"></div>
+      <button type="button" id="btn-cancel" class="btn-cancel" style="display:none;" data-i18n="payment.cancel_btn">Cancel Subscription</button>
     </div>
 
-    <div class="pay-card">
-      <div class="pay-price" id="pay-price">$75<span>/ month</span></div>
-      <div class="pay-save" id="pay-save" style="visibility:hidden;" data-i18n="payment.save_yearly">Save $200/year</div>
-      <ul class="pay-features">
-        <li data-i18n="payment.feat_1">Unlimited Signal Engine &amp; Pro Engine analysis</li>
-        <li data-i18n="payment.feat_2">Unlimited AI chat with the trading analyst</li>
-        <li data-i18n="payment.feat_3">Full ranked market scanner</li>
-        <li data-i18n="payment.feat_4">Cancel anytime</li>
-      </ul>
-      <div id="paypal-buttons"></div>
-      <div class="pay-msg" id="pay-msg"></div>
+    <!-- Upgrade-to-yearly offer (active Pro Monthly users only) -->
+    <div class="pay-card upgrade-banner-wrap" id="upgrade-section" style="display:none;">
+      <div class="upgrade-banner">
+        <div class="u-copy" data-i18n="payment.upgrade_yearly_copy">Save <span class="u-save">$200/year</span> by switching to the yearly plan.</div>
+      </div>
+      <div id="upgrade-paypal-buttons"></div>
     </div>
+
+    <!-- Checkout (free users, or cancelled users wanting to resubscribe) -->
+    <div id="checkout-section" style="display:none;">
+      <div class="pay-toggle">
+        <button id="btn-monthly" class="active" data-i18n="payment.monthly">Monthly</button>
+        <button id="btn-yearly" data-i18n="payment.yearly">Yearly</button>
+      </div>
+      <div class="pay-card">
+        <div class="pay-price" id="pay-price">$75<span>/ month</span></div>
+        <div class="pay-save" id="pay-save" style="visibility:hidden;" data-i18n="payment.save_yearly">Save $200/year</div>
+        <ul class="pay-features">
+          <li data-i18n="payment.feat_1">Unlimited Signal Engine &amp; Pro Engine analysis</li>
+          <li data-i18n="payment.feat_2">Unlimited AI chat with the trading analyst</li>
+          <li data-i18n="payment.feat_3">Full ranked market scanner</li>
+          <li data-i18n="payment.feat_4">Cancel anytime</li>
+        </ul>
+        <div id="paypal-buttons"></div>
+      </div>
+    </div>
+
+    <!-- Payment history (shown whenever the user has any past charges) -->
+    <div id="history-section" style="display:none;">
+      <div class="section-title" data-i18n="payment.history_title">Payment History</div>
+      <div class="pay-card" id="history-list"></div>
+    </div>
+
+    <div class="pay-msg" id="pay-msg"></div>
   </div>
 
   <script src="/js/api.js"></script>
@@ -59,9 +100,17 @@
     let plans = null;
     let selectedCycle = 'monthly';
     let sdkLoaded = false;
-    let currentUser = Auth.user(); // fullName/email from login cache immediately; phone filled in below
+    let me = null; // full /api/users/me user object, set in init()
 
     function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
+    function fmtDate(d) {
+      return new Date(d).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+    function showMsg(text, isError) {
+      const el = document.getElementById('pay-msg');
+      el.textContent = text;
+      el.classList.toggle('pay-error', !!isError);
+    }
 
     function renderPrice() {
       const p = plans[selectedCycle];
@@ -72,69 +121,165 @@
       document.getElementById('btn-yearly').classList.toggle('active', selectedCycle === 'yearly');
     }
 
+    function subscriberPayload(planId) {
+      const sub = { plan_id: planId, custom_id: Auth.userId() };
+      if (me) {
+        const parts = (me.fullName || '').trim().split(/\s+/);
+        sub.subscriber = {
+          name: { given_name: parts[0] || '', surname: parts.slice(1).join(' ') || parts[0] || '' },
+          email_address: me.email,
+        };
+        if (me.phone) sub.subscriber.phone = { phone_type: 'MOBILE', phone_number: { national_number: String(me.phone) } };
+      }
+      return sub;
+    }
+
+    async function onSubscriptionApproved(data) {
+      showMsg(t('payment.activating', 'Activating your Pro account...'));
+      try {
+        await API.paymentConfirm({ subscriptionID: data.subscriptionID });
+        showMsg(t('payment.activated', 'Pro activated! Redirecting...'));
+        setTimeout(function () { location.reload(); }, 1200);
+      } catch (e) {
+        showMsg(t('payment.activate_failed', 'Payment succeeded but activation failed:') + ' ' + e.message + '. ' + t('payment.contact_us', 'Contact swingrush.admin@gmail.com.'), true);
+      }
+    }
+
     function renderButtons() {
       const container = document.getElementById('paypal-buttons');
       container.innerHTML = '';
       const planId = plans[selectedCycle].id;
-
       paypal.Buttons({
         style: { shape: 'pill', color: 'blue', layout: 'vertical', label: 'subscribe' },
-        createSubscription: function (data, actions) {
-          const sub = { plan_id: planId, custom_id: Auth.userId() };
-          if (currentUser) {
-            const parts = (currentUser.fullName || '').trim().split(/\s+/);
-            sub.subscriber = {
-              name: { given_name: parts[0] || '', surname: parts.slice(1).join(' ') || parts[0] || '' },
-              email_address: currentUser.email,
-            };
-            if (currentUser.phone) {
-              sub.subscriber.phone = { phone_type: 'MOBILE', phone_number: { national_number: String(currentUser.phone) } };
-            }
-          }
-          return actions.subscription.create(sub);
-        },
-        onApprove: async function (data) {
-          document.getElementById('pay-msg').textContent = t('payment.activating', 'Activating your Pro account...');
-          document.getElementById('pay-msg').classList.remove('pay-error');
-          try {
-            await API.paymentConfirm({ subscriptionID: data.subscriptionID });
-            document.getElementById('pay-msg').textContent = t('payment.activated', 'Pro activated! Redirecting...');
-            setTimeout(function () { location.href = '/feed.html'; }, 1200);
-          } catch (e) {
-            document.getElementById('pay-msg').textContent = t('payment.activate_failed', 'Payment succeeded but activation failed:') + ' ' + e.message + '. ' + t('payment.contact_us', 'Contact swingrush.admin@gmail.com.');
-            document.getElementById('pay-msg').classList.add('pay-error');
-          }
-        },
-        onError: function (err) {
-          console.error('PayPal error:', err);
-          document.getElementById('pay-msg').textContent = t('payment.pay_failed', 'Payment could not be completed. Please try again.');
-          document.getElementById('pay-msg').classList.add('pay-error');
-        },
+        createSubscription: (data, actions) => actions.subscription.create(subscriberPayload(planId)),
+        onApprove: onSubscriptionApproved,
+        onError: (err) => { console.error('PayPal error:', err); showMsg(t('payment.pay_failed', 'Payment could not be completed. Please try again.'), true); },
       }).render('#paypal-buttons');
     }
 
+    function renderUpgradeButtons() {
+      const container = document.getElementById('upgrade-paypal-buttons');
+      container.innerHTML = '';
+      const planId = plans.yearly.id;
+      paypal.Buttons({
+        style: { shape: 'pill', color: 'gold', layout: 'vertical', label: 'subscribe' },
+        createSubscription: (data, actions) => actions.subscription.create(subscriberPayload(planId)),
+        onApprove: onSubscriptionApproved,
+        onError: (err) => { console.error('PayPal error:', err); showMsg(t('payment.pay_failed', 'Payment could not be completed. Please try again.'), true); },
+      }).render('#upgrade-paypal-buttons');
+    }
+
+    function renderStatus() {
+      const isPro = me.plan === 'pro';
+      const isCancelled = !!me.cancelledAt;
+      // Users granted Pro from the admin panel (not a real PayPal checkout) have
+      // no paypalSubscriptionId/billingCycle on record — must not assume either
+      // exists, or show cycle/price/cancel UI that doesn't apply to them.
+      const hasSubscription = !!me.paypalSubscriptionId;
+      const knownCycle = me.billingCycle === 'monthly' || me.billingCycle === 'yearly';
+      const cycleLabel = me.billingCycle === 'yearly' ? t('payment.yearly', 'Yearly') : t('payment.monthly', 'Monthly');
+
+      document.getElementById('status-section').style.display = isPro ? 'block' : 'none';
+      document.getElementById('upgrade-section').style.display = (isPro && !isCancelled && hasSubscription && me.billingCycle === 'monthly') ? 'block' : 'none';
+      document.getElementById('checkout-section').style.display = (!isPro || isCancelled) ? 'block' : 'none';
+
+      if (isPro) {
+        document.getElementById('pay-title').textContent = t('payment.already_pro_title', "You're already SwingRush Pro");
+        const badge = document.getElementById('status-badge');
+        const rows = document.getElementById('status-rows');
+        const cancelBtn = document.getElementById('btn-cancel');
+
+        if (isCancelled) {
+          badge.className = 'status-badge cancelled';
+          badge.textContent = '⏳ ' + t('payment.status_cancelled', 'CANCELLED — ACCESS ENDING');
+          document.getElementById('pay-sub').textContent = t('payment.cancelled_sub', 'Your subscription will not renew. You keep Pro access until the date below.');
+          rows.innerHTML =
+            '<div class="status-row"><span class="label">' + t('payment.plan_label','Plan') + '</span><span class="val">' + cycleLabel + '</span></div>' +
+            '<div class="status-row"><span class="label">' + t('payment.access_ends','Access ends') + '</span><span class="val">' + fmtDate(me.subscriptionEnd) + '</span></div>';
+          cancelBtn.style.display = 'none';
+        } else if (hasSubscription && knownCycle) {
+          badge.className = 'status-badge';
+          badge.textContent = '⚡ PRO — ' + cycleLabel.toUpperCase();
+          document.getElementById('pay-sub').textContent = me.billingCycle === 'monthly'
+            ? t('payment.monthly_sub', 'You have full access. Want to save money? Switch to yearly below.')
+            : t('payment.yearly_sub', "You're on our top plan — full access, best price.");
+          rows.innerHTML =
+            '<div class="status-row"><span class="label">' + t('payment.plan_label','Plan') + '</span><span class="val">' + cycleLabel + '</span></div>' +
+            '<div class="status-row"><span class="label">' + t('payment.renews_on','Renews on') + '</span><span class="val">' + fmtDate(me.subscriptionEnd) + '</span></div>' +
+            '<div class="status-row"><span class="label">' + t('payment.price_label','Price') + '</span><span class="val">$' + plans[me.billingCycle].price + ' / ' + (me.billingCycle==='yearly'?t('payment.year_short','yr'):t('payment.month_short','mo')) + '</span></div>';
+          cancelBtn.style.display = 'block';
+        } else {
+          // Pro access with no PayPal subscription behind it (admin-granted).
+          badge.className = 'status-badge';
+          badge.textContent = '⚡ PRO';
+          document.getElementById('pay-sub').textContent = t('payment.admin_granted_sub', 'Your Pro access was granted by the SwingRush team.');
+          rows.innerHTML = me.subscriptionEnd
+            ? '<div class="status-row"><span class="label">' + t('payment.access_until','Active until') + '</span><span class="val">' + fmtDate(me.subscriptionEnd) + '</span></div>'
+            : '<div class="status-row"><span class="label">' + t('payment.access_until','Active until') + '</span><span class="val">' + t('payment.no_expiry','No expiration set') + '</span></div>';
+          cancelBtn.style.display = 'none';
+        }
+      } else {
+        document.getElementById('pay-title').textContent = t('payment.title', 'Upgrade to SwingRush Pro');
+        document.getElementById('pay-sub').textContent = t('payment.subtitle', 'Unlimited AI Signal Engine, Pro Engine analysis, and AI chat.');
+      }
+    }
+
+    function renderHistory(history) {
+      const section = document.getElementById('history-section');
+      if (!history || !history.length) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      document.getElementById('history-list').innerHTML = history.map(function (p) {
+        const typeLabel = p.type === 'renewal' ? t('payment.hist_renewal', 'Renewal') : t('payment.hist_activation', 'Activation');
+        const cycleLabel = p.billingCycle === 'yearly' ? t('payment.yearly', 'Yearly') : t('payment.monthly', 'Monthly');
+        return '<div class="history-item">' +
+          '<div><div class="h-type">' + typeLabel + ' — ' + cycleLabel + '</div><div class="h-date">' + fmtDate(p.occurredAt) + '</div></div>' +
+          '<div class="h-amount">$' + p.amount + '</div></div>';
+      }).join('');
+    }
+
+    document.getElementById('btn-cancel').addEventListener('click', async function () {
+      if (!confirm(t('payment.cancel_confirm', 'Cancel your subscription? You\'ll keep Pro access until it expires, then move to Free.'))) return;
+      const btn = this;
+      btn.disabled = true;
+      try {
+        const res = await API.cancelSubscription();
+        showMsg(t('payment.cancelled_msg', 'Subscription cancelled.') + ' ' + t('payment.access_ends','Access ends') + ' ' + fmtDate(res.subscriptionEnd) + '.');
+        me.cancelledAt = new Date().toISOString();
+        renderStatus();
+      } catch (e) {
+        showMsg(e.message || t('payment.cancel_failed', 'Could not cancel subscription'), true);
+      }
+      btn.disabled = false;
+    });
+
     async function init() {
       try {
-        const cfg = await API.paymentConfig();
+        const [cfg, meRes, history] = await Promise.all([
+          API.paymentConfig(),
+          API.me(),
+          API.myPaymentHistory().catch(() => []),
+        ]);
         plans = cfg.plans;
-        renderPrice();
+        me = meRes.user;
 
-        API.me().then(function (res) { currentUser = Object.assign({}, currentUser, res.user); }).catch(function () {});
+        renderStatus();
+        renderHistory(history);
+        renderPrice();
 
         const s = document.createElement('script');
         // enable-funding=card ensures guest debit/credit card checkout is offered,
         // not just login-with-PayPal.
         s.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(cfg.clientId) +
           '&vault=true&intent=subscription&enable-funding=card&currency=USD';
-        s.onload = function () { sdkLoaded = true; renderButtons(); };
-        s.onerror = function () {
-          document.getElementById('pay-msg').textContent = t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.');
-          document.getElementById('pay-msg').classList.add('pay-error');
+        s.onload = function () {
+          sdkLoaded = true;
+          if (document.getElementById('checkout-section').style.display !== 'none') renderButtons();
+          if (document.getElementById('upgrade-section').style.display !== 'none') renderUpgradeButtons();
         };
+        s.onerror = function () { showMsg(t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.'), true); };
         document.body.appendChild(s);
       } catch (e) {
-        document.getElementById('pay-msg').textContent = t('payment.config_failed', 'Could not load pricing:') + ' ' + e.message;
-        document.getElementById('pay-msg').classList.add('pay-error');
+        showMsg(t('payment.config_failed', 'Could not load pricing:') + ' ' + e.message, true);
       }
     }
 
