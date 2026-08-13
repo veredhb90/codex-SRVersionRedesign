@@ -829,7 +829,7 @@ function buildCard(r) {
     <div id="comments-${r._id}" class="comments-section" style="display:none;">
       <div class="comment-list">${commentsHtml}</div>
       <div class="comment-input-row">
-        <input id="comment-input-${r._id}" type="text" class="comment-input" placeholder="${t('feed.comment_placeholder','Add a comment… (recommend, analyze, discuss)')}" maxlength="500"/>
+        <input id="comment-input-${r._id}" type="text" class="comment-input" name="comment-text" autocomplete="off" data-lpignore="true" data-form-type="other" placeholder="${t('feed.comment_placeholder','Add a comment… (recommend, analyze, discuss)')}" maxlength="500"/>
         <button class="btn btn-primary btn-sm comment-submit" data-id="${r._id}">${t('feed.post_btn','Post')}</button>
       </div>
     </div>

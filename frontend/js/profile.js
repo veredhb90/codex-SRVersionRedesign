@@ -775,7 +775,7 @@ function buildProfileCard(r, isOwn) {
         ${commentsHtml}
       </div>
       <div style="display:flex;gap:8px;">
-        <input id="pci-${r._id}" class="pc-input" type="text" data-recid="${r._id}"
+        <input id="pci-${r._id}" class="pc-input" type="text" data-recid="${r._id}" name="pc-comment-text" autocomplete="off" data-lpignore="true" data-form-type="other"
           placeholder="${t('profile.comment_placeholder','Add a comment… (Enter to post)')}" maxlength="500"
           style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;background:var(--bg2);font-family:var(--font-body);transition:border-color .2s;"
           onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'"/>

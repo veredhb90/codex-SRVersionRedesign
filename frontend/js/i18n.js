@@ -751,11 +751,10 @@
     '<path d="M0,0 L30,20 M30,0 L0,20" stroke="#C8102E" stroke-width="2"/>' +
     '<path d="M15,0 V20 M0,10 H30" stroke="#fff" stroke-width="6"/>' +
     '<path d="M15,0 V20 M0,10 H30" stroke="#C8102E" stroke-width="3.6"/></svg>';
-  const FLAG_SA = '<svg viewBox="0 0 30 20" width="20" height="14" aria-hidden="true" style="flex-shrink:0;border-radius:2px;">' +
-    '<rect width="30" height="20" fill="#006C35"/>' +
-    '<text x="15" y="9.5" text-anchor="middle" fill="#fff" font-size="3.4" font-family="Arial,sans-serif" direction="rtl">لا إله إلا الله محمد رسول الله</text>' +
-    '<line x1="6" y1="14.5" x2="23" y2="14.5" stroke="#fff" stroke-width="1.1"/>' +
-    '<circle cx="24" cy="14.5" r="0.9" fill="#fff"/></svg>';
+  // The Saudi flag's Arabic calligraphy is too fine a detail to hand-draw
+  // legibly at icon size -- use a professionally-designed flag icon instead
+  // of a hand-rolled SVG, with a plain green fallback if it fails to load.
+  const FLAG_SA = '<img src="https://flagcdn.com/48x36/sa.png" srcset="https://flagcdn.com/96x72/sa.png 2x" width="20" height="14" alt="" aria-hidden="true" style="flex-shrink:0;border-radius:2px;object-fit:cover;background:#006C35;" onerror="this.style.display=\'none\'"/>';
 
   function mountToggle() {
     const nav = document.querySelector('.navbar-actions');
