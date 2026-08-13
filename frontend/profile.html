@@ -34,6 +34,9 @@
     @keyframes camPulse { 0% { box-shadow:0 0 0 0 rgba(79,125,255,0.6); } 70% { box-shadow:0 0 0 8px rgba(79,125,255,0); } 100% { box-shadow:0 0 0 0 rgba(79,125,255,0); } }
     #prof-av-edit.no-photo { animation:camPulse 1.8s ease-out infinite; }
     @media (prefers-reduced-motion: reduce) { #prof-av-edit.no-photo { animation:none; } }
+    @keyframes expiryPulse { 0%,100% { opacity:1; text-shadow:0 0 8px rgba(255,176,32,0.35); } 50% { opacity:0.6; text-shadow:0 0 14px rgba(255,176,32,0.7); } }
+    #prof-plan-expiry.pro-active { color:var(--gold); font-weight:700; animation:expiryPulse 2.2s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { #prof-plan-expiry.pro-active { animation:none; } }
     .prof-info h1 { font-family:var(--font-disp); font-size:26px; letter-spacing:1px; color:#fff; margin-bottom:4px; }
     #prof-email { color:rgba(255,255,255,0.5); font-size:13px; margin-bottom:12px; }
 
@@ -352,7 +355,7 @@
         <div class="profile-kicker"><span class="profile-presence"></span><span id="prof-context" data-i18n="profile.workspace">TRADING WORKSPACE</span></div>
         <h1 id="prof-name" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span data-i18n="scanner.loading">Loading…</span><span id="prof-plan-badge" style="display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:4px 12px;border-radius:12px;vertical-align:middle;"></span></h1>
         <div id="prof-username" style="color:rgba(255,255,255,0.4);font-size:13px;margin-bottom:2px;"></div>
-        <a id="prof-plan-expiry" href="/payment.html" style="display:none;color:rgba(255,255,255,0.45);font-size:12px;text-decoration:none;margin-bottom:2px;"></a>
+        <a id="prof-plan-expiry" href="/payment.html" style="display:none;font-size:12px;text-decoration:none;margin-bottom:2px;"></a>
         <div id="prof-email"></div>
       </div>
       <div class="prof-actions" aria-label="Profile actions">

@@ -48,9 +48,11 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
           : !user.paypalSubscriptionId ? t('payment.access_until', 'Active until')
           : t('profile.renews_label', 'Renews');
         expiryEl.textContent = label + ' ' + dateStr + ' →';
-        expiryEl.style.display = 'block';
+        expiryEl.style.display = 'inline-block';
+        expiryEl.classList.add('pro-active');
       } else {
         expiryEl.style.display = 'none';
+        expiryEl.classList.remove('pro-active');
       }
     }
     const context = document.getElementById('prof-context');
