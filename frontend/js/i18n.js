@@ -696,8 +696,8 @@
     'paywall.pro_scanner': 'ماسح كامل مرتب مع سياق بحث مباشر',
     'paywall.pro_network': 'تابع المتداولين والأدوات ونتائج الصفقات مباشرة',
     'paywall.pro_risk': 'سير عمل الدخول والهدف والمخاطر في مكان واحد',
-    'paywall.start_pro': 'طلب دخول Pro',
-    'paywall.contact_note': 'إعداد الدفع الآمن يتم مع فريق SwingRush.',
+    'paywall.start_pro': 'الترقية إلى Pro',
+    'paywall.contact_note': 'ادفع بأمان عبر PayPal — تفعيل فوري، إلغاء في أي وقت.',
     'paywall.contact': 'دخول Pro: تواصل مع swingrush.admin@gmail.com.'
   };
 

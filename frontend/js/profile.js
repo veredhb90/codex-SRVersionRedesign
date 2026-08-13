@@ -42,7 +42,12 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
       if (isOwn && user.plan === 'pro' && user.subscriptionEnd) {
         var locale = document.documentElement.lang === 'ar' ? 'ar' : undefined;
         var dateStr = new Date(user.subscriptionEnd).toLocaleDateString(locale, { month:'short', day:'numeric', year:'numeric' });
-        expiryEl.textContent = (user.cancelledAt ? t('payment.access_ends', 'Access ends') : t('profile.renews_label', 'Renews')) + ' ' + dateStr + ' →';
+        // Admin-granted Pro (no paypalSubscriptionId) has no real recurring
+        // charge behind it -- "Renews" would wrongly imply automatic billing.
+        var label = user.cancelledAt ? t('payment.access_ends', 'Access ends')
+          : !user.paypalSubscriptionId ? t('payment.access_until', 'Active until')
+          : t('profile.renews_label', 'Renews');
+        expiryEl.textContent = label + ' ' + dateStr + ' →';
         expiryEl.style.display = 'block';
       } else {
         expiryEl.style.display = 'none';

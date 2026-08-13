@@ -22,10 +22,13 @@ async function sweepOnce() {
   // Cancelled subscriptions won't actually renew/charge — telling the user
   // they're about to be billed $X would be wrong, so they're excluded here.
   // (They still see their exact access-end date in-app on the payment page.)
+  // Admin-granted Pro (no paypalSubscriptionId) has no real card on file
+  // either — excluded for the same reason, not just cancelled ones.
   const upcoming = await User.find({
     plan: 'pro',
     subscriptionEnd: { $gte: now, $lte: new Date(now.getTime() + REMINDER_WINDOW_MS) },
     cancelledAt: null,
+    paypalSubscriptionId: { $ne: null },
   }).select('email fullName billingCycle subscriptionEnd renewalReminderSentFor');
 
   for (const user of upcoming) {
