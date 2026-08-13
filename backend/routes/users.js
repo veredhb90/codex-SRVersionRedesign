@@ -146,7 +146,7 @@ router.post('/:id/follow', protect, async (req, res) => {
         io && io.notifyUser && io.notifyUser(String(target._id), 'notification', { type:'follow', title, body:'Visit their profile to follow back.', fromUser:String(current._id), avatar:current.avatar||null, time:new Date() });
         if (target.email) {
           const { sendNewFollowerAlert } = require('../services/emailService');
-          sendNewFollowerAlert(target.email, current.fullName || current.username, current.username)
+          sendNewFollowerAlert(target.email, current.fullName || current.username, current.username, String(current._id))
             .catch(e => console.log('New follower email failed:', e.message));
         }
       } catch (e) { console.log('Follow notif error:', e.message); }

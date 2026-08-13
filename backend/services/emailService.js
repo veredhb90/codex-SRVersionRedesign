@@ -161,14 +161,14 @@ const sendAdminNewUser = async (user) => {
   }).catch(e => console.error('Admin notification error:', e));
 };
 
-const sendNewFollowerAlert = async (to, followerName, followerUsername) => {
+const sendNewFollowerAlert = async (to, followerName, followerUsername, followerId) => {
   const { error } = await resend.emails.send({
     from: FROM, to,
     subject: `👤 ${followerName} started following you on SwingRush!`,
     html: `<div style="${baseStyle}">${logo}
       <p style="font-size:18px;margin-bottom:8px;"><strong>${followerName}</strong> (@${followerUsername}) just started following you!</p>
       <p style="color:#aaa;font-size:14px;margin-bottom:24px;">Check out their profile and follow back to see their trade calls in your feed.</p>
-      <a href="${process.env.CLIENT_URL || 'https://swing-rush.com'}/profile.html?username=${followerUsername}" style="display:inline-block;background:#00e676;color:#0a0f1e;font-weight:700;padding:14px 28px;border-radius:10px;text-decoration:none;">View Profile</a>
+      <a href="${process.env.CLIENT_URL || 'https://swing-rush.com'}/profile.html?id=${followerId}" style="display:inline-block;background:#00e676;color:#0a0f1e;font-weight:700;padding:14px 28px;border-radius:10px;text-decoration:none;">View Profile</a>
     </div>`,
   });
   if (error) console.error('❌ New follower email error:', error);
