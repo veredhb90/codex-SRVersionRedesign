@@ -9,9 +9,13 @@
 
   var pendingStockData = null;
 
+  function siteLang() {
+    var l = (window.SRLang && window.SRLang.lang) || document.documentElement.lang || 'en';
+    return l === 'he' ? 'he' : l === 'ar' ? 'ar' : 'en';
+  }
+
   function isArabicChat() {
-    return document.documentElement.lang === 'ar' ||
-      (window.SRLang && window.SRLang.lang === 'ar');
+    return siteLang() === 'ar';
   }
 
   function chatCopy(english, arabic) {
@@ -27,18 +31,19 @@
     return !!str && RTL_CHARS.test(str);
   }
 
-  // The site has no Hebrew UI mode (only EN/AR), so client-only messages that
-  // fire before the user has typed anything this session (e.g. the Pro Engine
-  // handoff summary below) have no language signal to go on except what the
-  // user chatted in last time. Remembered across sessions in localStorage,
-  // updated every time we see a real AI reply.
+  // Client-only messages that fire before the user has typed anything this
+  // session (e.g. the Pro Engine handoff summary below) have no language
+  // signal to go on except the site's UI toggle or what the user chatted in
+  // last time. Remembered across sessions in localStorage, updated every
+  // time we see a real AI reply.
   function rememberChatLang(text) {
     if (!text) return;
     var lang = HEBREW_CHARS.test(text) ? 'he' : isRTLText(text) ? 'ar' : 'en';
     try { localStorage.setItem('sr_chat_lang', lang); } catch (e) {}
   }
   function lastChatLang() {
-    if (isArabicChat()) return 'ar'; // explicit site toggle wins
+    var sl = siteLang();
+    if (sl !== 'en') return sl; // explicit site toggle wins
     try { return localStorage.getItem('sr_chat_lang') || 'en'; } catch (e) { return 'en'; }
   }
   // Three-way version of chatCopy for the handful of strings that need real
@@ -352,12 +357,18 @@
     var u = null;
     try { u = Auth.user(); } catch (e) {}
     var name = u ? (u.fullName ? u.fullName.split(' ')[0] : (u.username || '')) : '';
-    var greeting = isArabicChat()
+    var sl = siteLang();
+    var greeting = sl === 'he'
+      ? (name ? ('היי ' + name + '! ') : 'היי! ')
+      : sl === 'ar'
       ? (name ? ('أهلا ' + name + '! ') : 'أهلا! ')
       : (name ? ('Hi ' + name + '! ') : 'Hi! ');
-    addMessage('ai', isArabicChat()
-      ? greeting + 'أنا SwingRush AI، محللك في Pro Engine.\n\nاسألني عن أي شيء:\n- "حلل NVDA" — تحليل Pro Engine كامل\n- "أفضل الأسهم تحت 50 دولار" — نتائج ماسح السوق\n- "من هو الرئيس التنفيذي لتسلا؟" — معلومات الشركة\n- "أحدث أخبار AAPL" — أخبار فورية\n\nنصيحة: ارفع رسما بيانيا 📎 ليحلله الذكاء الاصطناعي.'
-      : greeting + 'I am SwingRush AI, your Pro Engine analyst.\n\nAsk me anything:\n- "Analyze NVDA" — full Pro Engine analysis\n- "Best stocks under $50" — market scanner results\n- "Who is Tesla CEO?" — company info\n- "Latest news for AAPL" — real-time news\n\nTip: Upload a chart 📎 for AI analysis!');
+    var body = sl === 'he'
+      ? 'אני SwingRush AI, האנליסט שלך ב-Pro Engine.\n\nשאל אותי כל דבר:\n- "נתח את NVDA" — ניתוח Pro Engine מלא\n- "המניות הכי טובות מתחת ל-50$" — תוצאות סורק השוק\n- "מי המנכ"ל של Tesla?" — מידע על החברה\n- "החדשות האחרונות על AAPL" — חדשות בזמן אמת\n\nטיפ: העלה גרף 📎 לניתוח AI.'
+      : sl === 'ar'
+      ? 'أنا SwingRush AI، محللك في Pro Engine.\n\nاسألني عن أي شيء:\n- "حلل NVDA" — تحليل Pro Engine كامل\n- "أفضل الأسهم تحت 50 دولار" — نتائج ماسح السوق\n- "من هو الرئيس التنفيذي لتسلا؟" — معلومات الشركة\n- "أحدث أخبار AAPL" — أخبار فورية\n\nنصيحة: ارفع رسما بيانيا 📎 ليحلله الذكاء الاصطناعي.'
+      : 'I am SwingRush AI, your Pro Engine analyst.\n\nAsk me anything:\n- "Analyze NVDA" — full Pro Engine analysis\n- "Best stocks under $50" — market scanner results\n- "Who is Tesla CEO?" — company info\n- "Latest news for AAPL" — real-time news\n\nTip: Upload a chart 📎 for AI analysis!';
+    addMessage('ai', greeting + body);
   })();
 
   // ── Open / Close ────────────────────────────────────────────────
@@ -413,7 +424,8 @@
     var lastDateLabel = '';
     session.messages.forEach(function(m) {
       var msgDate = m.time ? new Date(m.time) : new Date();
-      var dateLabel = msgDate.toLocaleDateString(isArabicChat() ? 'ar' : 'en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+      var dl = siteLang();
+      var dateLabel = msgDate.toLocaleDateString(dl === 'he' ? 'he' : dl === 'ar' ? 'ar' : 'en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
       if (dateLabel !== lastDateLabel) {
         var divider = document.createElement('div');
         divider.style.cssText = 'text-align:center;margin:14px 0 6px;font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:0.5px;';
@@ -564,7 +576,8 @@
       }
       listEl.innerHTML = '';
       sessions.forEach(function(s) {
-        var histLocale = isArabicChat() ? 'ar' : 'en-US';
+        var hl = siteLang();
+        var histLocale = hl === 'he' ? 'he' : hl === 'ar' ? 'ar' : 'en-US';
         var d = new Date(s.updatedAt).toLocaleDateString(histLocale, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
         var isActive = s._id === currentSessionId;
         var div = document.createElement('div');
@@ -805,7 +818,7 @@
       message: text || chatCopy('Please analyze this chart/image', 'يرجى تحليل هذا الرسم أو الصورة'),
       history: chatHistory.slice(-6),
       stockContext: stockContextStr,
-      language: isArabicChat() ? 'ar' : 'en',
+      language: siteLang(),
       sessionId: currentSessionId // concrete id resolved above
     };
 

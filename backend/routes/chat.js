@@ -432,7 +432,7 @@ router.post('/', protect, async (req, res) => {
   try {
     const { message, history = [], stockContext, sessionId, imageBase64, imageMimeType, language } = req.body;
     if (!message && !imageBase64) return res.status(400).json({ message: 'Message required' });
-    const preferredLanguage = language === 'ar' ? 'Arabic' : 'English';
+    const preferredLanguage = language === 'ar' ? 'Arabic' : language === 'he' ? 'Hebrew' : 'English';
 
     // ── Chat is Pro-only ───────────────────────────────────────
     const User = require('../models/User');
