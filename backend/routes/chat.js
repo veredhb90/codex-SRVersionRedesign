@@ -174,7 +174,7 @@ const CLAUDE_TOOLS = [
   { type: 'web_search_20250305', name: 'web_search' },
   {
     name: 'get_stock_analysis',
-    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators (RSI, EMA, MACD, ADX, etc), AI-powered news analysis with real catalysts and risks, upcoming earnings dates, suggested holding period, and current price (including pre-market/after-hours if applicable). Call this ONLY when the user is asking about a specific stock in a way that genuinely benefits from live technical/news data (e.g. "should I buy X", "what\'s the signal on X", "analyze X") \u2014 do NOT call this for general knowledge questions about a company (like "who is the CEO"), for questions your own knowledge already answers well, or just because a ticker is mentioned in passing.',
+    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators (RSI, EMA, MACD, ADX, etc), AI-powered news analysis with real catalysts and risks, upcoming earnings dates, suggested holding period, and current price (including pre-market/after-hours if applicable). Tends to be most useful when the user is asking about a specific stock in a way that would genuinely benefit from live technical/news data (e.g. "should I buy X", "what\'s the signal on X", "analyze X"). For general knowledge questions about a company (like "who is the CEO"), or anything your own knowledge already covers well, you likely won\'t need it \u2014 but it\'s your call either way.',
     input_schema: {
       type: 'object',
       properties: { symbol: { type: 'string', description: 'The stock ticker symbol, e.g. NVDA, AAPL, TSLA' } },
