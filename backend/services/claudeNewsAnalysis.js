@@ -28,11 +28,11 @@ const fetchFinnhubNews = (symbol) => new Promise((resolve) => {
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/company-news?symbol=${symbol}&from=${fromDate}&to=${toDate}&token=${apiKey}`;
   const req = https.get(url, { timeout: 15000 }, (res) => {
-    let data = '';
-    res.on('data', d => data += d);
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
     res.on('end', () => {
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (!Array.isArray(parsed)) {
           console.log('⚠️ Finnhub news non-array response for ' + symbol + ':', JSON.stringify(parsed).slice(0, 300));
           return resolve([]);
@@ -55,11 +55,11 @@ const fetchAnalystRatings = (symbol) => new Promise((resolve) => {
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/stock/recommendation?symbol=${symbol}&token=${apiKey}`;
   const req = https.get(url, { timeout: 15000 }, (res) => {
-    let data = '';
-    res.on('data', d => data += d);
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
     res.on('end', () => {
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         resolve(Array.isArray(parsed) && parsed.length ? parsed[0] : null);
       } catch (e) { resolve(null); }
     });
@@ -88,11 +88,11 @@ const callClaude = (systemPrompt, userMessage, tools) => new Promise((resolve, r
       'anthropic-version': '2023-06-01',
     },
   }, (res) => {
-    let data = '';
-    res.on('data', d => data += d);
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
     res.on('end', () => {
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (parsed.error) return reject(new Error(parsed.error.message));
         resolve(parsed);
       } catch (e) { reject(e); }
@@ -120,11 +120,11 @@ const fetchUpcomingEarnings = (symbol) => new Promise((resolve) => {
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${symbol}&token=${apiKey}`;
   const req = require('https').get(url, { timeout: 15000 }, (res) => {
-    let data = '';
-    res.on('data', d => data += d);
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
     res.on('end', () => {
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const list = (parsed.earningsCalendar || [])
           .sort((a, b) => new Date(a.date) - new Date(b.date))
           .slice(0, 3)
@@ -148,11 +148,11 @@ const fetchEarningsHistory = (symbol) => new Promise((resolve) => {
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${apiKey}`;
   const req = require('https').get(url, { timeout: 15000 }, (res) => {
-    let data = '';
-    res.on('data', d => data += d);
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
     res.on('end', () => {
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const list = Array.isArray(parsed) ? parsed.slice(0, 4).map(e => ({
           period: e.period, quarter: e.quarter, year: e.year,
           epsActual: e.actual, epsEstimate: e.estimate,

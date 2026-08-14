@@ -148,11 +148,17 @@ const callClaudeRaw = (messages, systemPrompt, tools) => new Promise((resolve, r
       'anthropic-version': '2023-06-01',
     },
   }, (res) => {
-    let data = '';
-    res.on('data', d => data += d);
+    // Collect raw Buffer chunks and decode once at the end -- concatenating
+    // Buffers into a string chunk-by-chunk (`data += d`) implicitly calls
+    // toString('utf8') on each partial chunk, corrupting any multi-byte
+    // character split across a chunk boundary into a replacement character.
+    // Hebrew/Arabic text is multi-byte throughout, so this hit those
+    // languages far more often than English.
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
     res.on('end', () => {
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if (parsed.error) return reject(new Error(parsed.error.message));
         resolve(parsed);
       } catch(e) { reject(e); }
@@ -248,11 +254,11 @@ const fetchMarketMovers = (direction, count) => new Promise((resolve) => {
   const n = Math.max(1, Math.min(count || 10, 25));
   const url = `https://query1.finance.yahoo.com/v1/finance/screener/predefined/saved?formatted=false&lang=en-US&region=US&scrIds=${scrId}&count=${n}`;
   https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
-    let data = '';
-    res.on('data', d => data += d);
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
     res.on('end', () => {
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const quotes = parsed.finance.result[0].quotes || [];
         resolve(quotes.map(q => ({
           symbol: q.symbol, name: q.longName || q.shortName || q.symbol,
@@ -368,11 +374,11 @@ const fetchCandles = (symbol) => new Promise((resolve) => {
   const from = now - 120 * 24 * 60 * 60;
   const url  = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) + '?period1=' + from + '&period2=' + now + '&interval=1d';
   https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } }, (res) => {
-    let data = '';
-    res.on('data', d => data += d);
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
     res.on('end', () => {
       try {
-        const parsed = JSON.parse(data);
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         const result = parsed.chart.result[0];
         const ts = result.timestamp || [];
         const q  = result.indicators.quote[0];

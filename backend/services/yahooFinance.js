@@ -38,10 +38,10 @@ const fetchJSON = async (url, retries = 3) => {
           if (res.statusCode === 429 || res.statusCode === 503) {
             return reject(new Error('RATE_LIMITED'));
           }
-          let data = '';
-          res.on('data', d => data += d);
+          const chunks = [];
+          res.on('data', d => chunks.push(d));
           res.on('end', () => {
-            try { resolve(JSON.parse(data)); }
+            try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
             catch(e) { reject(new Error('PARSE_ERROR')); }
           });
         });

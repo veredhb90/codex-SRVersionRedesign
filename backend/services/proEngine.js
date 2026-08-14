@@ -25,10 +25,10 @@ const toProCache = (k, d) => proCache.set(k, { data: d, ts: Date.now() });
 const fetchJSON = (url, retries = 3) => new Promise((resolve, reject) => {
   const attempt = (n) => {
     const req = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }, timeout: 15000 }, (res) => {
-      let data = '';
-      res.on('data', d => data += d);
+      const chunks = [];
+      res.on('data', d => chunks.push(d));
       res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
         catch (e) {
           if (n > 0) setTimeout(() => attempt(n - 1), 600);
           else reject(e);
