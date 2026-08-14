@@ -200,7 +200,7 @@ const CLAUDE_TOOLS = [
   },
   {
     name: 'get_my_calls',
-    description: 'Get the trade calls that THIS specific user (the one you are chatting with right now) has personally posted \u2014 their own open and closed positions, with entry price, TP/SL, and outcome (WIN/LOSS/OPEN). Use this when it would genuinely help to know the user\'s own trading history or current positions \u2014 for example if they ask how they are doing, ask for advice that should consider what they already hold, or reference \'my calls\'/\'my trades\'. This is different from get_market_scan or general community sentiment \u2014 it is specifically about this one user\'s own activity.',
+    description: 'Get the trade calls that THIS specific user (the one you are chatting with right now) has personally posted \u2014 their own open and closed positions, with entry price, TP/SL, and outcome (WIN/LOSS/OPEN). Genuinely useful any time you\'re about to give entry/sizing/timing advice on a specific stock \u2014 whether they already hold that exact symbol changes what good advice looks like (e.g. averaging into an existing position vs. a fresh entry, or a possible take-profit conversation vs. a new buy), so it\'s often worth a quick check even if they didn\'t explicitly ask "what do I already have". Also directly useful if they ask how they\'re doing, reference \'my calls\'/\'my trades\', or want advice that should factor in their existing holdings. This is different from get_market_scan or general community sentiment \u2014 it is specifically about this one user\'s own activity.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
