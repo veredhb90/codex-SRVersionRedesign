@@ -21,9 +21,31 @@
   // Per-message RTL detection — independent of the site's UI language setting,
   // so a Hebrew or Arabic reply renders right-to-left even if the site itself
   // is in English (e.g. the AI replying in the user's own language mid-chat).
+  var HEBREW_CHARS = /[\u0590-\u05FF]/;
   var RTL_CHARS = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
   function isRTLText(str) {
     return !!str && RTL_CHARS.test(str);
+  }
+
+  // The site has no Hebrew UI mode (only EN/AR), so client-only messages that
+  // fire before the user has typed anything this session (e.g. the Pro Engine
+  // handoff summary below) have no language signal to go on except what the
+  // user chatted in last time. Remembered across sessions in localStorage,
+  // updated every time we see a real AI reply.
+  function rememberChatLang(text) {
+    if (!text) return;
+    var lang = HEBREW_CHARS.test(text) ? 'he' : isRTLText(text) ? 'ar' : 'en';
+    try { localStorage.setItem('sr_chat_lang', lang); } catch (e) {}
+  }
+  function lastChatLang() {
+    if (isArabicChat()) return 'ar'; // explicit site toggle wins
+    try { return localStorage.getItem('sr_chat_lang') || 'en'; } catch (e) { return 'en'; }
+  }
+  // Three-way version of chatCopy for the handful of strings that need real
+  // Hebrew, not just an EN/AR fallback.
+  function chatCopy3(english, arabic, hebrew) {
+    var lang = lastChatLang();
+    return lang === 'he' ? hebrew : lang === 'ar' ? arabic : english;
   }
 
   function stockSymbol(stockData) {
@@ -31,7 +53,10 @@
   }
 
   function signalLabel(direction) {
-    var labels = isArabicChat()
+    var lang = lastChatLang();
+    var labels = lang === 'he'
+      ? { BUY: 'קנייה', SELL: 'מכירה', NEUTRAL: 'ניטרלי' }
+      : lang === 'ar'
       ? { BUY: 'شراء', SELL: 'بيع', NEUTRAL: 'محايد' }
       : { BUY: 'BUY', SELL: 'SELL', NEUTRAL: 'NEUTRAL' };
     return labels[direction] || labels.NEUTRAL;
@@ -53,7 +78,7 @@
     var stockData = pendingStockData;
     currentStock = stockData;
     var statusEl = document.getElementById('sr-chat-status');
-    if (statusEl) statusEl.textContent = chatCopy('Analyzing ', 'جار تحليل ') + stockData.symbol;
+    if (statusEl) statusEl.textContent = chatCopy3('Analyzing ', 'جار تحليل ', 'מנתח את ') + stockData.symbol;
     var suggestEl = document.getElementById('sr-chat-suggestions');
     if (suggestEl) {
       var isBuy = stockData.direction === 'BUY';
@@ -61,12 +86,12 @@
       var sym = stockData.symbol;
       var sc  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
       suggestEl.innerHTML =
-        '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' signal right now?\')">'+  (isBuy?'▲':'▼') + chatCopy(' Why ' + dir + '?', ' لماذا ' + signalLabel(dir) + '؟') + '</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'Explain each indicator for ' + sym + ' and why score is ' + sc + '\')">📊 ' + chatCopy('Explain score', 'اشرح النتيجة') + '</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'Show me the chart for ' + sym + '\')">📈 ' + chatCopy('Show chart', 'اعرض الرسم البياني') + '</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'Show me latest news with links for ' + sym + '\')">📰 ' + chatCopy('News links', 'روابط الأخبار') + '</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'What are the main risks for this ' + sym + ' trade?\')">🔍 ' + chatCopy('Risks', 'المخاطر') + '</button>' +
-        '<button class="sr-sug" onclick="srSuggest(\'Who is the CEO of ' + sym + ' and what were last earnings?\')">🏢 ' + chatCopy('Company info', 'معلومات الشركة') + '</button>';
+        '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' signal right now?\')">'+  (isBuy?'▲':'▼') + chatCopy3(' Why ' + dir + '?', ' لماذا ' + signalLabel(dir) + '؟', ' למה ' + signalLabel(dir) + '?') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Explain each indicator for ' + sym + ' and why score is ' + sc + '\')">📊 ' + chatCopy3('Explain score', 'اشرح النتيجة', 'הסבר את הציון') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Show me the chart for ' + sym + '\')">📈 ' + chatCopy3('Show chart', 'اعرض الرسم البياني', 'הצג גרף') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Show me latest news with links for ' + sym + '\')">📰 ' + chatCopy3('News links', 'روابط الأخبار', 'קישורי חדשות') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'What are the main risks for this ' + sym + ' trade?\')">🔍 ' + chatCopy3('Risks', 'المخاطر', 'סיכונים') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Who is the CEO of ' + sym + ' and what were last earnings?\')">🏢 ' + chatCopy3('Company info', 'معلومات الشركة', 'מידע על החברה') + '</button>';
     }
     var dir2 = stockData.direction === 'BUY' ? '▲ ' + signalLabel('BUY') : stockData.direction === 'SELL' ? '▼ ' + signalLabel('SELL') : '● ' + signalLabel('NEUTRAL');
     var sc2  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
@@ -81,26 +106,30 @@
       ? stockData.upcomingEarnings.map(function(e) { return e.date; }).join(', ')
       : '';
 
-    var msg = isArabicChat()
+    var chatLang = lastChatLang();
+    var msg = chatLang === 'he'
+      ? 'נטען ניתוח Pro Engine מלא עבור ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
+        dir2 + ' | ציון משוקלל: ' + sc2 + '/24 | רמת ביטחון: ' + stockData.confidence + '\n'
+      : chatLang === 'ar'
       ? 'تم تحميل تحليل Pro Engine الكامل لـ ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
         dir2 + ' | النتيجة الإجمالية: ' + sc2 + '/24 | الثقة: ' + stockData.confidence + '\n'
       : 'Loaded full Pro Engine analysis for ' + stockData.symbol + ' @ $' + Number(stockData.price).toFixed(2) + '\n\n' +
         dir2 + ' | Combined Score: ' + sc2 + '/24 | ' + stockData.confidence + ' Confidence\n';
 
     if (stockData.takeProfit) {
-      msg += (isArabicChat() ? 'الهدف: $' : 'TP: $') + stockData.takeProfit +
-        (isArabicChat() ? ' | وقف الخسارة: $' : ' | SL: $') + stockData.stopLoss + ' | R:R 1:' + stockData.riskReward + '\n';
+      msg += chatCopy3('TP: $', 'الهدف: $', 'יעד רווח: $') + stockData.takeProfit +
+        chatCopy3(' | SL: $', ' | وقف الخسارة: $', ' | סטופ לוס: $') + stockData.stopLoss + ' | R:R 1:' + stockData.riskReward + '\n';
     }
 
-    msg += '\n' + chatCopy('Technical (', 'التحليل الفني (') + stockData.technicalScore + chatCopy(' pts):\n', ' نقطة):\n') + breakdownLines + '\n';
-    msg += '\n' + chatCopy('News/AI (', 'الأخبار والذكاء الاصطناعي (') + (stockData.newsScore > 0 ? '+' : '') + stockData.newsScore + chatCopy(' pts) — ', ' نقطة) — ') + stockData.newsLabel + ':\n' + (stockData.newsSummary || '') + '\n';
+    msg += '\n' + chatCopy3('Technical (', 'التحليل الفني (', 'טכני (') + stockData.technicalScore + chatCopy3(' pts):\n', ' نقطة):\n', ' נק\'):\n') + breakdownLines + '\n';
+    msg += '\n' + chatCopy3('News/AI (', 'الأخبار والذكاء الاصطناعي (', 'חדשות/AI (') + (stockData.newsScore > 0 ? '+' : '') + stockData.newsScore + chatCopy3(' pts) — ', ' نقطة) — ', ' נק\') — ') + stockData.newsLabel + ':\n' + (stockData.newsSummary || '') + '\n';
 
-    if (catalystLines) msg += '\n' + chatCopy('Catalysts:', 'المحفزات:') + '\n' + catalystLines + '\n';
-    if (riskLines) msg += '\n' + chatCopy('Risks:', 'المخاطر:') + '\n' + riskLines + '\n';
-    if (stockData.holdingPeriod) msg += '\n\u23f3 ' + chatCopy('Suggested holding period: ', 'مدة الاحتفاظ المقترحة: ') + stockData.holdingPeriod;
-    if (earningsLine) msg += '\n\ud83d\udcc5 ' + chatCopy('Next earnings: ', 'موعد الأرباح القادم: ') + earningsLine;
+    if (catalystLines) msg += '\n' + chatCopy3('Catalysts:', 'المحفزات:', 'זרזים:') + '\n' + catalystLines + '\n';
+    if (riskLines) msg += '\n' + chatCopy3('Risks:', 'المخاطر:', 'סיכונים:') + '\n' + riskLines + '\n';
+    if (stockData.holdingPeriod) msg += '\n\u23f3 ' + chatCopy3('Suggested holding period: ', 'مدة الاحتفاظ المقترحة: ', 'משך החזקה מומלץ: ') + stockData.holdingPeriod;
+    if (earningsLine) msg += '\n\ud83d\udcc5 ' + chatCopy3('Next earnings: ', 'موعد الأرباح القادم: ', 'דוח רווחים הבא: ') + earningsLine;
 
-    msg += '\n\n' + chatCopy('Ask me anything about ', 'اسألني أي شيء عن ') + stockData.symbol + chatCopy(' — I have the full analysis above!', ' — التحليل الكامل جاهز لدي.');
+    msg += '\n\n' + chatCopy3('Ask me anything about ', 'اسألني أي شيء عن ', 'שאל אותי כל דבר על ') + stockData.symbol + chatCopy3(' — I have the full analysis above!', ' — التحليل الكامل جاهز لدي.', ' — הניתוח המלא מוכן למעלה!');
 
     addMessage('ai', msg);
     pendingStockData = null;
@@ -190,10 +219,10 @@
     '.sr-bubble.sr-md h1, .sr-bubble.sr-md h2 { margin:12px 0 6px; color:#0D2244; font-size:15px; font-weight:800; border-bottom:1.5px solid #E3EEFF; padding-bottom:4px; }' +
     '.sr-bubble.sr-md h3 { margin:10px 0 5px; color:#0D2244; font-size:13.5px; font-weight:700; }' +
     '.sr-bubble.sr-md p { margin:6px 0; }' +
-    '.sr-bubble.sr-md ul, .sr-bubble.sr-md ol { margin:6px 0; padding-left:20px; }' +
+    '.sr-bubble.sr-md ul, .sr-bubble.sr-md ol { margin:6px 0; padding-inline-start:20px; }' +
     '.sr-bubble.sr-md li { margin:3px 0; }' +
     '.sr-bubble.sr-md table { border-collapse:collapse; width:100%; margin:8px 0; font-size:12.5px; }' +
-    '.sr-bubble.sr-md th { background:#EEF4FF; color:#0D2244; font-weight:700; text-align:left; padding:6px 9px; border:1px solid #D6E4F5; }' +
+    '.sr-bubble.sr-md th { background:#EEF4FF; color:#0D2244; font-weight:700; text-align:start; padding:6px 9px; border:1px solid #D6E4F5; }' +
     '.sr-bubble.sr-md td { padding:6px 9px; border:1px solid #E3EEFF; }' +
     '.sr-bubble.sr-md tr:nth-child(even) td { background:#F8FAFF; }' +
     '.sr-bubble.sr-md strong { color:#0D47A1; }' +
@@ -850,7 +879,8 @@
   }
 
   function addMessage(role, text, realTime) {
-    var timeLocale = isArabicChat() ? 'ar' : 'en-US';
+    if (role === 'user') rememberChatLang(text);
+    var timeLocale = lastChatLang() === 'he' ? 'he' : lastChatLang() === 'ar' ? 'ar' : 'en-US';
     var now = realTime
       ? new Date(realTime).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' })
       : new Date().toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' });
