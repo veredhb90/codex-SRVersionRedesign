@@ -18,8 +18,9 @@
     return siteLang() === 'ar';
   }
 
-  function chatCopy(english, arabic) {
-    return isArabicChat() ? arabic : english;
+  function chatCopy(english, arabic, hebrew) {
+    var l = siteLang();
+    return l === 'he' ? (hebrew || english) : l === 'ar' ? arabic : english;
   }
 
   // Per-message RTL detection — independent of the site's UI language setting,
@@ -157,13 +158,13 @@
     var scoreText = score > 0 ? '+' + score : String(score);
     var signalIcon = direction === 'BUY' ? '▲' : direction === 'SELL' ? '▼' : '●';
     overlay.innerHTML =
-      '<div class="sr-ask-card" role="dialog" aria-modal="true" aria-label="' + chatCopy('Ask AI about ', 'اسأل الذكاء الاصطناعي عن ') + stockData.symbol + '">' +
-        '<button type="button" class="sr-ask-close" aria-label="' + chatCopy('Dismiss', 'إغلاق') + '">✕</button>' +
-        '<div class="sr-ask-kicker">' + chatCopy('PRO ANALYSIS READY', 'تحليل Pro جاهز') + '</div>' +
+      '<div class="sr-ask-card" role="dialog" aria-modal="true" aria-label="' + chatCopy('Ask AI about ', 'اسأل الذكاء الاصطناعي عن ', 'שאל את הבינה המלאכותית על ') + stockData.symbol + '">' +
+        '<button type="button" class="sr-ask-close" aria-label="' + chatCopy('Dismiss', 'إغلاق', 'סגור') + '">✕</button>' +
+        '<div class="sr-ask-kicker">' + chatCopy('PRO ANALYSIS READY', 'تحليل Pro جاهز', 'ניתוח Pro מוכן') + '</div>' +
         '<div class="sr-ask-symbol">$' + stockData.symbol + '</div>' +
-        '<div class="sr-ask-signal ' + direction.toLowerCase() + '"><span>' + signalIcon + ' ' + signalLabel(direction) + '</span><strong>' + chatCopy('Score ', 'النتيجة ') + scoreText + '/24</strong></div>' +
-        '<p>' + chatCopy('Open the AI analyst with this ticker, live signal context, and your full Pro Engine analysis ready to discuss.', 'افتح محلل الذكاء الاصطناعي لهذا الرمز مع سياق الإشارة المباشر وتحليل Pro الكامل الجاهز للنقاش.') + '</p>' +
-        '<button type="button" class="sr-ask-action">' + chatCopy('Ask AI about $', 'اسأل الذكاء الاصطناعي عن $') + stockData.symbol + '</button>' +
+        '<div class="sr-ask-signal ' + direction.toLowerCase() + '"><span>' + signalIcon + ' ' + signalLabel(direction) + '</span><strong>' + chatCopy('Score ', 'النتيجة ', 'ציון ') + scoreText + '/24</strong></div>' +
+        '<p>' + chatCopy('Open the AI analyst with this ticker, live signal context, and your full Pro Engine analysis ready to discuss.', 'افتح محلل الذكاء الاصطناعي لهذا الرمز مع سياق الإشارة المباشر وتحليل Pro الكامل الجاهز للنقاش.', 'פתח את האנליסט הבינה מלאכותית עם הטיקר הזה, הקשר האיתות החי, וניתוח ה-Pro Engine המלא המוכן לדיון.') + '</p>' +
+        '<button type="button" class="sr-ask-action">' + chatCopy('Ask AI about $', 'اسأل الذكاء الاصطناعي عن $', 'שאל את הבינה המלאכותית על $') + stockData.symbol + '</button>' +
       '</div>';
     overlay.querySelector('.sr-ask-action').addEventListener('click', function() {
       overlay.remove();
@@ -293,23 +294,23 @@
     '}' +
     '@media(max-width:680px) and (orientation:landscape){#sr-chat-btn{bottom:10px;}}' +
     '</style>' +
-    '<button id="sr-selection-popup">' + chatCopy('💬 Reply to this', '💬 الرد على هذا') + '</button>' +
+    '<button id="sr-selection-popup">' + chatCopy('💬 Reply to this', '💬 الرد على هذا', '💬 הגב לזה') + '</button>' +
     '<input type="file" id="sr-img-input" accept="image/*" style="display:none">'+
     '<button id="sr-chat-btn" title="SwingRush AI"><div id="sr-chat-pulse"></div><svg viewBox="0 0 500 460" width="78" height="72"><path d="M159,178 A105,105 0 0,1 341,178" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M159,282 A105,105 0 0,0 226,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M341,282 A105,105 0 0,1 274,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path fill="#F5D061" d="M250,160 C258,172 270,190 282,204 C310,193 345,187 372,189 C405,192 428,199 446,224 C430,232 410,233 394,236 C360,243 330,252 313,267 C300,277 290,283 282,292 C270,305 263,325 262,345 L262,398 Q262,408 250,408 Q238,408 238,398 L238,345 C237,325 230,305 218,292 C210,283 200,277 187,267 C170,252 140,243 106,236 C90,233 70,232 54,224 C72,199 95,192 128,189 C155,187 190,193 218,204 C230,190 242,172 250,160 Z"/></svg><span id="sr-chat-badge"></span></button>' +
     '<div id="sr-chat-box" class="normal">' +
-    '<div id="sr-history-panel"><div style="font-weight:700;font-size:14px;color:#0D47A1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #E3EEFF;">' + chatCopy('💬 Previous Chats', '💬 المحادثات السابقة') + '</div><div id="sr-history-list"></div></div>'+
+    '<div id="sr-history-panel"><div style="font-weight:700;font-size:14px;color:#0D47A1;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #E3EEFF;">' + chatCopy('💬 Previous Chats', '💬 المحادثات السابقة', '💬 שיחות קודמות') + '</div><div id="sr-history-list"></div></div>'+
     '<div id="sr-chat-header">' +
       '<div id="sr-chat-avatar"><svg viewBox="0 0 500 460" width="32" height="30"><path d="M159,178 A105,105 0 0,1 341,178" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M159,282 A105,105 0 0,0 226,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path d="M341,282 A105,105 0 0,1 274,332" fill="none" stroke="#F5D061" stroke-width="10" stroke-linecap="round"/><path fill="#F5D061" d="M250,160 C258,172 270,190 282,204 C310,193 345,187 372,189 C405,192 428,199 446,224 C430,232 410,233 394,236 C360,243 330,252 313,267 C300,277 290,283 282,292 C270,305 263,325 262,345 L262,398 Q262,408 250,408 Q238,408 238,398 L238,345 C237,325 230,305 218,292 C210,283 200,277 187,267 C170,252 140,243 106,236 C90,233 70,232 54,224 C72,199 95,192 128,189 C155,187 190,193 218,204 C230,190 242,172 250,160 Z"/></svg></div>' +
-      '<div id="sr-chat-hinfo"><div id="sr-chat-title">SwingRush AI</div><div id="sr-chat-status">' + chatCopy('Online — Ask about any stock', 'متصل — اسأل عن أي سهم') + '</div></div>' +
-      '<button class="sr-header-btn" id="sr-history-btn" title="' + chatCopy('Chat History', 'سجل المحادثات') + '">🕐</button>' +
-      '<button class="sr-header-btn" id="sr-newchat-btn" title="' + chatCopy('New Chat', 'محادثة جديدة') + '" style="font-size:11px;width:auto;padding:0 8px;">' + chatCopy('+New', '+ جديدة') + '</button>' +
-      '<button class="sr-header-btn" id="sr-fullscreen-btn" title="' + chatCopy('Fullscreen', 'ملء الشاشة') + '">⛶</button>' +
-      '<button class="sr-header-btn" id="sr-chat-close" title="' + chatCopy('Close', 'إغلاق') + '">✕</button>' +
+      '<div id="sr-chat-hinfo"><div id="sr-chat-title">SwingRush AI</div><div id="sr-chat-status">' + chatCopy('Online — Ask about any stock', 'متصل — اسأل عن أي سهم', 'מחובר — שאל על כל מניה') + '</div></div>' +
+      '<button class="sr-header-btn" id="sr-history-btn" title="' + chatCopy('Chat History', 'سجل المحادثات', 'היסטוריית שיחות') + '">🕐</button>' +
+      '<button class="sr-header-btn" id="sr-newchat-btn" title="' + chatCopy('New Chat', 'محادثة جديدة', 'שיחה חדשה') + '" style="font-size:11px;width:auto;padding:0 8px;">' + chatCopy('+New', '+ جديدة', '+ חדשה') + '</button>' +
+      '<button class="sr-header-btn" id="sr-fullscreen-btn" title="' + chatCopy('Fullscreen', 'ملء الشاشة', 'מסך מלא') + '">⛶</button>' +
+      '<button class="sr-header-btn" id="sr-chat-close" title="' + chatCopy('Close', 'إغلاق', 'סגירה') + '">✕</button>' +
     '</div>' +
     '<div id="sr-chat-messages"></div>' +
     '<div id="sr-img-preview"><img id="sr-img-thumb" src=""><span id="sr-img-name" style="font-size:12px;color:#64748b;flex:1;"></span><button id="sr-img-remove">✕</button></div>'+
-    '<div id="sr-chat-suggestions"><button class="sr-sug" onclick="srSuggest(\'Analyze AAPL with full signals\')">' + chatCopy('📊 Analyze AAPL', '📊 حلل AAPL') + '</button><button class="sr-sug" onclick="srSuggest(\'Show top stocks today from scanner\')">' + chatCopy('🔥 Top stocks', '🔥 أفضل الأسهم') + '</button><button class="sr-sug" onclick="srSuggest(\'Is the market bullish or bearish?\')">' + chatCopy('📈 Market mood', '📈 مزاج السوق') + '</button><button class="sr-sug" onclick="srSuggest(\'Explain RSI and how it works\')">' + chatCopy('📚 What is RSI?', '📚 ما هو RSI؟') + '</button><button class="sr-sug" onclick="srSuggest(\'What stocks have best risk reward today?\')">' + chatCopy('🎯 Best R:R', '🎯 أفضل مخاطرة/عائد') + '</button></div>' +
-    '<div id="sr-chat-input-row"><button id="sr-chat-img-btn" title="' + chatCopy('Upload chart/image', 'رفع رسم بياني/صورة') + '">📎</button><textarea id="sr-chat-input" placeholder="' + chatCopy('Ask about any stock, indicator, or market...', 'اسأل عن أي سهم أو مؤشر أو السوق...') + '" rows="1"></textarea><button id="sr-chat-send">➤</button></div>' +
+    '<div id="sr-chat-suggestions"><button class="sr-sug" onclick="srSuggest(\'Analyze AAPL with full signals\')">' + chatCopy('📊 Analyze AAPL', '📊 حلل AAPL', '📊 נתח AAPL') + '</button><button class="sr-sug" onclick="srSuggest(\'Show top stocks today from scanner\')">' + chatCopy('🔥 Top stocks', '🔥 أفضل الأسهم', '🔥 המניות המובילות') + '</button><button class="sr-sug" onclick="srSuggest(\'Is the market bullish or bearish?\')">' + chatCopy('📈 Market mood', '📈 مزاج السوق', '📈 מצב רוח השוק') + '</button><button class="sr-sug" onclick="srSuggest(\'Explain RSI and how it works\')">' + chatCopy('📚 What is RSI?', '📚 ما هو RSI؟', '📚 מה זה RSI?') + '</button><button class="sr-sug" onclick="srSuggest(\'What stocks have best risk reward today?\')">' + chatCopy('🎯 Best R:R', '🎯 أفضل مخاطرة/عائد', '🎯 יחס סיכוי-סיכון הכי טוב') + '</button></div>' +
+    '<div id="sr-chat-input-row"><button id="sr-chat-img-btn" title="' + chatCopy('Upload chart/image', 'رفع رسم بياني/صورة', 'העלה גרף/תמונה') + '">📎</button><textarea id="sr-chat-input" placeholder="' + chatCopy('Ask about any stock, indicator, or market...', 'اسأل عن أي سهم أو مؤشر أو السوق...', 'שאל על כל מניה, אינדיקטור או השוק...') + '" rows="1"></textarea><button id="sr-chat-send">➤</button></div>' +
     '</div>';
 
   document.body.appendChild(widget);
@@ -495,7 +496,8 @@
         removeTyping(typingEl);
         addMessage('ai', chatCopy(
           'That answer took too long or your question did not go through. Please ask again.',
-          'استغرقت الإجابة وقتا طويلا أو لم تصل رسالتك. يرجى المحاولة مرة أخرى.')
+          'استغرقت الإجابة وقتا طويلا أو لم تصل رسالتك. يرجى المحاولة مرة أخرى.',
+          'התשובה ארכה זמן רב מדי או שהשאלה שלך לא עברה. נסה לשאול שוב.')
         );
         isTyping = false; sendBtn.disabled = false;
         clearPending();
@@ -559,7 +561,7 @@
     chatHistory = [];
     messages.innerHTML = '';
     historyPanel.style.display = 'none';
-    addMessage('ai', chatCopy('New chat started! What would you like to discuss?', 'بدأت محادثة جديدة. ما الذي تريد مناقشته؟'));
+    addMessage('ai', chatCopy('New chat started! What would you like to discuss?', 'بدأت محادثة جديدة. ما الذي تريد مناقشته؟', 'שיחה חדשה התחילה! על מה תרצה לדבר?'));
     input.focus();
   }
 
@@ -567,11 +569,11 @@
   async function loadHistoryList() {
     var listEl = document.getElementById('sr-history-list');
     if (!listEl || !Auth.token()) return;
-    listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('Loading...', 'جار التحميل...') + '</div>';
+    listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('Loading...', 'جار التحميل...', 'טוען...') + '</div>';
     try {
       var sessions = await API.getChatSessions();
       if (!sessions || !sessions.length) {
-        listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('No previous chats', 'لا توجد محادثات سابقة') + '</div>';
+        listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('No previous chats', 'لا توجد محادثات سابقة', 'אין שיחות קודמות') + '</div>';
         return;
       }
       listEl.innerHTML = '';
@@ -582,14 +584,14 @@
         var isActive = s._id === currentSessionId;
         var div = document.createElement('div');
         div.style.cssText = 'padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:6px;background:' + (isActive?'#EEF4FF':'#F8FAFF') + ';border:1.5px solid ' + (isActive?'#1565C0':'#E3EEFF') + ';';
-        div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:13px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">' + (s.title || chatCopy('Chat', 'محادثة')) + '</div><button onclick="srDeleteSession(event,\'' + s._id + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;">🗑</button></div><div style="font-size:11px;color:#94a3b8;margin-top:3px;">' + d + ' · ' + (s.messages?s.messages.length:0) + ' ' + chatCopy('messages', 'رسالة') + '</div>';
+        div.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:13px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">' + (s.title || chatCopy('Chat', 'محادثة', 'שיחה')) + '</div><button onclick="srDeleteSession(event,\'' + s._id + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;">🗑</button></div><div style="font-size:11px;color:#94a3b8;margin-top:3px;">' + d + ' · ' + (s.messages?s.messages.length:0) + ' ' + chatCopy('messages', 'رسالة', 'הודעות') + '</div>';
         div.addEventListener('click', function(e) { if (e.target.tagName !== 'BUTTON') loadSession(s._id); });
         div.addEventListener('mouseover', function() { if (s._id !== currentSessionId) this.style.background = '#EEF4FF'; });
         div.addEventListener('mouseout', function() { if (s._id !== currentSessionId) this.style.background = '#F8FAFF'; });
         listEl.appendChild(div);
       });
     } catch(e) {
-      listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('Could not load', 'تعذر التحميل') + '</div>';
+      listEl.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px;">' + chatCopy('Could not load', 'تعذر التحميل', 'טעינה נכשלה') + '</div>';
     }
   }
 
@@ -605,13 +607,13 @@
 
   window.srDeleteSession = async function(event, sessionId) {
     event.stopPropagation();
-    if (!confirm(chatCopy('Delete this chat?', 'حذف هذه المحادثة؟'))) return;
+    if (!confirm(chatCopy('Delete this chat?', 'حذف هذه المحادثة؟', 'למחוק את השיחה הזו?'))) return;
     try {
       await API.deleteChatSession(sessionId);
       if (currentSessionId === sessionId) {
         currentSessionId = 'NEW';
         messages.innerHTML = '';
-        addMessage('ai', chatCopy('Chat deleted. Start a new conversation!', 'تم حذف المحادثة. ابدأ محادثة جديدة!'));
+        addMessage('ai', chatCopy('Chat deleted. Start a new conversation!', 'تم حذف المحادثة. ابدأ محادثة جديدة!', 'השיחה נמחקה. התחל שיחה חדשה!'));
       }
       loadHistoryList();
     } catch(e) {}
@@ -623,7 +625,7 @@
   imgInput.addEventListener('change', function() {
     var file = imgInput.files[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert(chatCopy('Image must be under 5MB', 'يجب أن تكون الصورة أقل من 5 ميغابايت')); return; }
+    if (file.size > 5 * 1024 * 1024) { alert(chatCopy('Image must be under 5MB', 'يجب أن تكون الصورة أقل من 5 ميغابايت', 'התמונה חייבת להיות מתחת ל-5MB')); return; }
     var reader = new FileReader();
     reader.onload = function(e) {
       var base64 = e.target.result.split(',')[1];
@@ -739,7 +741,7 @@
       quotePreview.style.display = 'flex';
       if (!isOpen) openChat();
       input.focus();
-      input.placeholder = chatCopy('Write your reply about the quoted text...', 'اكتب ردك على النص المقتبس...');
+      input.placeholder = chatCopy('Write your reply about the quoted text...', 'اكتب ردك على النص المقتبس...', 'כתוב את תגובתך לטקסט המצוטט...');
     }
   });
 
@@ -747,7 +749,7 @@
     quotedText = null;
     var qp = document.getElementById('sr-quote-preview');
     if (qp) qp.style.display = 'none';
-    input.placeholder = chatCopy('Ask about any stock, indicator, or market...', 'اسأل عن أي سهم أو مؤشر أو السوق...');
+    input.placeholder = chatCopy('Ask about any stock, indicator, or market...', 'اسأل عن أي سهم أو مؤشر أو السوق...', 'שאל על כל מניה, אינדיקטור או השוק...');
   };
 
   function dismissSelectionPopupIfOutside(e) {
@@ -796,7 +798,7 @@
     }
 
     if (text) addMessage('user', text);
-    if (pendingImage) addMessage('user', chatCopy('📎 Image uploaded for analysis', '📎 تم رفع صورة للتحليل'));
+    if (pendingImage) addMessage('user', chatCopy('📎 Image uploaded for analysis', '📎 تم رفع صورة للتحليل', '📎 תמונה הועלתה לניתוח'));
     input.value = '';
     input.style.height = 'auto';
     isTyping = true;
@@ -815,7 +817,7 @@
 
     // Build request body
     var requestBody = {
-      message: text || chatCopy('Please analyze this chart/image', 'يرجى تحليل هذا الرسم أو الصورة'),
+      message: text || chatCopy('Please analyze this chart/image', 'يرجى تحليل هذا الرسم أو الصورة', 'אנא נתח את הגרף/תמונה הזו'),
       history: chatHistory.slice(-6),
       stockContext: stockContextStr,
       language: siteLang(),
@@ -852,7 +854,8 @@
         if (result.data.requireSubscription) {
           addMessage('ai', chatCopy(
             'AI Chat is a SwingRush Pro feature.\n\nUpgrade to Pro for unlimited access to the AI analyst \u2014 real Claude AI reasoning combined with technical analysis on every stock.',
-            '\u0645\u062d\u0627\u062f\u062b\u0629 \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a \u0645\u064a\u0632\u0629 \u062d\u0635\u0631\u064a\u0629 \u0644\u0640 SwingRush Pro.\n\n\u062a\u0631\u0642\u064e\u0651 \u0625\u0644\u0649 Pro \u0644\u0644\u0648\u0635\u0648\u0644 \u063a\u064a\u0631 \u0627\u0644\u0645\u062d\u062f\u0648\u062f \u0625\u0644\u0649 \u0627\u0644\u0645\u062d\u0644\u0644 \u0627\u0644\u0630\u0643\u064a \u2014 \u062a\u0641\u0643\u064a\u0631 Claude AI \u062d\u0642\u064a\u0642\u064a \u0645\u062f\u0645\u062c \u0645\u0639 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0641\u0646\u064a \u0639\u0644\u0649 \u0643\u0644 \u0633\u0647\u0645.'
+            '\u0645\u062d\u0627\u062f\u062b\u0629 \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a \u0645\u064a\u0632\u0629 \u062d\u0635\u0631\u064a\u0629 \u0644\u0640 SwingRush Pro.\n\n\u062a\u0631\u0642\u064e\u0651 \u0625\u0644\u0649 Pro \u0644\u0644\u0648\u0635\u0648\u0644 \u063a\u064a\u0631 \u0627\u0644\u0645\u062d\u062f\u0648\u062f \u0625\u0644\u0649 \u0627\u0644\u0645\u062d\u0644\u0644 \u0627\u0644\u0630\u0643\u064a \u2014 \u062a\u0641\u0643\u064a\u0631 Claude AI \u062d\u0642\u064a\u0642\u064a \u0645\u062f\u0645\u062c \u0645\u0639 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0641\u0646\u064a \u0639\u0644\u0649 \u0643\u0644 \u0633\u0647\u0645.',
+            '\u05e6\u05f3\u05d0\u05d8 \u05d1\u05d9\u05e0\u05d4 \u05de\u05dc\u05d0\u05db\u05d5\u05ea\u05d9\u05ea \u05d4\u05d5\u05d0 \u05ea\u05db\u05d5\u05e0\u05d4 \u05e9\u05dc SwingRush Pro.\n\n\u05e9\u05d3\u05e8\u05d2 \u05dc-Pro \u05dc\u05d2\u05d9\u05e9\u05d4 \u05dc\u05dc\u05d0 \u05d4\u05d2\u05d1\u05dc\u05d4 \u05dc\u05d0\u05e0\u05dc\u05d9\u05e1\u05d8 \u05d4-AI \u2014 \u05d7\u05e9\u05d9\u05d1\u05d4 \u05d0\u05de\u05d9\u05ea\u05d9\u05ea \u05e9\u05dc Claude AI \u05d1\u05e9\u05d9\u05dc\u05d5\u05d1 \u05e2\u05dd \u05e0\u05d9\u05ea\u05d5\u05d7 \u05d8\u05db\u05e0\u05d9 \u05e2\u05dc \u05db\u05dc \u05de\u05e0\u05d9\u05d4.'
           ));
           setTimeout(function() { if (window.Paywall) Paywall.showSubscribePaywall('chat'); }, 500);
           return;
@@ -879,7 +882,7 @@
     })
     .catch(function(err) {
       removeTyping(typingEl);
-      addMessage('ai', chatCopy('Connection error. Please try again in a moment.', 'خطأ في الاتصال. حاول مرة أخرى بعد لحظات.'));
+      addMessage('ai', chatCopy('Connection error. Please try again in a moment.', 'خطأ في الاتصال. حاول مرة أخرى بعد لحظات.', 'שגיאת חיבור. נסה שוב בעוד רגע.'));
     })
     .finally(function() {
       // We reached here => this page survived (no navigation), so the answer
@@ -940,29 +943,29 @@
   // Engine's live news web_search, ~30-60s) reads as "working" not "stuck".
   // Always opens with a plain "thinking" line, then shuffles through a big
   // playful pool so it feels fresh across messages instead of a fixed script.
-  var CHAT_STATUS_OPENER = chatCopy('SwingRush AI is thinking…', 'سوينج راش الذكاء الاصطناعي يفكر…');
+  var CHAT_STATUS_OPENER = chatCopy('SwingRush AI is thinking…', 'سوينج راش الذكاء الاصطناعي يفكر…', 'SwingRush AI חושב…');
   // Only shown when the question actually looks stock/analysis-related — see
   // looksLikeStockQuestion() below. Showing "scanning news / calculating
   // score" for a casual "how are you?" would be a flat-out false claim.
   var CHAT_STATUS_POOL_FINANCE = [
-    chatCopy('Scanning fresh news 📰', 'يبحث عن آخر الأخبار 📰'),
-    chatCopy('Analyzing the news…', 'يحلل الأخبار…'),
-    chatCopy('Reading the charts 📊', 'يقرأ الرسوم البيانية 📊'),
-    chatCopy('Calculating the score…', 'يحسب النتيجة…'),
-    chatCopy('Combining with technical analysis…', 'يدمج مع التحليل الفني…'),
-    chatCopy('Weighing risk vs. reward ⚖️', 'يوازن بين المخاطرة والعائد ⚖️'),
-    chatCopy('Checking the momentum 🚀', 'يتحقق من الزخم 🚀'),
-    chatCopy('Cross-checking the signals 🔍', 'يتحقق من الإشارات 🔍'),
-    chatCopy('Consulting the market data…', 'يستشير بيانات السوق…'),
+    chatCopy('Scanning fresh news 📰', 'يبحث عن آخر الأخبار 📰', 'סורק חדשות טריות 📰'),
+    chatCopy('Analyzing the news…', 'يحلل الأخبار…', 'מנתח את החדשות…'),
+    chatCopy('Reading the charts 📊', 'يقرأ الرسوم البيانية 📊', 'קורא את הגרפים 📊'),
+    chatCopy('Calculating the score…', 'يحسب النتيجة…', 'מחשב את הציון…'),
+    chatCopy('Combining with technical analysis…', 'يدمج مع التحليل الفني…', 'משלב עם ניתוח טכני…'),
+    chatCopy('Weighing risk vs. reward ⚖️', 'يوازن بين المخاطرة والعائد ⚖️', 'שוקל סיכון מול תשואה ⚖️'),
+    chatCopy('Checking the momentum 🚀', 'يتحقق من الزخم 🚀', 'בודק את המומנטום 🚀'),
+    chatCopy('Cross-checking the signals 🔍', 'يتحقق من الإشارات 🔍', 'מצליב את האיתותים 🔍'),
+    chatCopy('Consulting the market data…', 'يستشير بيانات السوق…', 'בודק את נתוני השוק…'),
   ];
   // Safe for ANY question — no claim about what's actually happening.
   var CHAT_STATUS_POOL_GENERIC = [
-    chatCopy('Connecting the dots…', 'يربط النقاط…'),
-    chatCopy('Putting together a good answer…', 'يجهز إجابة جيدة…'),
-    chatCopy('Sharpening the answer ✨', 'يصقل الإجابة ✨'),
-    chatCopy('Choosing the right words…', 'يختار الكلمات المناسبة…'),
-    chatCopy('One moment…', 'لحظة واحدة…'),
-    chatCopy('Almost there…', 'اقتربنا…'),
+    chatCopy('Connecting the dots…', 'يربط النقاط…', 'מחבר את הנקודות…'),
+    chatCopy('Putting together a good answer…', 'يجهز إجابة جيدة…', 'מרכיב תשובה טובה…'),
+    chatCopy('Sharpening the answer ✨', 'يصقل الإجابة ✨', 'מלטש את התשובה ✨'),
+    chatCopy('Choosing the right words…', 'يختار الكلمات المناسبة…', 'בוחר את המילים הנכונות…'),
+    chatCopy('One moment…', 'لحظة واحدة…', 'רגע אחד…'),
+    chatCopy('Almost there…', 'اقتربنا…', 'כמעט שם…'),
   ];
 
   // Heuristic, client-side only (purely cosmetic — decides which status
@@ -1116,10 +1119,10 @@
     overlay.innerHTML =
       '<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.3);">' +
       '<div style="font-size:32px;margin-bottom:10px;">\ud83d\udcac</div>' +
-      '<div style="font-weight:800;color:#0D2244;font-size:16px;margin-bottom:6px;">' + chatCopy('Ask SwingRush AI', '\u0627\u0633\u0623\u0644 SwingRush AI') + '</div>' +
-      '<div style="font-size:13px;color:#64748b;margin-bottom:18px;">' + chatCopy('Start a fresh conversation, or continue where you left off?', '\u0627\u0628\u062f\u0623 \u0645\u062d\u0627\u062f\u062b\u0629 \u062c\u062f\u064a\u062f\u0629\u060c \u0623\u0645 \u062a\u0643\u0645\u0644 \u0645\u0646 \u062d\u064a\u062b \u062a\u0648\u0642\u0641\u062a\u061f') + '</div>' +
-      '<button id="sr-choice-new" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:10px;">' + chatCopy('Start New Chat', '\u0628\u062f\u0621 \u0645\u062d\u0627\u062f\u062b\u0629 \u062c\u062f\u064a\u062f\u0629') + '</button>' +
-      '<button id="sr-choice-continue" style="width:100%;background:#F5F9FF;color:#0D2244;border:1px solid #E3EEFF;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;">' + chatCopy('Continue Recent Chat', '\u0645\u062a\u0627\u0628\u0639\u0629 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629 \u0627\u0644\u0623\u062e\u064a\u0631\u0629') + '</button>' +
+      '<div style="font-weight:800;color:#0D2244;font-size:16px;margin-bottom:6px;">' + chatCopy('Ask SwingRush AI', '\u0627\u0633\u0623\u0644 SwingRush AI', '\u05e9\u05d0\u05dc \u05d0\u05ea SwingRush AI') + '</div>' +
+      '<div style="font-size:13px;color:#64748b;margin-bottom:18px;">' + chatCopy('Start a fresh conversation, or continue where you left off?', '\u0627\u0628\u062f\u0623 \u0645\u062d\u0627\u062f\u062b\u0629 \u062c\u062f\u064a\u062f\u0629\u060c \u0623\u0645 \u062a\u0643\u0645\u0644 \u0645\u0646 \u062d\u064a\u062b \u062a\u0648\u0642\u0641\u062a\u061f', '\u05dc\u05d4\u05ea\u05d7\u05d9\u05dc \u05e9\u05d9\u05d7\u05d4 \u05d7\u05d3\u05e9\u05d4, \u05d0\u05d5 \u05dc\u05d4\u05de\u05e9\u05d9\u05da \u05de\u05d4\u05d9\u05db\u05df \u05e9\u05d4\u05e4\u05e1\u05e7\u05ea?') + '</div>' +
+      '<button id="sr-choice-new" style="width:100%;background:#0D2244;color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;margin-bottom:10px;">' + chatCopy('Start New Chat', '\u0628\u062f\u0621 \u0645\u062d\u0627\u062f\u062b\u0629 \u062c\u062f\u064a\u062f\u0629', '\u05d4\u05ea\u05d7\u05dc \u05e9\u05d9\u05d7\u05d4 \u05d7\u05d3\u05e9\u05d4') + '</button>' +
+      '<button id="sr-choice-continue" style="width:100%;background:#F5F9FF;color:#0D2244;border:1px solid #E3EEFF;border-radius:10px;padding:12px;font-weight:700;cursor:pointer;font-size:14px;">' + chatCopy('Continue Recent Chat', '\u0645\u062a\u0627\u0628\u0639\u0629 \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629 \u0627\u0644\u0623\u062e\u064a\u0631\u0629', '\u05d4\u05de\u05e9\u05da \u05e9\u05d9\u05d7\u05d4 \u05d0\u05d7\u05e8\u05d5\u05e0\u05d4') + '</button>' +
       '</div>';
     overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
