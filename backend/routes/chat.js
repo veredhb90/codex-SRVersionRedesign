@@ -482,6 +482,36 @@ router.post('/', protect, async (req, res) => {
       }
     }
     const needsEngine = symbols.length > 0; // used by community sentiment context below; actual engine data now comes via Claude's own tool calls
+
+    // ── This user's own open position(s) in whatever symbol(s) are in play ──
+    // Ambient fact, not a tool call — same pattern as trader profile / community
+    // sentiment below. Whether the user already holds a symbol is always
+    // relevant to any conversation about that symbol, so it shouldn't depend
+    // on Claude deciding to look it up; it's just handed over up front, the
+    // same way the user's name always is.
+    let ownPositionsContext = '';
+    if (symbols.length > 0) {
+      try {
+        const mongoose = require('mongoose');
+        const Recommendation = mongoose.models.Recommendation || require('../models/Recommendation');
+        const own = await Recommendation.find({
+          user: req.user._id, symbol: { $in: symbols }, isOpen: true, profileOnly: { $ne: true },
+        }).select('symbol direction entryPrice takeProfit stopLoss openedAt createdAt');
+        if (own.length) {
+          const lines = own.map(r => `${r.symbol}: you have an open ${r.direction} at $${r.entryPrice}` +
+            (r.takeProfit ? `, TP $${r.takeProfit}` : '') + (r.stopLoss ? `, SL $${r.stopLoss}` : '') +
+            `, opened ${new Date(r.openedAt || r.createdAt).toLocaleDateString('en-US')}.`);
+          ownPositionsContext = `
+╔══════════════════════════════════════╗
+  THE USER'S OWN OPEN POSITION(S) IN SYMBOL(S) THEY'RE ASKING ABOUT
+╚══════════════════════════════════════╝
+${lines.join('\n')}
+This is real, factual data about their own portfolio — always factor it into your answer (e.g. hold/add/trim advice instead of generic entry advice), but use your own judgment on exactly how to bring it up.
+`;
+        }
+      } catch (e) { console.log('Own positions context error:', e.message); }
+    }
+
     // ── Community sentiment: what SwingRush traders are doing (open calls only) ──
     let communityContext = '';
     if (needsEngine && symbols.length > 0) {
@@ -582,6 +612,7 @@ Your tools:
 
 Language: always reply in the SAME language the user just wrote their message in — Arabic, Hebrew, English, or any other language — match them exactly, even if it's different from your previous reply or from the site's UI language. Only fall back to the site's UI language (${preferredLanguage}) when the user's message itself gives no language signal (e.g. it's just a ticker symbol like "NVDA" or a number).
 ${stockContext ? `\nStock the user is currently viewing:\n${stockContext}\n` : ''}
+${ownPositionsContext}
 ${communityContext}
 ${profileContext}
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
