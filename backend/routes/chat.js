@@ -90,15 +90,24 @@ const runProEngineFor = async (sym) => {
   const slMult = 1.5;
   const realAtr = tech.realAtr || (tech.price * 0.02);
   let takeProfit = null, stopLoss = null, riskReward = null;
+  // Every "distance between two prices already in this result" figure is
+  // precomputed here too, not just the analyst target — TP% and SL% are the
+  // other two prices a user routinely asks "how far is that" about. General
+  // rule: any price-pair relationship we already have the ingredients for
+  // gets computed once here, so no specific phrasing of the question can
+  // catch the model deriving it fresh (and possibly wrong) mid-sentence.
+  let tpPct = null, slPct = null;
   if (direction !== 'NEUTRAL') {
     takeProfit = direction === 'BUY' ? +(tech.price + realAtr * tpMult).toFixed(2) : +(tech.price - realAtr * tpMult).toFixed(2);
     stopLoss   = direction === 'BUY' ? +(tech.price - realAtr * slMult).toFixed(2) : +(tech.price + realAtr * slMult).toFixed(2);
     riskReward = +((Math.abs(takeProfit - tech.price) / Math.abs(stopLoss - tech.price)).toFixed(2));
+    tpPct = +(((takeProfit - tech.price) / tech.price) * 100).toFixed(2);
+    slPct = +(((stopLoss - tech.price) / tech.price) * 100).toFixed(2);
   }
   return {
     symbol: sym, price: tech.price, regularSessionPrice: tech.regularSessionPrice || tech.price, changePct: tech.changePct, marketState: tech.marketState || 'Regular Session',
     direction, score: combinedScore, confidence,
-    takeProfit, stopLoss, riskReward,
+    takeProfit, stopLoss, riskReward, tpPct, slPct,
     technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
     change1w: tech.change1w, change1m: tech.change1m,
     newsScore: newsA.score, newsLabel: newsA.label, newsSummary: newsA.summary, newsReasoning: newsA.reasoning || '',
@@ -124,6 +133,8 @@ ${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss}
 PRECOMPUTED FIGURES (real math, already calculated correctly \u2014 state these numbers as-is, do NOT recompute them yourself from the raw price history or from anything found via web_search):
 - 1 Week price change: ${e.change1w != null ? (e.change1w >= 0 ? '+' : '') + e.change1w + '%' : 'not enough history'}
 - 1 Month price change: ${e.change1m != null ? (e.change1m >= 0 ? '+' : '') + e.change1m + '%' : 'not enough history'}
+- Distance to Take Profit: ${e.tpPct != null ? (e.tpPct >= 0 ? '+' : '') + e.tpPct + '%' : 'no trade setup'}
+- Distance to Stop Loss: ${e.slPct != null ? (e.slPct >= 0 ? '+' : '') + e.slPct + '%' : 'no trade setup'}
 - Analyst price target: ${e.priceTarget ? `avg $${e.priceTarget.mean}, high $${e.priceTarget.high}, low $${e.priceTarget.low} (last updated ${e.priceTarget.lastUpdated}) \u2192 ${e.targetUpsidePct >= 0 ? '+' : ''}${e.targetUpsidePct}% ${e.targetUpsidePct >= 0 ? 'upside' : 'downside'} vs current price $${e.price}, calculated fresh just now against this exact price` : 'No analyst price-target data available \u2014 say so rather than searching for and quoting one yourself'}
 TECHNICAL BREAKDOWN (${e.technicalScore} pts):
 ${breakdownText}
@@ -220,6 +231,36 @@ const CLAUDE_TOOLS = [
     name: 'get_market_scan',
     description: 'Get broad market-scan results across the full stock universe \u2014 all current BUY/SELL signals with price, TP, SL, confidence, grouped by price range. Each stock\'s total score COMBINES a technical score + a news score (the news is keyword/analyst-based sentiment, NOT the deep Claude AI news analysis the Pro Engine runs), and both sub-scores are shown per stock. Best for breadth questions like \'what are the best stocks today\', \'any good stocks under $50\', \'show me strong sell signals\'. For one specific stock, get_stock_analysis is higher quality (real AI news analysis) and takes priority over this scan for that symbol. Mechanics, if asked: the universe is a fixed pool of 2000 US stocks ranked by market cap; each run scans 500 of them (a fixed 300-stock core of the biggest names, always included, plus 200 randomly rotated from the remaining ~1700 so the long tail gets covered over time); it auto-runs every 6 hours on trading weekdays (not continuously, not every-few-minutes) and shows the latest completed run\'s results on weekends. If asked something about the scanner\'s mechanics not covered here, say you don\'t have that specific detail rather than guessing a number.',
     input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'filter_scanner',
+    description: 'Filter, count, or average the scanner\'s signals by real criteria (direction, price range, minimum conviction score, confidence tier) — computed directly against the actual scan data, never by reading/counting the get_market_scan text yourself. ALWAYS use this instead of manually counting or filtering rows from get_market_scan for anything like "how many SELL signals under $50", "list BUY signals with High confidence", or "what\'s the average score of stocks above $100" — the scanner can hold hundreds of rows and manually tallying that many by eye is unreliable, the same way summing a long list of numbers in your head is.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        direction: { type: 'string', enum: ['BUY', 'SELL'], description: 'Optional: restrict to only BUY or only SELL signals.' },
+        minPrice: { type: 'number', description: 'Optional: only signals priced at or above this.' },
+        maxPrice: { type: 'number', description: 'Optional: only signals priced below this (use for "under $X" questions).' },
+        minAbsScore: { type: 'number', description: 'Optional: only signals with |combined score| at or above this (conviction strength, e.g. 8 for at least Medium confidence).' },
+        confidence: { type: 'string', enum: ['Very High', 'High', 'Medium', 'Low'], description: 'Optional: restrict to one confidence tier.' },
+        metric: { type: 'string', enum: ['count', 'list', 'avg_score'], description: 'What to return: a count, the actual matching list (capped at 30, sorted by strongest |score| first), or the average combined score of the matches.' },
+      },
+      required: ['metric'],
+    },
+  },
+  {
+    name: 'aggregate_my_trades',
+    description: 'Compute a REAL aggregate statistic across this user\'s own trades — count, win rate, average return, or total return — calculated directly against the database, never by reading/counting the raw get_my_calls list yourself. ALWAYS use this for any question like "what\'s my win rate", "how am I doing", "what\'s my average return", or anything else that requires counting or summing across more than a couple of trades — manually tallying rows by eye is unreliable and must not be done, even if the list looks short enough to count. Optionally filter by status, direction, or one symbol.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['open', 'closed', 'win', 'loss', 'any'], description: 'Filter by trade status before computing. Default "any". win_rate/avg_return/sum_return only ever consider closed WIN/LOSS trades within whatever remains after this filter.' },
+        direction: { type: 'string', enum: ['BUY', 'SELL'], description: 'Optional: restrict to only BUY or only SELL trades.' },
+        symbol: { type: 'string', description: 'Optional: restrict to one ticker symbol.' },
+        metric: { type: 'string', enum: ['count', 'win_rate', 'avg_return', 'sum_return'], description: 'What to compute.' },
+      },
+      required: ['metric'],
+    },
   },
   {
     name: 'get_my_calls',
@@ -346,6 +387,84 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
     const data = await fetchScannerData();
     if (!data) return 'No scan data available yet \u2014 the scanner may not have completed its first run.';
     return data;
+  }
+  if (toolName === 'filter_scanner') {
+    try {
+      const mongoose = require('mongoose');
+      const ScanResult = mongoose.models.ScanResult ||
+        mongoose.model('ScanResult', new mongoose.Schema({ results: Array, top5: Array, scannedCount: Number }, { strict: false }));
+      const doc = await ScanResult.findOne({ key: 'latest' });
+      if (!doc || !doc.results || !doc.results.length) return 'No scan data available yet \u2014 the scanner may not have completed its first run.';
+
+      let matched = doc.results;
+      if (toolInput.direction === 'BUY' || toolInput.direction === 'SELL') matched = matched.filter(r => r.direction === toolInput.direction);
+      if (toolInput.minPrice != null) matched = matched.filter(r => r.price >= toolInput.minPrice);
+      if (toolInput.maxPrice != null) matched = matched.filter(r => r.price < toolInput.maxPrice);
+      if (toolInput.minAbsScore != null) matched = matched.filter(r => Math.abs(r.score) >= toolInput.minAbsScore);
+      if (toolInput.confidence) matched = matched.filter(r => r.confidence === toolInput.confidence);
+
+      const metric = toolInput.metric || 'list';
+      const filterParts = [];
+      if (toolInput.direction) filterParts.push('direction=' + toolInput.direction);
+      if (toolInput.minPrice != null) filterParts.push('minPrice=' + toolInput.minPrice);
+      if (toolInput.maxPrice != null) filterParts.push('maxPrice=' + toolInput.maxPrice);
+      if (toolInput.minAbsScore != null) filterParts.push('minAbsScore=' + toolInput.minAbsScore);
+      if (toolInput.confidence) filterParts.push('confidence=' + toolInput.confidence);
+      const filterDesc = filterParts.length ? filterParts.join(', ') : 'no filter (all signals)';
+
+      if (metric === 'count') return `Count matching filter (${filterDesc}): ${matched.length} signals.`;
+      if (metric === 'avg_score') {
+        if (!matched.length) return `No signals match filter (${filterDesc}).`;
+        const avg = +(matched.reduce((a, r) => a + r.score, 0) / matched.length).toFixed(2);
+        return `Average combined score matching filter (${filterDesc}): ${avg}, across ${matched.length} signals.`;
+      }
+      if (!matched.length) return `No signals match filter (${filterDesc}).`;
+      const sorted = [...matched].sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
+      const capped = sorted.slice(0, 30);
+      const lines = capped.map(r => `${r.symbol}${r.name ? ' (' + r.name + ')' : ''}: ${r.direction} ${r.score > 0 ? '+' : ''}${r.score} | $${r.price} | ${r.confidence}`);
+      return `${matched.length} signals match filter (${filterDesc})${matched.length > 30 ? ' \u2014 showing top 30 by |score|' : ''}:\n${lines.join('\n')}`;
+    } catch (e) {
+      return `Failed to filter scanner: ${e.message}`;
+    }
+  }
+  if (toolName === 'aggregate_my_trades') {
+    try {
+      const mongoose = require('mongoose');
+      const Recommendation = mongoose.models.Recommendation || require('../models/Recommendation');
+      const query = { user: userId };
+      if (toolInput.direction === 'BUY' || toolInput.direction === 'SELL') query.direction = toolInput.direction;
+      if (toolInput.symbol) query.symbol = String(toolInput.symbol).toUpperCase().trim();
+      const status = toolInput.status || 'any';
+      if (status === 'open') query.isOpen = true;
+      else if (status === 'closed') query.isOpen = false;
+      else if (status === 'win') { query.isOpen = false; query.outcome = 'WIN'; }
+      else if (status === 'loss') { query.isOpen = false; query.outcome = 'LOSS'; }
+
+      const docs = await Recommendation.find(query).select('isOpen outcome returnPct').limit(2000);
+      const metric = toolInput.metric;
+      const filterDesc = `status=${status}${toolInput.direction ? ', direction=' + toolInput.direction : ''}${toolInput.symbol ? ', symbol=' + toolInput.symbol : ''}`;
+
+      if (metric === 'count') return `Count matching filter (${filterDesc}): ${docs.length} trades.`;
+
+      const closed = docs.filter(d => !d.isOpen && (d.outcome === 'WIN' || d.outcome === 'LOSS'));
+      if (metric === 'win_rate') {
+        if (!closed.length) return `No closed trades match filter (${filterDesc}) — cannot compute a win rate.`;
+        const wins = closed.filter(d => d.outcome === 'WIN').length;
+        const pct = +((wins / closed.length) * 100).toFixed(2);
+        return `Win rate matching filter (${filterDesc}): ${wins} WIN out of ${closed.length} closed trades = ${pct}%.`;
+      }
+      if (metric === 'avg_return' || metric === 'sum_return') {
+        const withReturn = closed.filter(d => typeof d.returnPct === 'number');
+        if (!withReturn.length) return `No closed trades with a recorded return% match filter (${filterDesc}).`;
+        const sum = +withReturn.reduce((a, d) => a + d.returnPct, 0).toFixed(2);
+        if (metric === 'sum_return') return `Sum of returnPct across ${withReturn.length} closed trades matching filter (${filterDesc}): ${sum}%.`;
+        const avg = +(sum / withReturn.length).toFixed(2);
+        return `Average return matching filter (${filterDesc}): ${avg}% across ${withReturn.length} closed trades (individual returns: ${withReturn.map(d => (d.returnPct >= 0 ? '+' : '') + d.returnPct + '%').join(', ')}).`;
+      }
+      return 'Unknown metric — use one of: count, win_rate, avg_return, sum_return.';
+    } catch (e) {
+      return `Failed to aggregate trades: ${e.message}`;
+    }
   }
   if (toolName === 'get_my_calls') {
     try {
@@ -645,10 +764,12 @@ You are a world-class analyst — think and answer with your own knowledge and r
 
 Your tools:
 - web_search — for live data and anything current: prices, % changes, breaking news, catalysts, dates.
-- calculate — a real calculator. Any time your answer involves arithmetic (a percentage, a difference, a ratio, a sum, an average — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user.
-- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus a real Claude AI analysis of that stock's recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, confirmed earnings dates, and precomputed 1-week/1-month price % change plus real analyst price-target upside/downside (already calculated for you against the live price — always use those numbers as given, never recalculate them from the raw price history or from a web search). Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user (it has no knowledge of anyone's personal position).
-- get_market_scan — the SwingRush "Scanner": signals across the whole stock universe, each with a combined score = a technical score + a news score (news is keyword/analyst-based sentiment, not the deep Claude AI news analysis the Pro Engine runs); both sub-scores are shown. For breadth questions (e.g. best setups today, ideas under a given price, strongest buys/sells).
-- get_my_calls — this user's own portfolio: the trades they personally posted, with entry, TP/SL and outcome (WIN/LOSS/OPEN).
+- calculate — a real calculator. Any time your answer involves arithmetic on numbers you already have in front of you (a percentage, a difference, a ratio, a sum of a few known values — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user. (If the math requires first counting or summing across a LIST of the user's own trades, use aggregate_my_trades instead — see below — since the risk there is miscounting the list, not just the final arithmetic.)
+- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus a real Claude AI analysis of that stock's recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, confirmed earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price-relationship the result contains is already calculated for you against the live price, so always use those numbers as given, never recalculate any of them yourself from the raw price history or from a web search. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user (it has no knowledge of anyone's personal position).
+- get_market_scan — the SwingRush "Scanner": signals across the whole stock universe, each with a combined score = a technical score + a news score (news is keyword/analyst-based sentiment, not the deep Claude AI news analysis the Pro Engine runs); both sub-scores are shown. Good for an open-ended overview/narrative of what's out there.
+- filter_scanner — a real calculator over the scanner's signals: count, list, or average score, filtered by direction/price range/score/confidence, computed directly from the data. ANY question that requires counting or filtering scanner signals by a specific condition ("how many SELL signals under $50", "list BUY signals with High confidence") MUST go through this tool, not get_market_scan's raw text — the scanner can have hundreds of rows and manually counting/filtering that many yourself is unreliable, exactly like tallying a long trade list by hand.
+- get_my_calls — this user's own portfolio: the raw list of trades they personally posted, with entry, TP/SL and outcome (WIN/LOSS/OPEN). Use this to look up or describe individual trades, NOT to compute any statistic across them.
+- aggregate_my_trades — a real calculator over this user's own trades: count, win rate, average return, or total return, computed directly from the database. ANY question requiring you to count or sum across more than a couple of trades (win rate, "how am I doing", average return, performance on BUYs vs SELLs, etc.) MUST go through this tool. Do not tally or sum rows from get_my_calls by reading them yourself — that step is exactly as unreliable as doing arithmetic in your head, even though it looks like "just counting."
 - show_chart — render a price chart for a symbol (optional timeframe 1d or 1h).
 
 Language: always reply in the SAME language the user just wrote their message in — Arabic, Hebrew, English, or any other language — match them exactly, even if it's different from your previous reply or from the site's UI language. Only fall back to the site's UI language (${preferredLanguage}) when the user's message itself gives no language signal (e.g. it's just a ticker symbol like "NVDA" or a number).
