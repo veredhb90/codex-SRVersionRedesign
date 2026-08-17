@@ -2,7 +2,7 @@ const express    = require('express');
 const router     = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { getEngineRecommendation } = require('../services/yahooFinance');
-const { getProTechnicalScore, getCandles } = require('../services/proEngine');
+const { getProTechnicalScore, getCandles, getQuote } = require('../services/proEngine');
 const { getClaudeNewsAnalysis } = require('../services/claudeNewsAnalysis');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
@@ -268,6 +268,11 @@ const CLAUDE_TOOLS = [
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
+    name: 'get_open_positions_progress',
+    description: 'For THIS user\'s own OPEN positions: real distance from the current live price to each position\'s ACTUAL recorded take-profit and stop-loss, computed directly in code, ranked closest-to-target first. ALWAYS use this for any question about how close an existing position is to its target/stop, which one is nearest, or similar ranking/progress questions \u2014 NEVER answer these by combining get_my_calls with get_stock_analysis yourself. get_stock_analysis returns a fresh, independent signal with its OWN take-profit/stop-loss for a brand-new hypothetical trade on that symbol today \u2014 that target has nothing to do with a position the user already holds, and substituting it for the user\'s real recorded TP/SL will give a completely wrong answer. This tool guarantees the TP/SL used is always the user\'s real one.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'get_market_movers',
     description: 'A live screener returning the biggest stock gainers or losers of the current/most recent trading session by % change, ranked, across the WHOLE US market \u2014 not limited to SwingRush\u2019s scanned universe (get_market_scan only covers stocks that cleared an actionable technical BUY/SELL score, so a stock that moved big on no clean technical setup won\u2019t appear there). Structured live data, not a web search.',
     input_schema: {
@@ -481,6 +486,35 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
       return `This user's own posted trade calls (most recent first):\n${lines2.join('\n')}`;
     } catch (e) {
       return `Failed to fetch user's calls: ${e.message}`;
+    }
+  }
+  if (toolName === 'get_open_positions_progress') {
+    try {
+      const mongoose = require('mongoose');
+      const Recommendation = mongoose.models.Recommendation || require('../models/Recommendation');
+      const open = await Recommendation.find({ user: userId, isOpen: true }).select('symbol direction entryPrice takeProfit stopLoss');
+      if (!open.length) return 'This user has no open positions.';
+
+      const rows = [];
+      for (const r of open) {
+        let price = null;
+        try { price = (await getQuote(r.symbol)).price; } catch (e) { /* leave null, reported below */ }
+        if (price == null) { rows.push({ symbol: r.symbol, error: true }); continue; }
+        const distToTPPct = r.takeProfit != null ? +(((r.takeProfit - price) / price) * 100).toFixed(2) : null;
+        const distToSLPct = r.stopLoss != null ? +(((r.stopLoss - price) / price) * 100).toFixed(2) : null;
+        rows.push({ symbol: r.symbol, direction: r.direction, entryPrice: r.entryPrice, currentPrice: price, takeProfit: r.takeProfit, stopLoss: r.stopLoss, distToTPPct, distToSLPct });
+      }
+
+      const withDist = rows.filter(r => r.distToTPPct != null).sort((a, b) => Math.abs(a.distToTPPct) - Math.abs(b.distToTPPct));
+      const lines = withDist.map(r =>
+        `${r.symbol} (${r.direction}): entry $${r.entryPrice} | current live price $${r.currentPrice} | REAL take-profit $${r.takeProfit} → ${r.distToTPPct >= 0 ? '+' : ''}${r.distToTPPct}% away` +
+        (r.stopLoss != null ? ` | REAL stop-loss $${r.stopLoss} → ${r.distToSLPct >= 0 ? '+' : ''}${r.distToSLPct}% away` : ' | no stop-loss set on this position')
+      );
+      const errored = rows.filter(r => r.error).map(r => r.symbol);
+      return `This user's OPEN positions, ranked closest-to-target first (these are the REAL entry/TP/SL this user actually recorded for each position, with a fresh live current price — do not replace these TP/SL numbers with a fresh get_stock_analysis signal's own target):\n${lines.join('\n')}` +
+        (errored.length ? `\n(Could not fetch a live price for: ${errored.join(', ')} — say so rather than guessing.)` : '');
+    } catch (e) {
+      return `Failed to compute open position progress: ${e.message}`;
     }
   }
   if (toolName === 'get_market_movers') {
@@ -765,11 +799,12 @@ You are a world-class analyst — think and answer with your own knowledge and r
 Your tools:
 - web_search — for live data and anything current: prices, % changes, breaking news, catalysts, dates.
 - calculate — a real calculator. Any time your answer involves arithmetic on numbers you already have in front of you (a percentage, a difference, a ratio, a sum of a few known values — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user. (If the math requires first counting or summing across a LIST of the user's own trades, use aggregate_my_trades instead — see below — since the risk there is miscounting the list, not just the final arithmetic.)
-- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus a real Claude AI analysis of that stock's recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, confirmed earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price-relationship the result contains is already calculated for you against the live price, so always use those numbers as given, never recalculate any of them yourself from the raw price history or from a web search. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user (it has no knowledge of anyone's personal position).
+- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus a real Claude AI analysis of that stock's recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, confirmed earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price-relationship the result contains is already calculated for you against the live price, so always use those numbers as given, never recalculate any of them yourself from the raw price history or from a web search. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user (it has no knowledge of anyone's personal position). CRITICAL: its entry/TP/SL are for a FRESH hypothetical trade today — if the user already has an open position in that symbol, this TP/SL is NOT theirs; never substitute it for their real recorded target (use get_open_positions_progress for that).
 - get_market_scan — the SwingRush "Scanner": signals across the whole stock universe, each with a combined score = a technical score + a news score (news is keyword/analyst-based sentiment, not the deep Claude AI news analysis the Pro Engine runs); both sub-scores are shown. Good for an open-ended overview/narrative of what's out there.
 - filter_scanner — a real calculator over the scanner's signals: count, list, or average score, filtered by direction/price range/score/confidence, computed directly from the data. ANY question that requires counting or filtering scanner signals by a specific condition ("how many SELL signals under $50", "list BUY signals with High confidence") MUST go through this tool, not get_market_scan's raw text — the scanner can have hundreds of rows and manually counting/filtering that many yourself is unreliable, exactly like tallying a long trade list by hand.
 - get_my_calls — this user's own portfolio: the raw list of trades they personally posted, with entry, TP/SL and outcome (WIN/LOSS/OPEN). Use this to look up or describe individual trades, NOT to compute any statistic across them.
 - aggregate_my_trades — a real calculator over this user's own trades: count, win rate, average return, or total return, computed directly from the database. ANY question requiring you to count or sum across more than a couple of trades (win rate, "how am I doing", average return, performance on BUYs vs SELLs, etc.) MUST go through this tool. Do not tally or sum rows from get_my_calls by reading them yourself — that step is exactly as unreliable as doing arithmetic in your head, even though it looks like "just counting."
+- get_open_positions_progress — real distance from the current live price to each of this user's OPEN positions' ACTUAL recorded take-profit/stop-loss, ranked closest-to-target first, computed server-side. ALWAYS use this for "how close is my position to target", "which of my positions is closest to TP", or similar — NEVER build this answer yourself by combining get_my_calls with get_stock_analysis, since get_stock_analysis's TP/SL belongs to a fresh hypothetical trade, not the user's real position, and mixing the two gives a wrong answer even though the arithmetic on the wrong numbers would look fine.
 - show_chart — render a price chart for a symbol (optional timeframe 1d or 1h).
 
 Language: always reply in the SAME language the user just wrote their message in — Arabic, Hebrew, English, or any other language — match them exactly, even if it's different from your previous reply or from the site's UI language. Only fall back to the site's UI language (${preferredLanguage}) when the user's message itself gives no language signal (e.g. it's just a ticker symbol like "NVDA" or a number).
