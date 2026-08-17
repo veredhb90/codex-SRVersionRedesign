@@ -158,7 +158,7 @@ ${(e.priceHistory || []).slice(-30).map(c => {
 const callClaudeRaw = (messages, systemPrompt, tools) => new Promise((resolve, reject) => {
   const body = JSON.stringify({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 2000,
+    max_tokens: 8192,
     system: systemPrompt,
     messages,
     tools,
@@ -534,14 +534,25 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
 const callClaude = async (messages, systemPrompt, userId) => {
   const chartRequests = [];
   let convo = [...messages];
-  const MAX_ROUNDS = 5;
+  const MAX_TOOL_ROUNDS = 5;
+  // A long, multi-symbol answer can still hit the token ceiling even after
+  // raising it \u2014 a real bug found in testing: a 7-position breakdown got cut
+  // off mid-sentence with the last position missing entirely, and the
+  // truncated text was silently returned as if it were the complete answer.
+  // Bounded separately from tool rounds so a heavy tool-use question doesn't
+  // eat into the continuation budget, or vice versa.
+  const MAX_CONTINUATIONS = 3;
+  let toolRounds = 0;
+  let continuations = 0;
+  let accumulatedText = '';
 
-  for (let round = 0; round < MAX_ROUNDS; round++) {
+  while (true) {
     const parsed = await callClaudeRaw(convo, systemPrompt, CLAUDE_TOOLS);
 
     if (parsed.stop_reason === 'tool_use') {
+      toolRounds++;
+      if (toolRounds > MAX_TOOL_ROUNDS) break;
       const toolUseBlocks = (parsed.content || []).filter(b => b.type === 'tool_use');
-      const textSoFar = (parsed.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n\n');
 
       convo.push({ role: 'assistant', content: parsed.content });
 
@@ -555,10 +566,19 @@ const callClaude = async (messages, systemPrompt, userId) => {
     }
 
     const textBlocks = (parsed.content || []).filter(b => b.type === 'text').map(b => b.text);
-    return { text: textBlocks.join('\n\n'), charts: chartRequests };
+    accumulatedText += textBlocks.join('\n\n');
+
+    if (parsed.stop_reason === 'max_tokens' && continuations < MAX_CONTINUATIONS) {
+      continuations++;
+      convo.push({ role: 'assistant', content: parsed.content });
+      convo.push({ role: 'user', content: 'Continue exactly where you left off \u2014 do not repeat or restart anything you already said, just keep writing from the exact point you stopped.' });
+      continue;
+    }
+
+    return { text: accumulatedText, charts: chartRequests };
   }
 
-  return { text: 'I had trouble completing that analysis \u2014 please try again.', charts: chartRequests };
+  return { text: accumulatedText || 'I had trouble completing that analysis \u2014 please try again.', charts: chartRequests };
 };
 
 // ── Fetch candles for chart display ────────────────────────────────
