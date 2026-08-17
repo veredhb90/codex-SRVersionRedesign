@@ -66,6 +66,14 @@ const runProEngineFor = async (sym) => {
     getClaudeNewsAnalysis(sym),
   ]);
   if (tech.insufficientData) return null;
+  // Analyst-target upside/downside, computed here using the SAME live price
+  // (tech.price) used for everything else in this result — so it can never
+  // be paired with a price from a different point in time (the real cause
+  // of the TEVA bug: a stale search-sourced % next to a live price).
+  let targetUpsidePct = null;
+  if (newsA.priceTarget && newsA.priceTarget.mean && tech.price) {
+    targetUpsidePct = +(((newsA.priceTarget.mean - tech.price) / tech.price) * 100).toFixed(2);
+  }
   const combinedScore = tech.score + newsA.score;
   const absScore = Math.abs(combinedScore);
   const MIN_SCORE = 4;
@@ -92,9 +100,11 @@ const runProEngineFor = async (sym) => {
     direction, score: combinedScore, confidence,
     takeProfit, stopLoss, riskReward,
     technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
+    change1w: tech.change1w, change1m: tech.change1m,
     newsScore: newsA.score, newsLabel: newsA.label, newsSummary: newsA.summary, newsReasoning: newsA.reasoning || '',
     catalysts: newsA.catalysts || [], risks: newsA.risks || [],
     analystSummary: newsA.analystSummary || '',
+    priceTarget: newsA.priceTarget || null, targetUpsidePct,
     holdingPeriod: newsA.holdingPeriod || '',
     upcomingEarnings: newsA.upcomingEarnings || [],
     priceHistory: tech.candles || [],
@@ -111,6 +121,10 @@ const formatProEngineText = (e, sym) => {
 ${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}%
 SIGNAL: ${e.direction} | Combined Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
 ${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}` : 'No trade setup \u2014 score below conviction threshold'}
+PRECOMPUTED FIGURES (real math, already calculated correctly \u2014 state these numbers as-is, do NOT recompute them yourself from the raw price history or from anything found via web_search):
+- 1 Week price change: ${e.change1w != null ? (e.change1w >= 0 ? '+' : '') + e.change1w + '%' : 'not enough history'}
+- 1 Month price change: ${e.change1m != null ? (e.change1m >= 0 ? '+' : '') + e.change1m + '%' : 'not enough history'}
+- Analyst price target: ${e.priceTarget ? `avg $${e.priceTarget.mean}, high $${e.priceTarget.high}, low $${e.priceTarget.low} (last updated ${e.priceTarget.lastUpdated}) \u2192 ${e.targetUpsidePct >= 0 ? '+' : ''}${e.targetUpsidePct}% ${e.targetUpsidePct >= 0 ? 'upside' : 'downside'} vs current price $${e.price}, calculated fresh just now against this exact price` : 'No analyst price-target data available \u2014 say so rather than searching for and quoting one yourself'}
 TECHNICAL BREAKDOWN (${e.technicalScore} pts):
 ${breakdownText}
 AI NEWS ANALYSIS (${e.newsScore > 0 ? '+' : ''}${e.newsScore} pts) \u2014 ${e.newsLabel}:
@@ -172,6 +186,15 @@ const callClaudeRaw = (messages, systemPrompt, tools) => new Promise((resolve, r
 // ── Tool definitions - Claude decides for himself when to use these ──
 const CLAUDE_TOOLS = [
   { type: 'web_search_20250305', name: 'web_search' },
+  {
+    name: 'calculate',
+    description: 'A real calculator for ANY arithmetic in your answer — a percentage, a difference, a ratio, a sum, an average, a risk/reward calc, anything. Always call this instead of computing arithmetic yourself, even if it looks simple, since your own mental math is not reliable. Pass a plain arithmetic expression (numbers, + - * / ( ) . only) and it returns the exact real result — then state only that returned number.',
+    input_schema: {
+      type: 'object',
+      properties: { expression: { type: 'string', description: 'A plain arithmetic expression, e.g. "(40.90 - 36.75) / 36.75 * 100"' } },
+      required: ['expression'],
+    },
+  },
   {
     name: 'get_stock_analysis',
     description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators (RSI, EMA, MACD, ADX, etc), AI-powered news analysis with real catalysts and risks, upcoming earnings dates, suggested holding period, and current price (including pre-market/after-hours if applicable). Tends to be most useful when the user is asking about a specific stock in a way that would genuinely benefit from live technical/news data (e.g. "should I buy X", "what\'s the signal on X", "analyze X"). For general knowledge questions about a company (like "who is the CEO"), or anything your own knowledge already covers well, you likely won\'t need it \u2014 but it\'s your call either way.',
@@ -269,7 +292,24 @@ const fetchMarketMovers = (direction, count) => new Promise((resolve) => {
   }).on('error', () => resolve(null));
 });
 
+// Strict character whitelist BEFORE evaluating — only digits/operators/parens/
+// decimal points can reach Function(), so there is no way to inject anything
+// beyond plain arithmetic (no letters, no semicolons, no property access).
+const SAFE_EXPR = /^[0-9+\-*/(). \s]+$/;
 const executeTool = async (toolName, toolInput, chartRequests, userId) => {
+  if (toolName === 'calculate') {
+    const expr = String(toolInput.expression || '').trim();
+    if (!expr || !SAFE_EXPR.test(expr)) {
+      return 'Invalid expression — only numbers and + - * / ( ) . are allowed.';
+    }
+    try {
+      const result = Function('"use strict"; return (' + expr + ')')();
+      if (typeof result !== 'number' || !isFinite(result)) return 'Could not compute a valid number from that expression.';
+      return `Result: ${result}`;
+    } catch (e) {
+      return `Invalid expression: could not evaluate.`;
+    }
+  }
   if (toolName === 'get_stock_analysis') {
     const sym = (toolInput.symbol || '').toUpperCase().trim();
     try {
@@ -605,7 +645,8 @@ You are a world-class analyst — think and answer with your own knowledge and r
 
 Your tools:
 - web_search — for live data and anything current: prices, % changes, breaking news, catalysts, dates.
-- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus a real Claude AI analysis of that stock's recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks and confirmed earnings dates. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user (it has no knowledge of anyone's personal position).
+- calculate — a real calculator. Any time your answer involves arithmetic (a percentage, a difference, a ratio, a sum, an average — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user.
+- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus a real Claude AI analysis of that stock's recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, confirmed earnings dates, and precomputed 1-week/1-month price % change plus real analyst price-target upside/downside (already calculated for you against the live price — always use those numbers as given, never recalculate them from the raw price history or from a web search). Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user (it has no knowledge of anyone's personal position).
 - get_market_scan — the SwingRush "Scanner": signals across the whole stock universe, each with a combined score = a technical score + a news score (news is keyword/analyst-based sentiment, not the deep Claude AI news analysis the Pro Engine runs); both sub-scores are shown. For breadth questions (e.g. best setups today, ideas under a given price, strongest buys/sells).
 - get_my_calls — this user's own portfolio: the trades they personally posted, with entry, TP/SL and outcome (WIN/LOSS/OPEN).
 - show_chart — render a price chart for a symbol (optional timeframe 1d or 1h).

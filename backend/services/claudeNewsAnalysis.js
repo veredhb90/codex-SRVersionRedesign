@@ -165,17 +165,45 @@ const fetchEarningsHistory = (symbol) => new Promise((resolve) => {
   req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
+// ── Fetch REAL analyst price targets from Finnhub — structured numbers,
+// not something Claude has to read off a random webpage via web_search.
+// The upside/downside % against the live price is computed later in
+// chat.js, using the exact same live price already used for everything
+// else in that result, so the two numbers can never come from different
+// moments in time (the bug this was built to fix).
+const fetchPriceTarget = (symbol) => new Promise((resolve) => {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  const url = `https://finnhub.io/api/v1/stock/price-target?symbol=${symbol}&token=${apiKey}`;
+  const req = require('https').get(url, { timeout: 15000 }, (res) => {
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
+    res.on('end', () => {
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!parsed || !parsed.targetMean) return resolve(null);
+        resolve({
+          high: parsed.targetHigh, low: parsed.targetLow,
+          mean: parsed.targetMean, median: parsed.targetMedian,
+          lastUpdated: parsed.lastUpdated,
+        });
+      } catch (e) { resolve(null); }
+    });
+  }).on('error', () => resolve(null));
+  req.on('timeout', () => req.destroy(new Error('timed out')));
+});
+
 const getClaudeNewsAnalysis = async (symbol, companyName) => {
   const cacheKey = 'news_' + symbol.toUpperCase();
   const cached = fromNewsCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
   try {
-    const [articles, ratings, upcomingEarnings, earningsHistory] = await Promise.all([
+    const [articles, ratings, upcomingEarnings, earningsHistory, priceTarget] = await Promise.all([
       enqueueFinnhubCall(() => fetchFinnhubNews(symbol), { priority: true }),
       enqueueFinnhubCall(() => fetchAnalystRatings(symbol), { priority: true }),
       enqueueFinnhubCall(() => fetchUpcomingEarnings(symbol), { priority: true }),
       enqueueFinnhubCall(() => fetchEarningsHistory(symbol), { priority: true }),
+      enqueueFinnhubCall(() => fetchPriceTarget(symbol), { priority: true }),
     ]);
 
     let analystSummary = 'No analyst rating data available.';
@@ -221,6 +249,7 @@ Respond with the JSON format specified.`;
       upcomingEarnings: upcomingEarnings,
       earningsHistory: earningsHistory,
       analystSummary,
+      priceTarget,
       fromCache: false,
     };
 
@@ -232,7 +261,7 @@ Respond with the JSON format specified.`;
       score: 0, label: 'Unavailable',
       summary: 'AI news analysis temporarily unavailable — technical score only.',
       reasoning: '',
-      catalysts: [], risks: [], articleCount: 0, analystSummary: '', fromCache: false, error: true,
+      catalysts: [], risks: [], articleCount: 0, analystSummary: '', priceTarget: null, fromCache: false, error: true,
     };
   }
 };

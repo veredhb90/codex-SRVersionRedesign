@@ -230,6 +230,17 @@ const roc = (closes, period = 10) => {
   return past ? ((now - past) / past) * 100 : 0;
 };
 
+// ── Real % change over a trading-day period, computed from actual closes ──
+// (5 trading days ≈ 1 calendar week, 21 ≈ 1 calendar month). Returned to
+// Claude as a precomputed fact so he never has to derive this himself from
+// the raw price history — real division, always correct.
+const changeOverPeriod = (closes, tradingDaysBack) => {
+  if (closes.length <= tradingDaysBack) return null;
+  const past = closes[closes.length - 1 - tradingDaysBack];
+  const now  = closes[closes.length - 1];
+  return past ? +(((now - past) / past) * 100).toFixed(2) : null;
+};
+
 const atr = (highs, lows, closes, period = 14) => {
   if (closes.length < period + 1) return 0;
   const trs = [];
@@ -379,6 +390,8 @@ const getProTechnicalScore = async (symbol) => {
     symbol: quote.symbol, name: quote.shortName, price, changePct, regularSessionPrice, marketState,
     breakdown,
     score, signals, direction, realAtr,
+    change1w: changeOverPeriod(closes, 5),
+    change1m: changeOverPeriod(closes, 21),
     candles: rowCandles,
   };
 };
