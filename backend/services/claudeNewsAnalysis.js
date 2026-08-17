@@ -211,7 +211,16 @@ const getClaudeNewsAnalysis = async (symbol, companyName) => {
       const total = (ratings.strongBuy || 0) + (ratings.buy || 0) + (ratings.hold || 0) + (ratings.sell || 0) + (ratings.strongSell || 0);
       if (total > 0) {
         const bullishPct = Math.round(((ratings.strongBuy || 0) + (ratings.buy || 0)) / total * 100);
-        analystSummary = `${total} analysts covering: ${bullishPct}% rate BUY/STRONG BUY, ${ratings.hold || 0} HOLD, ${ratings.sell || 0} SELL, ${ratings.strongSell || 0} STRONG SELL.`;
+        // Lead with a single, unambiguous BULLISH/BEARISH/MIXED word — a clean
+        // one-word fact to translate — before the granular breakdown. The old
+        // format packed BUY/STRONG BUY/HOLD/SELL/STRONG SELL right next to each
+        // other in one dense clause, which is exactly the kind of proximity
+        // that caused a real bug: translating this into Arabic sometimes swapped
+        // the polarity word (94% BUY became 94% "SELL") mid-sentence, especially
+        // inside more complex contrastive sentence structures. Never make the
+        // model synthesize the overall direction itself from four adjacent labels.
+        const overall = bullishPct >= 60 ? 'BULLISH' : bullishPct <= 40 ? 'BEARISH' : 'MIXED/NEUTRAL';
+        analystSummary = `${total} analysts covering — overall ${overall} (${bullishPct}% rate BUY or STRONG BUY). Full breakdown: ${ratings.buy || 0} BUY, ${ratings.strongBuy || 0} STRONG BUY, ${ratings.hold || 0} HOLD, ${ratings.sell || 0} SELL, ${ratings.strongSell || 0} STRONG SELL.`;
       }
     }
 
