@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // PRO ENGINE ROUTE — GET /api/pro-engine/:symbol
-// Combines standalone technical score + real Claude news analysis.
+// Combines standalone technical score + real OpenAI news analysis.
 // Protected + Pro-only. Does not touch the existing Signal Engine
 // or Scanner routes/services in any way.
 // ═══════════════════════════════════════════════════════════════════
@@ -10,7 +10,7 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { requirePro } = require('../middleware/requirePro');
 const { getProTechnicalScore } = require('../services/proEngine');
-const { getClaudeNewsAnalysis } = require('../services/claudeNewsAnalysis');
+const { getOpenAINewsAnalysis } = require('../services/openaiNewsAnalysis');
 
 const getConfidence = (absScore) => {
   if (absScore >= 17) return 'Very High';
@@ -27,7 +27,7 @@ router.get('/:symbol', protect, requirePro, async (req, res) => {
 
     const [technical, newsAnalysis] = await Promise.all([
       getProTechnicalScore(symbol),
-      getClaudeNewsAnalysis(symbol),
+      getOpenAINewsAnalysis(symbol),
     ]);
 
     if (technical.insufficientData) {
@@ -37,7 +37,7 @@ router.get('/:symbol', protect, requirePro, async (req, res) => {
       });
     }
 
-    // Combine: technical score + Claude's news score (news is -5 to +5, separate scale, added directly)
+    // Combine: technical score + OpenAI news score (news is -10 to +10, added directly)
     const combinedScore = technical.score + newsAnalysis.score;
     const absScore = Math.abs(combinedScore);
 
@@ -70,6 +70,7 @@ router.get('/:symbol', protect, requirePro, async (req, res) => {
       regularSessionPrice: technical.regularSessionPrice || technical.price,
       changePct: technical.changePct,
       marketState: technical.marketState || 'Regular Session',
+      quoteTime: technical.priceTime ? new Date(technical.priceTime * 1000).toISOString() : null,
 
       // Combined result
       score: combinedScore,
@@ -94,6 +95,7 @@ router.get('/:symbol', protect, requirePro, async (req, res) => {
       holdingPeriod: newsAnalysis.holdingPeriod || '',
       upcomingEarnings: newsAnalysis.upcomingEarnings || [],
       newsFromCache: newsAnalysis.fromCache,
+      newsAnalyzedAt: newsAnalysis.analyzedAt || null,
     });
   } catch (err) {
     console.log('Pro engine error:', err.message);

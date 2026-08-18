@@ -232,7 +232,7 @@ const roc = (closes, period = 10) => {
 
 // ── Real % change over a trading-day period, computed from actual closes ──
 // (5 trading days ≈ 1 calendar week, 21 ≈ 1 calendar month). Returned to
-// Claude as a precomputed fact so he never has to derive this himself from
+// the AI as a precomputed fact so it never has to derive this itself from
 // the raw price history — real division, always correct.
 const changeOverPeriod = (closes, tradingDaysBack) => {
   if (closes.length <= tradingDaysBack) return null;
@@ -272,12 +272,12 @@ const adx = (highs, lows, closes, period = 14) => {
   return { adx: +dx.toFixed(1), plusDI: +plusDI.toFixed(1), minusDI: +minusDI.toFixed(1) };
 };
 
-// ── MAIN: Technical-only scoring (NO news — Claude handles that separately) ──
+// ── MAIN: Technical-only scoring (news AI runs separately) ──
 const getProTechnicalScore = async (symbol) => {
   // Quote and candles are independent Yahoo calls — fetch them in parallel
   // instead of sequentially (saves a full round-trip on every Pro Engine run).
   const [quote, candles] = await Promise.all([getQuote(symbol), getCandles(symbol, 120)]);
-  const { price, changePct, regularSessionPrice, marketState } = quote;
+  const { price, changePct, regularSessionPrice, marketState, priceTime } = quote;
 
   if (!candles || candles.c.length < 20) {
     return {
@@ -387,7 +387,7 @@ const getProTechnicalScore = async (symbol) => {
   }));
 
   return {
-    symbol: quote.symbol, name: quote.shortName, price, changePct, regularSessionPrice, marketState,
+    symbol: quote.symbol, name: quote.shortName, price, changePct, regularSessionPrice, marketState, priceTime,
     breakdown,
     score, signals, direction, realAtr,
     change1w: changeOverPeriod(closes, 5),

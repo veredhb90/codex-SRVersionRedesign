@@ -1072,7 +1072,7 @@ window.openProUpgradeModal = function() {
   m.innerHTML = '<div style="background:#fff;border-radius:18px;padding:32px 28px;max-width:420px;width:100%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.3);">' +
     '<div style="font-size:40px;margin-bottom:8px;">��</div>' +
     '<h3 style="font-size:20px;color:#0D2244;margin-bottom:10px;">' + t('feed.pe_locked_title', 'AI Pro Analysis is a Pro feature') + '</h3>' +
-    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">' + t('feed.pe_locked_copy', 'Unlock real Claude AI news analysis, catalysts, and risk detection combined with technical scoring.') + '</p>' +
+    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">' + t('feed.pe_locked_copy', 'Unlock real OpenAI GPT-5.6 news analysis, catalysts, and risk detection combined with technical scoring.') + '</p>' +
     '<a href="/payment.html" style="display:block;background:#0D2244;color:#fff;font-weight:700;padding:11px;border-radius:10px;text-decoration:none;margin-bottom:10px;font-size:14px;">' + t('home.continue_payment', 'Continue to Payment') + '</a>' +
     '<button onclick="document.getElementById(\'sr-pro-upgrade-modal\').remove()" style="width:100%;background:transparent;color:#475569;border:none;padding:8px;cursor:pointer;font-size:13px;">' + t('login.cancel', 'Cancel') + '</button>' +
     '</div>';
@@ -1093,7 +1093,7 @@ window.renderProEngineSection = function(containerId, afterElementId, symbol) {
       '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:14px;padding:18px 20px;color:#fff;display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="openProUpgradeModal()">' +
       '<div style="font-size:28px;">🧠🔒</div>' +
       '<div style="flex:1;"><div style="font-weight:800;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</div>' +
-      '<div style="font-size:12px;opacity:0.85;margin-top:2px;">' + t('feed.pe_locked_sub', 'Real Claude AI news reasoning, catalysts & risks — Pro members only') + '</div></div>' +
+      '<div style="font-size:12px;opacity:0.85;margin-top:2px;">' + t('feed.pe_locked_sub', 'Real OpenAI GPT-5.6 news reasoning, catalysts & risks — Pro members only') + '</div></div>' +
       '<div style="background:rgba(255,255,255,0.2);padding:6px 14px;border-radius:10px;font-size:12px;font-weight:700;">' + t('feed.pe_unlock', 'Unlock') + ' ⚡</div>' +
       '</div>';
     return;
@@ -1103,7 +1103,7 @@ window.renderProEngineSection = function(containerId, afterElementId, symbol) {
     '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:14px;">' +
     '<div style="font-size:28px;">🧠</div>' +
     '<div style="flex:1;"><div style="font-weight:800;color:#0D2244;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</div>' +
-    '<div style="font-size:12px;color:#64748b;margin-top:2px;">' + t('feed.pe_run_copy', 'Run real Claude AI reasoning on') + ' ' + symbol + ' — ' + t('feed.pe_run_copy2', 'news, catalysts, risks') + '</div></div>' +
+    '<div style="font-size:12px;color:#64748b;margin-top:2px;">' + t('feed.pe_run_copy', 'Run real OpenAI GPT-5.6 reasoning on') + ' ' + symbol + ' — ' + t('feed.pe_run_copy2', 'news, catalysts, risks') + '</div></div>' +
     '<button onclick="runProEngineAnalysis(\'' + containerId + '\', \'' + symbol + '\')" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">' + t('feed.pe_analyze_btn', 'Analyze') + ' 🧠</button>' +
     '</div>';
 };
@@ -1115,7 +1115,7 @@ function SR_PE_STEPS_LIST() {
     t('feed.pe_step_1', 'Fetching latest news…'),
     t('feed.pe_step_2', 'Checking analyst ratings…'),
     t('feed.pe_step_3', 'Reading technical indicators…'),
-    t('feed.pe_step_4', 'Reasoning with Claude AI…'),
+    t('feed.pe_step_4', 'Reasoning with OpenAI GPT-5.6…'),
     t('feed.pe_step_5', 'Finalizing score…'),
   ];
 }
@@ -1224,7 +1224,7 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       catalystsHtml + risksHtml +
       '</div>' +
 
-      '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
       '</div>';
     if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
   } catch (err) {
@@ -1284,7 +1284,7 @@ window.runProEngineModal = async function() {
       '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:14px;padding:20px;color:#fff;text-align:center;">' +
       '<div style="font-size:32px;margin-bottom:8px;">🧠🔒</div>' +
       '<div style="font-weight:800;font-size:15px;margin-bottom:6px;">' + t('feed.pe_engine_locked_title', 'AI Pro Engine is a Pro feature') + '</div>' +
-      '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">' + t('feed.pe_engine_locked_copy', 'Analyze any stock with real Claude AI reasoning on news, catalysts, and risks — combined with 8 technical indicators.') + '</div>' +
+      '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">' + t('feed.pe_engine_locked_copy', 'Analyze any stock with real OpenAI GPT-5.6 reasoning on news, catalysts, and risks — combined with 8 technical indicators.') + '</div>' +
       '<a href="/payment.html" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:9px 18px;border-radius:10px;text-decoration:none;font-size:13px;">' + t('feed.pe_upgrade_to_pro', 'Upgrade to Pro') + '</a>' +
       '</div>';
     return;
@@ -1358,7 +1358,7 @@ window.runProEngineModal = async function() {
       catalystsHtml + risksHtml +
       '</div>' +
 
-      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
       '</div>';
     if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
   } catch (err) {

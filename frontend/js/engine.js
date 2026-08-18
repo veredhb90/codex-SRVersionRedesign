@@ -234,8 +234,8 @@
 
   // ── Pro Engine upsell popup (Pro users only) ──────────────────────
   // Shown after a Free Signal Engine BUY/SELL result. Offers a real Pro
-  // Engine deep-dive (Claude AI news + technicals). Runs on demand only —
-  // never auto-fires, so it doesn't burn the shared Finnhub/Claude quota.
+  // Engine deep-dive (OpenAI GPT-5.6 news + technicals). Runs on demand only —
+  // never auto-fires, so it doesn't burn the shared Finnhub/OpenAI quota.
   function showProEnginePopup(r) {
     var sym = r.symbol;
     var dir = r.direction;
@@ -256,7 +256,7 @@
           '<div style="text-align:center;">' +
             '<div style="font-size:30px;margin-bottom:10px;color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + (dir === 'BUY' ? '▲' : '▼') + '</div>' +
             '<div style="font-family:var(--font-disp,inherit);font-size:20px;letter-spacing:.5px;color:var(--text);margin-bottom:8px;">' + t('home.eng_more_accurate', 'More accurate analysis for') + ' $' + sym + '</div>' +
-            '<p style="color:var(--text2);font-size:13.5px;line-height:1.6;max-width:400px;margin:0 auto 20px;">' + t('home.eng_popup_pre', 'Your Free Signal Engine result is a') + ' <strong style="color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + dir + '</strong> ' + t('home.eng_popup_post', 'based on technicals only. Run the') + ' <strong>AI Pro Engine</strong> ' + t('home.eng_popup_post2', 'for real Claude AI news analysis, catalysts, risks and a combined score.') + '</p>' +
+            '<p style="color:var(--text2);font-size:13.5px;line-height:1.6;max-width:400px;margin:0 auto 20px;">' + t('home.eng_popup_pre', 'Your Free Signal Engine result is a') + ' <strong style="color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + dir + '</strong> ' + t('home.eng_popup_post', 'based on technicals only. Run the') + ' <strong>AI Pro Engine</strong> ' + t('home.eng_popup_post2', 'for real OpenAI GPT-5.6 news analysis, catalysts, risks and a combined score.') + '</p>' +
             '<button id="sr-eng-pro-run" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;padding:12px 26px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(79,125,255,0.35);">' + t('home.eng_analyze_with_pro', 'Analyze with Pro Engine') + ' 🧠</button>' +
           '</div>' +
         '</div>' +
@@ -336,6 +336,6 @@
         (d.analystSummary ? '<p style="font-size:12px;color:var(--text2);margin-top:8px;">' + d.analystSummary + '</p>' : '') +
         catalysts + risks +
       '</div>' +
-      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by', 'Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed', 'articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached', 'cached') : '') + '</div>';
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by', 'Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed', 'articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached', 'cached') : '') + '</div>';
   }
 })();

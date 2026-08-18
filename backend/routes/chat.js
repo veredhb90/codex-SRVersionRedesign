@@ -1,9 +1,9 @@
 const express    = require('express');
 const router     = express.Router();
 const { protect } = require('../middleware/authMiddleware');
-const { getEngineRecommendation } = require('../services/yahooFinance');
-const { getProTechnicalScore, getCandles, getQuote } = require('../services/proEngine');
-const { getClaudeNewsAnalysis } = require('../services/claudeNewsAnalysis');
+const { getProTechnicalScore, getQuote } = require('../services/proEngine');
+const { getOpenAINewsAnalysis } = require('../services/openaiNewsAnalysis');
+const { createOpenAIResponse, extractOutputText } = require('../services/openaiResponses');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
 
@@ -57,13 +57,12 @@ const extractSymbols = (text) => {
   return [...new Set(found)].slice(0, 3);
 };
 
-// ── Call Claude ────────────────────────────────────────────────────
 // ── Run the Pro Engine (technical + AI news) for one symbol ─────────
 // Returns null if there's insufficient data. Used by the get_stock_analysis tool.
 const runProEngineFor = async (sym) => {
   const [tech, newsA] = await Promise.all([
     getProTechnicalScore(sym),
-    getClaudeNewsAnalysis(sym),
+    getOpenAINewsAnalysis(sym),
   ]);
   if (tech.insufficientData) return null;
   // Analyst-target upside/downside, computed here using the SAME live price
@@ -106,6 +105,7 @@ const runProEngineFor = async (sym) => {
   }
   return {
     symbol: sym, price: tech.price, regularSessionPrice: tech.regularSessionPrice || tech.price, changePct: tech.changePct, marketState: tech.marketState || 'Regular Session',
+    quoteTime: tech.priceTime ? new Date(tech.priceTime * 1000).toISOString() : null,
     direction, score: combinedScore, confidence,
     takeProfit, stopLoss, riskReward, tpPct, slPct,
     technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
@@ -116,18 +116,19 @@ const runProEngineFor = async (sym) => {
     priceTarget: newsA.priceTarget || null, targetUpsidePct,
     holdingPeriod: newsA.holdingPeriod || '',
     upcomingEarnings: newsA.upcomingEarnings || [],
+    newsAnalyzedAt: newsA.analyzedAt || null,
     priceHistory: tech.candles || [],
     news: [],
   };
 };
 
-// ── Format a Pro Engine result into readable text for Claude ────────
+// ── Format a Pro Engine result into verified text for the AI ────────
 const formatProEngineText = (e, sym) => {
   const breakdownText = (e.technicalBreakdown || []).map(b => `  ${b.indicator}: ${b.points > 0 ? '+' : ''}${b.points} (${b.note})`).join('\n');
   const catalystsText = (e.catalysts || []).length ? e.catalysts.map(c => `  \u2022 ${c}`).join('\n') : '  None identified';
   const risksText = (e.risks || []).length ? e.risks.map(r2 => `  \u2022 ${r2}`).join('\n') : '  None identified';
   return `SWINGRUSH PRO ENGINE: ${sym}
-${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}%
+${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}% | Quote time: ${e.quoteTime || 'not supplied'}
 SIGNAL: ${e.direction} | Combined Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
 ${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}` : 'No trade setup \u2014 score below conviction threshold'}
 PRECOMPUTED FIGURES (real math, already calculated correctly \u2014 state these numbers as-is, do NOT recompute them yourself from the raw price history or from anything found via web_search):
@@ -138,7 +139,7 @@ PRECOMPUTED FIGURES (real math, already calculated correctly \u2014 state these 
 - Analyst price target: ${e.priceTarget ? `avg $${e.priceTarget.mean}, high $${e.priceTarget.high}, low $${e.priceTarget.low} (last updated ${e.priceTarget.lastUpdated}) \u2192 ${e.targetUpsidePct >= 0 ? '+' : ''}${e.targetUpsidePct}% ${e.targetUpsidePct >= 0 ? 'upside' : 'downside'} vs current price $${e.price}, calculated fresh just now against this exact price` : 'No analyst price-target data available \u2014 say so rather than searching for and quoting one yourself'}
 TECHNICAL BREAKDOWN (${e.technicalScore} pts):
 ${breakdownText}
-AI NEWS ANALYSIS (${e.newsScore > 0 ? '+' : ''}${e.newsScore} pts) \u2014 ${e.newsLabel}:
+AI NEWS ANALYSIS (${e.newsScore > 0 ? '+' : ''}${e.newsScore} pts) \u2014 ${e.newsLabel} | Analyzed at: ${e.newsAnalyzedAt || 'not supplied'}:
 ${e.newsSummary}${e.newsReasoning ? '\nWHY THIS SCORE: ' + e.newsReasoning : ''}
 CATALYSTS:
 ${catalystsText}
@@ -154,49 +155,8 @@ ${(e.priceHistory || []).slice(-30).map(c => {
 }).join('\n')}`;
 };
 
-// ── Raw single API call to Claude, returns the full parsed response ──
-const callClaudeRaw = (messages, systemPrompt, tools) => new Promise((resolve, reject) => {
-  const body = JSON.stringify({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 8192,
-    system: systemPrompt,
-    messages,
-    tools,
-  });
-  const req = https.request({
-    hostname: 'api.anthropic.com',
-    path: '/v1/messages',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-  }, (res) => {
-    // Collect raw Buffer chunks and decode once at the end -- concatenating
-    // Buffers into a string chunk-by-chunk (`data += d`) implicitly calls
-    // toString('utf8') on each partial chunk, corrupting any multi-byte
-    // character split across a chunk boundary into a replacement character.
-    // Hebrew/Arabic text is multi-byte throughout, so this hit those
-    // languages far more often than English.
-    const chunks = [];
-    res.on('data', d => chunks.push(d));
-    res.on('end', () => {
-      try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        if (parsed.error) return reject(new Error(parsed.error.message));
-        resolve(parsed);
-      } catch(e) { reject(e); }
-    });
-  });
-  req.on('error', reject);
-  req.write(body);
-  req.end();
-});
-
-// ── Tool definitions - Claude decides for himself when to use these ──
-const CLAUDE_TOOLS = [
-  { type: 'web_search_20250305', name: 'web_search' },
+// ── Tool definitions — GPT-5.6 decides when they are useful ─────────
+const SWINGRUSH_FUNCTION_TOOLS = [
   {
     name: 'calculate',
     description: 'A real calculator for ANY arithmetic in your answer — a percentage, a difference, a ratio, a sum, an average, a risk/reward calc, anything. Always call this instead of computing arithmetic yourself, even if it looks simple, since your own mental math is not reliable. Pass a plain arithmetic expression (numbers, + - * / ( ) . only) and it returns the exact real result — then state only that returned number.',
@@ -204,6 +164,15 @@ const CLAUDE_TOOLS = [
       type: 'object',
       properties: { expression: { type: 'string', description: 'A plain arithmetic expression, e.g. "(40.90 - 36.75) / 36.75 * 100"' } },
       required: ['expression'],
+    },
+  },
+  {
+    name: 'get_stock_quote',
+    description: 'Get the freshest available Yahoo Finance quote for one US stock, including regular-session price, current extended-hours price when available, percentage change, market state, and a retrieval timestamp. Use this for a simple current-price or current-change question; use get_stock_analysis instead when the user wants a full trade analysis.',
+    input_schema: {
+      type: 'object',
+      properties: { symbol: { type: 'string', description: 'US stock ticker, e.g. AAPL or NVDA.' } },
+      required: ['symbol'],
     },
   },
   {
@@ -229,7 +198,7 @@ const CLAUDE_TOOLS = [
   },
   {
     name: 'get_market_scan',
-    description: 'Get broad market-scan results across the full stock universe \u2014 all current BUY/SELL signals with price, TP, SL, confidence, grouped by price range. Each stock\'s total score COMBINES a technical score + a news score (the news is keyword/analyst-based sentiment, NOT the deep Claude AI news analysis the Pro Engine runs), and both sub-scores are shown per stock. Best for breadth questions like \'what are the best stocks today\', \'any good stocks under $50\', \'show me strong sell signals\'. For one specific stock, get_stock_analysis is higher quality (real AI news analysis) and takes priority over this scan for that symbol. Mechanics, if asked: the universe is a fixed pool of 2000 US stocks ranked by market cap; each run scans 500 of them (a fixed 300-stock core of the biggest names, always included, plus 200 randomly rotated from the remaining ~1700 so the long tail gets covered over time); it auto-runs every 6 hours on trading weekdays (not continuously, not every-few-minutes) and shows the latest completed run\'s results on weekends. If asked something about the scanner\'s mechanics not covered here, say you don\'t have that specific detail rather than guessing a number.',
+    description: 'Get broad market-scan results across the full stock universe \u2014 all current BUY/SELL signals with price, TP, SL, confidence, grouped by price range. Each stock\'s total score COMBINES a technical score + a news score (the news is keyword/analyst-based sentiment, NOT the deep OpenAI news analysis the Pro Engine runs), and both sub-scores are shown per stock. Best for breadth questions like \'what are the best stocks today\', \'any good stocks under $50\', \'show me strong sell signals\'. For one specific stock, get_stock_analysis is higher quality (real AI news analysis) and takes priority over this scan for that symbol. Mechanics, if asked: the universe is a fixed pool of 2000 US stocks ranked by market cap; each run scans 500 of them (a fixed 300-stock core of the biggest names, always included, plus 200 randomly rotated from the remaining ~1700 so the long tail gets covered over time); it auto-runs every 6 hours on trading weekdays (not continuously, not every-few-minutes) and shows the latest completed run\'s results on weekends. If asked something about the scanner\'s mechanics not covered here, say you don\'t have that specific detail rather than guessing a number.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -265,7 +234,45 @@ const CLAUDE_TOOLS = [
   {
     name: 'get_my_calls',
     description: 'Get the trade calls that THIS specific user (the one you are chatting with right now) has personally posted \u2014 their own open and closed positions, with entry price, TP/SL, and outcome (WIN/LOSS/OPEN). Genuinely useful any time you\'re about to give entry/sizing/timing advice on a specific stock \u2014 whether they already hold that exact symbol changes what good advice looks like (e.g. averaging into an existing position vs. a fresh entry, or a possible take-profit conversation vs. a new buy), so it\'s often worth a quick check even if they didn\'t explicitly ask "what do I already have". Also directly useful if they ask how they\'re doing, reference \'my calls\'/\'my trades\', or want advice that should factor in their existing holdings. This is different from get_market_scan or general community sentiment \u2014 it is specifically about this one user\'s own activity.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['open', 'closed', 'any'], description: 'Optional status filter. Default any.' },
+        direction: { type: 'string', enum: ['BUY', 'SELL'], description: 'Optional direction filter.' },
+        symbol: { type: 'string', description: 'Optional one-ticker filter.' },
+        limit: { type: 'number', description: 'Maximum rows to return, default 50 and maximum 200.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'get_my_profile',
+    description: 'Get the current user\'s safe SwingRush account and trader-profile facts: name, username, active plan, profile settings, watchlist, and follower/following counts. Use it when the user asks about their profile, preferences, membership, watchlist, or when those details materially improve personalization. Never infer missing profile fields.',
     input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'get_community_sentiment',
+    description: 'Get live SwingRush community positioning for one ticker: counts and percentages of currently open BUY and SELL calls. Use for questions about what SwingRush traders or the community are doing. Community positioning is context, not proof that a trade is correct.',
+    input_schema: {
+      type: 'object',
+      properties: { symbol: { type: 'string', description: 'US stock ticker, e.g. TSLA.' } },
+      required: ['symbol'],
+    },
+  },
+  {
+    name: 'get_swingrush_knowledge',
+    description: 'Get verified product knowledge about how SwingRush works. Use this for questions about the social network, Pro Engine, Scanner, portfolio/trade tracking, or the difference between platform engines instead of guessing from general knowledge.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          enum: ['overview', 'social', 'pro_engine', 'scanner', 'portfolio', 'data_sources'],
+          description: 'The SwingRush area the user is asking about.',
+        },
+      },
+      required: ['topic'],
+    },
   },
   {
     name: 'get_open_positions_progress',
@@ -286,8 +293,19 @@ const CLAUDE_TOOLS = [
   },
 ];
 
+const OPENAI_TOOLS = [
+  { type: 'web_search' },
+  ...SWINGRUSH_FUNCTION_TOOLS.map(tool => ({
+    type: 'function',
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.input_schema,
+    strict: false,
+  })),
+];
+
 // ── Execute a tool call server-side and return its result text ──────
-// ── Fetch the market scanner data (500/run from a 2000-stock universe), formatted for Claude ──
+// ── Fetch the market scanner data (500/run from a 2000-stock universe), formatted for the AI ──
 // Returns null if no scan data is available yet.
 const fetchScannerData = async () => {
   try {
@@ -301,7 +319,7 @@ const fetchScannerData = async () => {
     const sells = all.filter(r => r.direction === 'SELL');
     const split = (r) => `(tech ${r.technicalScore >= 0 ? '+' : ''}${r.technicalScore ?? '?'}, news ${r.newsScore > 0 ? '+' : ''}${r.newsScore ?? 0}${r.newsLabel ? ' ' + r.newsLabel : ''})`;
     return `SWINGRUSH MARKET SCANNER (${doc.scannedCount} stocks scanned, last updated: ${new Date(doc.scannedAt).toLocaleString()})
-Each stock's total score combines a TECHNICAL score + a NEWS score (the news is keyword/analyst-based sentiment, not the deep Claude AI news analysis the Pro Engine runs). This is a broad multi-stock scan \u2014 NOT the same as a Pro Engine analysis for one symbol. If a symbol here also has a Pro Engine result, the Pro Engine number is authoritative, not this one.
+Each stock's total score combines a TECHNICAL score + a NEWS score (the news is keyword/analyst-based sentiment, not the deep OpenAI news analysis the Pro Engine runs). This is a broad multi-stock scan \u2014 NOT the same as a Pro Engine analysis for one symbol. If a symbol here also has a Pro Engine result, the Pro Engine number is authoritative, not this one.
 ALL BUY SIGNALS (${buys.length} stocks):
 ${buys.map((r, i) => `${i+1}. ${r.symbol}${r.name ? ' ('+r.name+')' : ''}: +${r.score} ${split(r)} | \$${r.price} | TP:\$${r.takeProfit} | SL:\$${r.stopLoss} | ${r.confidence}`).join('\n')}
 ALL SELL SIGNALS (${sells.length} stocks):
@@ -354,6 +372,29 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
       return `Result: ${result}`;
     } catch (e) {
       return `Invalid expression: could not evaluate.`;
+    }
+  }
+  if (toolName === 'get_stock_quote') {
+    const sym = String(toolInput.symbol || '').toUpperCase().trim();
+    if (!sym) return 'A stock ticker is required.';
+    try {
+      const quote = await getQuote(sym, { fresh: true });
+      const priceTime = quote.priceTime ? new Date(quote.priceTime * 1000).toISOString() : null;
+      return JSON.stringify({
+        source: 'Yahoo Finance',
+        retrievedAt: new Date().toISOString(),
+        quoteTime: priceTime,
+        symbol: quote.symbol,
+        companyName: quote.shortName || quote.symbol,
+        price: quote.price,
+        regularSessionPrice: quote.regularSessionPrice,
+        changePct: +Number(quote.changePct || 0).toFixed(2),
+        marketState: quote.marketState,
+        fiftyTwoWeekHigh: quote.high52 ?? null,
+        fiftyTwoWeekLow: quote.low52 ?? null,
+      });
+    } catch (e) {
+      return `Could not fetch a verified live quote for ${sym}: ${e.message}. Do not guess the price.`;
     }
   }
   if (toolName === 'get_stock_analysis') {
@@ -475,7 +516,16 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
     try {
       const mongoose = require('mongoose');
       const Recommendation = mongoose.models.Recommendation || require('../models/Recommendation');
-      const recs = await Recommendation.find({ user: userId }).sort({ createdAt: -1 }).limit(20);
+      const query = { user: userId };
+      if (toolInput.status === 'open') query.isOpen = true;
+      else if (toolInput.status === 'closed') query.isOpen = false;
+      if (toolInput.direction === 'BUY' || toolInput.direction === 'SELL') query.direction = toolInput.direction;
+      if (toolInput.symbol) query.symbol = String(toolInput.symbol).toUpperCase().trim();
+      const limit = Math.max(1, Math.min(Number(toolInput.limit) || 50, 200));
+      const [recs, total] = await Promise.all([
+        Recommendation.find(query).sort({ createdAt: -1 }).limit(limit),
+        Recommendation.countDocuments(query),
+      ]);
       if (!recs.length) return 'This user has not posted any trade calls yet.';
       const lines2 = recs.map(r => {
         const status = r.isOpen ? 'OPEN' : (r.outcome === 'WIN' ? 'WIN' : r.outcome === 'LOSS' ? 'LOSS' : 'CLOSED');
@@ -483,10 +533,73 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
         const opened = r.openedAt || r.createdAt;
         return `${r.symbol} | ${r.direction} | Entry: $${r.entryPrice} | TP: $${r.takeProfit}${r.stopLoss ? ' | SL: $' + r.stopLoss : ''} | ${status}${ret} | Opened: ${opened.toISOString().split('T')[0]}`;
       });
-      return `This user's own posted trade calls (most recent first):\n${lines2.join('\n')}`;
+      return `This user's own posted trade calls (most recent first; showing ${recs.length} of ${total} matching records):\n${lines2.join('\n')}` +
+        (total > recs.length ? '\nMore matching records exist. Apply symbol/status/direction filters or request another focused view; use aggregate_my_trades for statistics across all matches.' : '');
     } catch (e) {
       return `Failed to fetch user's calls: ${e.message}`;
     }
+  }
+  if (toolName === 'get_my_profile') {
+    try {
+      const User = require('../models/User');
+      const user = await User.findById(userId)
+        .select('fullName username plan subscriptionEnd cancelledAt billingCycle traderProfile watchlist followers following')
+        .lean();
+      if (!user) return 'The current SwingRush user profile was not found.';
+      const subscriptionActive = user.plan === 'pro' && user.subscriptionEnd && new Date(user.subscriptionEnd) > new Date();
+      return JSON.stringify({
+        source: 'SwingRush user database',
+        retrievedAt: new Date().toISOString(),
+        fullName: user.fullName,
+        username: user.username,
+        plan: subscriptionActive ? 'pro' : 'free',
+        subscriptionEnd: user.subscriptionEnd || null,
+        subscriptionCancelled: Boolean(user.cancelledAt),
+        billingCycle: user.billingCycle || null,
+        traderProfile: user.traderProfile || { onboardingDone: false },
+        watchlist: user.watchlist || [],
+        followerCount: user.followers?.length || 0,
+        followingCount: user.following?.length || 0,
+      });
+    } catch (e) {
+      return `Failed to fetch the user's SwingRush profile: ${e.message}`;
+    }
+  }
+  if (toolName === 'get_community_sentiment') {
+    const sym = String(toolInput.symbol || '').toUpperCase().trim();
+    if (!sym) return 'A stock ticker is required.';
+    try {
+      const Recommendation = require('../models/Recommendation');
+      const [buyCount, sellCount] = await Promise.all([
+        Recommendation.countDocuments({ symbol: sym, isOpen: true, direction: 'BUY', profileOnly: { $ne: true } }),
+        Recommendation.countDocuments({ symbol: sym, isOpen: true, direction: 'SELL', profileOnly: { $ne: true } }),
+      ]);
+      const total = buyCount + sellCount;
+      const buyPct = total ? +((buyCount / total) * 100).toFixed(2) : 0;
+      return JSON.stringify({
+        source: 'SwingRush community database',
+        retrievedAt: new Date().toISOString(),
+        symbol: sym,
+        openCalls: total,
+        buyCalls: buyCount,
+        sellCalls: sellCount,
+        buyPct,
+        sellPct: total ? +(100 - buyPct).toFixed(2) : 0,
+      });
+    } catch (e) {
+      return `Failed to fetch SwingRush community sentiment for ${sym}: ${e.message}`;
+    }
+  }
+  if (toolName === 'get_swingrush_knowledge') {
+    const facts = {
+      overview: 'SwingRush is a social trading network with a community feed, transparent trade calls, profiles and leaderboard, a Free Signal Engine, a Pro Engine, a Market Scanner, and an AI research desk. MongoDB is authoritative for accounts, trades, social activity, chat history, notifications, and stored scanner results.',
+      social: 'Users can publish BUY or SELL trade calls with entry, take-profit, and stop-loss; close trades with realized outcomes; follow traders; like, comment, and repost; receive notifications; review trader profiles and leaderboard performance. Open community BUY/SELL positioning for a ticker is contextual sentiment, not a guarantee.',
+      pro_engine: 'The Pro Engine is the highest-quality SwingRush source for one symbol. It combines 8 technical indicators worth up to ±14 points with GPT-5.6 Sol analysis of recent Finnhub news worth up to ±10 points, producing a combined score from -24 to +24. It includes live/extended-hours Yahoo pricing, catalysts, risks, analyst consensus and targets, confirmed earnings dates, and ATR-based entry/TP/SL. It is calibrated for roughly 1–3 week swing trades and is objective, identical for every user.',
+      scanner: 'The Market Scanner is a breadth/discovery tool, not the Pro Engine. Its universe is 2,000 US stocks ranked by market cap. Each run scans 500: the largest 300 always, plus 200 rotated from the remaining roughly 1,700. On trading weekdays it refreshes every 6 hours and retains the last completed run. It uses the Free Signal Engine technical logic plus Finnhub keyword/analyst news scoring; it does not run deep GPT-5.6 news analysis for every scanned ticker. If Scanner and Pro Engine disagree for one symbol, the Pro Engine is authoritative.',
+      portfolio: 'SwingRush stores each user\'s posted calls, including direction, entry, target, stop, open/closed state, WIN/LOSS outcome, and recorded return. Portfolio aggregate tools calculate counts, win rate, average return and total return directly from stored records. Open-position progress uses each position\'s actual recorded TP/SL with a fresh quote; it must never substitute a new Pro Engine hypothetical target.',
+      data_sources: 'Yahoo Finance supplies quotes and candles. Finnhub supplies recent company news, analyst recommendations, earnings calendars/history, and analyst price targets. The SwingRush database supplies user, portfolio, social, community and scanner state. OpenAI GPT-5.6 Sol provides language reasoning and deep news interpretation; it is not itself the source of live prices or private user data.',
+    };
+    return facts[toolInput.topic] || facts.overview;
   }
   if (toolName === 'get_open_positions_progress') {
     try {
@@ -529,9 +642,10 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
   return `Unknown tool: ${toolName}`;
 };
 
-// ── Full tool-use loop: Claude decides if/when to call tools, we execute
-// them server-side, feed results back, and repeat until he gives a final answer.
-const callClaude = async (messages, systemPrompt, userId) => {
+// ── Full Responses API tool loop. Every output item is replayed so GPT-5.6
+// keeps its reasoning state across function calls while store:false protects
+// private SwingRush/user context from provider-side response storage.
+const callOpenAI = async (messages, systemPrompt, userId) => {
   const chartRequests = [];
   let convo = [...messages];
   const MAX_TOOL_ROUNDS = 5;
@@ -547,38 +661,57 @@ const callClaude = async (messages, systemPrompt, userId) => {
   let accumulatedText = '';
 
   while (true) {
-    const parsed = await callClaudeRaw(convo, systemPrompt, CLAUDE_TOOLS);
+    const parsed = await createOpenAIResponse({
+      input: convo,
+      instructions: systemPrompt,
+      tools: toolRounds >= MAX_TOOL_ROUNDS ? [] : OPENAI_TOOLS,
+      maxOutputTokens: 16000,
+      verbosity: 'medium',
+    });
+    const output = Array.isArray(parsed.output) ? parsed.output : [];
+    const functionCalls = output.filter(item => item.type === 'function_call');
 
-    if (parsed.stop_reason === 'tool_use') {
+    if (functionCalls.length) {
       toolRounds++;
-      if (toolRounds > MAX_TOOL_ROUNDS) break;
-      const toolUseBlocks = (parsed.content || []).filter(b => b.type === 'tool_use');
+      convo.push(...output);
 
-      convo.push({ role: 'assistant', content: parsed.content });
-
-      const toolResults = [];
-      for (const block of toolUseBlocks) {
-        const resultText = await executeTool(block.name, block.input || {}, chartRequests, userId);
-        toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultText });
-      }
-      convo.push({ role: 'user', content: toolResults });
+      const toolResults = await Promise.all(functionCalls.map(async (call) => {
+        let args = {};
+        try {
+          args = JSON.parse(call.arguments || '{}');
+        } catch (e) {
+          return {
+            type: 'function_call_output',
+            call_id: call.call_id,
+            output: `Invalid JSON arguments for ${call.name}. Call the tool again with valid JSON.`,
+          };
+        }
+        const resultText = await executeTool(call.name, args, chartRequests, userId);
+        return {
+          type: 'function_call_output',
+          call_id: call.call_id,
+          output: String(resultText),
+        };
+      }));
+      convo.push(...toolResults);
       continue;
     }
 
-    const textBlocks = (parsed.content || []).filter(b => b.type === 'text').map(b => b.text);
-    accumulatedText += textBlocks.join('\n\n');
+    const responseText = extractOutputText(parsed);
+    if (responseText) accumulatedText += (accumulatedText ? '\n\n' : '') + responseText;
 
-    if (parsed.stop_reason === 'max_tokens' && continuations < MAX_CONTINUATIONS) {
+    if (parsed.status === 'incomplete' && parsed.incomplete_details?.reason === 'max_output_tokens' && continuations < MAX_CONTINUATIONS) {
       continuations++;
-      convo.push({ role: 'assistant', content: parsed.content });
+      convo.push(...output);
       convo.push({ role: 'user', content: 'Continue exactly where you left off \u2014 do not repeat or restart anything you already said, just keep writing from the exact point you stopped.' });
       continue;
     }
 
-    return { text: accumulatedText, charts: chartRequests };
+    return {
+      text: accumulatedText || 'I had trouble completing that analysis \u2014 please try again.',
+      charts: chartRequests,
+    };
   }
-
-  return { text: accumulatedText || 'I had trouble completing that analysis \u2014 please try again.', charts: chartRequests };
 };
 
 // ── Fetch candles for chart display ────────────────────────────────
@@ -694,13 +827,13 @@ router.post('/', protect, async (req, res) => {
         }
       }
     }
-    const needsEngine = symbols.length > 0; // used by community sentiment context below; actual engine data now comes via Claude's own tool calls
+    const needsEngine = symbols.length > 0; // used by community context below; engine data comes through the AI's tool calls
 
     // ── This user's own open position(s) in whatever symbol(s) are in play ──
     // Ambient fact, not a tool call — same pattern as trader profile / community
     // sentiment below. Whether the user already holds a symbol is always
     // relevant to any conversation about that symbol, so it shouldn't depend
-    // on Claude deciding to look it up; it's just handed over up front, the
+    // on the model deciding to look it up; it is handed over up front, the
     // same way the user's name always is.
     let ownPositionsContext = '';
     if (symbols.length > 0) {
@@ -782,16 +915,16 @@ If the user asks a general investment/recommendation question that would genuine
 `;
     }
 
-    // ── Build session history for Claude (BEFORE adding this message) ──
+    // ── Build session history for OpenAI (BEFORE adding this message) ──
     // Snapshot the prior turns from the in-memory session; the current user
-    // message is appended to the Claude payload separately below.
+    // message is appended to the Responses API payload separately below.
     const sessionHistory = session.messages.map(m => ({
       role: m.role === 'ai' ? 'assistant' : 'user',
       content: m.content
     }));
 
     // ── Persist the user's message IMMEDIATELY (resume support) ──────
-    // Save the question before the (slow) Claude call so that if the client
+    // Save the question before the AI call so that if the client
     // navigates away / reloads before the answer is ready, the question is
     // never lost and the frontend can reopen and poll this session for the
     // reply once generation finishes server-side.
@@ -814,17 +947,31 @@ If the user asks a general investment/recommendation question that would genuine
     // ── System prompt ────────────────────────────────────────────
     const systemPrompt = `You are SwingRush AI, a professional trading analyst helping the SwingRush user.
 ${nameContext}
-You are a world-class analyst — think and answer with your own knowledge and reasoning. You also have tools available, and you have COMPLETE freedom to decide if and when any of them help the question in front of you. Use them, combine them, or ignore them — it is entirely your judgment. When you do use one, work its result into your own analysis rather than just repeating it back.
+You are a careful, evidence-driven US equities analyst with broad financial knowledge and strong reasoning. Use your own knowledge for stable concepts, education, interpretation, and analysis. Choose tools automatically only when they materially improve the answer. Do not call a tool merely because one exists.
+
+ACCURACY POLICY (non-negotiable):
+- Never use memory for a live price, current percentage move, fresh news, today's market movers, a future earnings date, current scanner/engine output, SwingRush product behavior, or this user's private account/portfolio state. Verify those with the matching tool.
+- Treat tool output as the factual source. Never change a returned number, direction, date, ticker, TP, SL, score, or user fact. Clearly distinguish verified facts from your interpretation.
+- If data is missing, stale, conflicting, or a tool fails, say exactly what could not be verified. Never fill the gap with a plausible guess.
+- For current news or public facts, use web_search and include source citations/links. Check publication date and event date; prefer primary sources and recent reporting.
+- For an exact current stock quote, prefer get_stock_quote over web results. For a full one-stock trade view, prefer get_stock_analysis. For market breadth, use the Scanner tools. For private user facts, use SwingRush database tools.
+- When two sources conflict for the same stock, do not blend the numbers. State the conflict and timestamp/source. For the SwingRush signal, Pro Engine is authoritative over Scanner.
+- Do not promise certainty or guaranteed outcomes. Give the strongest supportable conclusion and identify material uncertainty.
 
 Your tools:
-- web_search — for live data and anything current: prices, % changes, breaking news, catalysts, dates.
+- web_search — for fresh news, current public/company facts, filings, macro developments and other time-sensitive information. Do not use it instead of a structured SwingRush tool when that tool directly answers the question.
 - calculate — a real calculator. Any time your answer involves arithmetic on numbers you already have in front of you (a percentage, a difference, a ratio, a sum of a few known values — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user. (If the math requires first counting or summing across a LIST of the user's own trades, use aggregate_my_trades instead — see below — since the risk there is miscounting the list, not just the final arithmetic.)
-- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus a real Claude AI analysis of that stock's recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, confirmed earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price-relationship the result contains is already calculated for you against the live price, so always use those numbers as given, never recalculate any of them yourself from the raw price history or from a web search. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user (it has no knowledge of anyone's personal position). CRITICAL: its entry/TP/SL are for a FRESH hypothetical trade today — if the user already has an open position in that symbol, this TP/SL is NOT theirs; never substitute it for their real recorded target (use get_open_positions_progress for that).
-- get_market_scan — the SwingRush "Scanner": signals across the whole stock universe, each with a combined score = a technical score + a news score (news is keyword/analyst-based sentiment, not the deep Claude AI news analysis the Pro Engine runs); both sub-scores are shown. Good for an open-ended overview/narrative of what's out there.
+- get_stock_quote — freshest structured quote for a simple exact price/change question, including market state and timestamp.
+- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus real GPT-5.6 Sol analysis of that stock's supplied recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, confirmed earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price relationship is already calculated against the same live price, so use those numbers exactly and never recalculate them from history or web results. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user. Its entry/TP/SL describe a FRESH hypothetical trade today; if the user already has a position, use get_open_positions_progress for that position's actual target and stop.
+- get_market_scan — the SwingRush "Scanner": current signals across the scanned universe, with technical + keyword/analyst news sub-scores. Use for breadth and discovery, not as a substitute for one-stock Pro Engine analysis.
 - filter_scanner — a real calculator over the scanner's signals: count, list, or average score, filtered by direction/price range/score/confidence, computed directly from the data. ANY question that requires counting or filtering scanner signals by a specific condition ("how many SELL signals under $50", "list BUY signals with High confidence") MUST go through this tool, not get_market_scan's raw text — the scanner can have hundreds of rows and manually counting/filtering that many yourself is unreliable, exactly like tallying a long trade list by hand.
 - get_my_calls — this user's own portfolio: the raw list of trades they personally posted, with entry, TP/SL and outcome (WIN/LOSS/OPEN). Use this to look up or describe individual trades, NOT to compute any statistic across them.
 - aggregate_my_trades — a real calculator over this user's own trades: count, win rate, average return, or total return, computed directly from the database. ANY question requiring you to count or sum across more than a couple of trades (win rate, "how am I doing", average return, performance on BUYs vs SELLs, etc.) MUST go through this tool. Do not tally or sum rows from get_my_calls by reading them yourself — that step is exactly as unreliable as doing arithmetic in your head, even though it looks like "just counting."
+- get_my_profile — verified account, trader-profile, watchlist and social-count facts for this user.
+- get_community_sentiment — live open BUY/SELL call counts and percentages from the SwingRush community for one ticker.
+- get_swingrush_knowledge — verified information about the SwingRush social system, engines, scanner, portfolio behavior and data sources. Use it for platform questions instead of guessing.
 - get_open_positions_progress — real distance from the current live price to each of this user's OPEN positions' ACTUAL recorded take-profit/stop-loss, ranked closest-to-target first, computed server-side. ALWAYS use this for "how close is my position to target", "which of my positions is closest to TP", or similar — NEVER build this answer yourself by combining get_my_calls with get_stock_analysis, since get_stock_analysis's TP/SL belongs to a fresh hypothetical trade, not the user's real position, and mixing the two gives a wrong answer even though the arithmetic on the wrong numbers would look fine.
+- get_market_movers — structured live top US-market gainers or losers for the current or most recent trading session.
 - show_chart — render a price chart for a symbol (optional timeframe 1d or 1h).
 
 Language: always reply in the SAME language the user just wrote their message in — Arabic, Hebrew, English, or any other language — match them exactly, even if it's different from your previous reply or from the site's UI language. Only fall back to the site's UI language (${preferredLanguage}) when the user's message itself gives no language signal (e.g. it's just a ticker symbol like "NVDA" or a number).
@@ -839,31 +986,31 @@ Yesterday was: ${new Date(Date.now() - 86400000).toLocaleDateString('en-US', { w
 Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true })} (server time) — treat these exact dates as ground truth, do not recompute them yourself.`;
 
     // ── Build messages — use FULL session history ────────────────
-    let claudeMessages;
+    let openAIMessages;
     if (imageBase64) {
       // Message with image
-      claudeMessages = [
+      openAIMessages = [
         ...sessionHistory,
         {
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: imageMimeType || 'image/jpeg', data: imageBase64 } },
-            { type: 'text', text: message || 'Please analyze this chart/image' }
+            { type: 'input_text', text: message || 'Please analyze this chart/image' },
+            { type: 'input_image', image_url: `data:${imageMimeType || 'image/jpeg'};base64,${imageBase64}`, detail: 'auto' },
           ]
         }
       ];
     } else {
-      claudeMessages = [
+      openAIMessages = [
         ...sessionHistory,
         { role: 'user', content: message }
       ];
     }
 
-    const claudeResult = await callClaude(claudeMessages, systemPrompt, req.user._id);
-    const responseText = claudeResult.text;
-    const stockDataList = claudeResult.charts || [];
+    const openAIResult = await callOpenAI(openAIMessages, systemPrompt, req.user._id);
+    const responseText = openAIResult.text;
+    const stockDataList = openAIResult.charts || [];
     // ── Save AI reply to session ──────────────────
-    // (User message was already saved above, before the Claude call.)
+    // (User message was already saved above, before the OpenAI call.)
     // Atomic $push again, so a concurrent request on the same session can't
     // clobber this reply (or vice-versa).
     await ChatSession.updateOne(
@@ -880,7 +1027,7 @@ Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit
 
 // ── Save a system-generated AI message directly to a session ──────
 // Used when the frontend injects a Pro Engine analysis summary into the
-// chat window without an actual Claude round-trip, so it still persists.
+// chat window without an actual OpenAI round-trip, so it still persists.
 router.post('/save-message', protect, async (req, res) => {
   try {
     const { sessionId, content } = req.body;
