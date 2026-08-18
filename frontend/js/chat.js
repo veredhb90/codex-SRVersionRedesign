@@ -26,26 +26,17 @@
   // Per-message RTL detection — independent of the site's UI language setting,
   // so a Hebrew or Arabic reply renders right-to-left even if the site itself
   // is in English (e.g. the AI replying in the user's own language mid-chat).
-  var HEBREW_CHARS = /[\u0590-\u05FF]/;
   var RTL_CHARS = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
   function isRTLText(str) {
     return !!str && RTL_CHARS.test(str);
   }
 
-  // Client-only messages that fire before the user has typed anything this
-  // session (e.g. the Pro Engine handoff summary below) have no language
-  // signal to go on except the site's UI toggle or what the user chatted in
-  // last time. Remembered across sessions in localStorage, updated every
-  // time we see a real AI reply.
-  function rememberChatLang(text) {
-    if (!text) return;
-    var lang = HEBREW_CHARS.test(text) ? 'he' : isRTLText(text) ? 'ar' : 'en';
-    try { localStorage.setItem('sr_chat_lang', lang); } catch (e) {}
-  }
+  // Client-generated chat UI and Pro Engine handoff summaries must follow
+  // the language currently selected on the site. Reusing the language of an
+  // older conversation made an English Pro Engine SELL appear as Hebrew.
+  // Actual AI replies still follow the language of each user message.
   function lastChatLang() {
-    var sl = siteLang();
-    if (sl !== 'en') return sl; // explicit site toggle wins
-    try { return localStorage.getItem('sr_chat_lang') || 'en'; } catch (e) { return 'en'; }
+    return siteLang();
   }
   // Three-way version of chatCopy for the handful of strings that need real
   // Hebrew, not just an EN/AR fallback.
@@ -895,7 +886,6 @@
   }
 
   function addMessage(role, text, realTime) {
-    if (role === 'user') rememberChatLang(text);
     var timeLocale = lastChatLang() === 'he' ? 'he' : lastChatLang() === 'ar' ? 'ar' : 'en-US';
     var now = realTime
       ? new Date(realTime).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' })

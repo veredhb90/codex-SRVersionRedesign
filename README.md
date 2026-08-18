@@ -204,6 +204,8 @@ Use `npm run dev` with a separately started MongoDB instance for a portable setu
 | `MONGO_URI` | Yes | MongoDB connection string. Defaults to a local `swingrush` database on port `27017`. |
 | `JWT_SECRET` | Yes | Secret used to sign authentication tokens. Use a long random value. |
 | `CLIENT_URL` | Yes | Base URL included in email links. |
+| `DISABLE_SCANNER_AUTOSTART` | No | Set `true` during local previews to prevent background market scans. |
+| `DISABLE_BACKGROUND_JOBS` | No | Set `true` during local previews to prevent outcome/subscription sweepers. |
 | `OPENAI_API_KEY` | For AI features | Enables OpenAI-backed chat and Pro Engine news analysis. |
 | `OPENAI_MODEL` | No | OpenAI model ID. Defaults to `gpt-5.6-sol`. |
 | `OPENAI_REASONING_EFFORT` | No | Reasoning level for accuracy-sensitive analysis. Defaults to `high`. |
