@@ -1,6 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { combineProAnalysis, toReportSnapshot } = require('../backend/services/proReportService');
+const {
+  combineProAnalysis,
+  evaluatePreviousReport,
+  toReportHistorySummary,
+  toReportSnapshot,
+} = require('../backend/services/proReportService');
 
 test('combineProAnalysis preserves SELL polarity and precomputes all price relationships', () => {
   const report = combineProAnalysis('nvda', {
@@ -59,4 +64,77 @@ test('toReportSnapshot removes chart history while preserving evidence and fresh
   assert.equal(snapshot.priceHistory, undefined);
   assert.equal(snapshot.news, undefined);
   assert.equal(snapshot.technicalBreakdown.length, 1);
+});
+
+test('toReportHistorySummary returns only the dated prior outcome', () => {
+  const summary = toReportHistorySummary({
+    _id: 'report-2',
+    generatedAt: new Date('2026-08-18T14:30:00.000Z'),
+    freshUntil: new Date('2026-08-18T14:40:00.000Z'),
+    report: {
+      symbol: 'ARWR',
+      direction: 'SELL',
+      score: -11,
+      technicalScore: -5,
+      newsScore: -6,
+      newsSummary: 'This large field must not be copied into the comparison.',
+      priceHistory: [{ time: 1, close: 10 }],
+    },
+  });
+
+  assert.deepEqual(summary, {
+    reportId: 'report-2',
+    symbol: 'ARWR',
+    generatedAt: '2026-08-18T14:30:00.000Z',
+    direction: 'SELL',
+    score: -11,
+    technicalScore: -5,
+    newsScore: -6,
+    entryPrice: null,
+    takeProfit: null,
+    stopLoss: null,
+  });
+});
+
+test('evaluatePreviousReport calculates SELL performance and proves a later target hit', () => {
+  const result = evaluatePreviousReport({
+    reportId: 'old-report',
+    symbol: 'ARWR',
+    generatedAt: '2026-08-18T14:30:00.000Z',
+    direction: 'SELL',
+    score: -11,
+    entryPrice: 10,
+    takeProfit: 9,
+    stopLoss: 10.5,
+  }, {
+    price: 8.8,
+    priceHistory: [
+      // Same-day candle is excluded because part of it predates the report.
+      { time: Date.parse('2026-08-18T13:30:00.000Z') / 1000, high: 10.6, low: 8.9 },
+      { time: Date.parse('2026-08-19T13:30:00.000Z') / 1000, high: 10.2, low: 8.8 },
+    ],
+  });
+
+  assert.equal(result.status, 'TARGET_HIT');
+  assert.equal(result.statusAt, '2026-08-19T13:30:00.000Z');
+  assert.equal(result.currentPrice, 8.8);
+  assert.equal(result.performancePct, 12);
+});
+
+test('evaluatePreviousReport marks an unknowable same-candle TP/SL order as ambiguous', () => {
+  const result = evaluatePreviousReport({
+    generatedAt: '2026-08-18T14:30:00.000Z',
+    direction: 'BUY',
+    entryPrice: 100,
+    takeProfit: 110,
+    stopLoss: 95,
+  }, {
+    price: 102,
+    priceHistory: [
+      { time: Date.parse('2026-08-19T13:30:00.000Z') / 1000, high: 111, low: 94 },
+    ],
+  });
+
+  assert.equal(result.status, 'AMBIGUOUS');
+  assert.equal(result.performancePct, 2);
 });

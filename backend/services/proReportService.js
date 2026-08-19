@@ -113,6 +113,77 @@ const toReportSnapshot = (value) => {
   return snapshot;
 };
 
+// Keep the historical comparison deliberately small. The UI needs the exact
+// prior setup and its follow-up, not a second copy of the old news or chart.
+const toReportHistorySummary = (value) => {
+  const snapshot = toReportSnapshot(value);
+  if (!snapshot) return null;
+  return {
+    reportId: snapshot.reportId,
+    symbol: snapshot.symbol,
+    generatedAt: snapshot.generatedAt,
+    direction: snapshot.direction || 'NEUTRAL',
+    score: Number(snapshot.score || 0),
+    technicalScore: Number(snapshot.technicalScore || 0),
+    newsScore: Number(snapshot.newsScore || 0),
+    entryPrice: Number(snapshot.price || 0) || null,
+    takeProfit: Number(snapshot.takeProfit || 0) || null,
+    stopLoss: Number(snapshot.stopLoss || 0) || null,
+  };
+};
+
+const roundPct = value => Number.isFinite(value) ? +value.toFixed(2) : null;
+
+// Daily candles can prove that a prior TP/SL was crossed on a later session.
+// We intentionally ignore the report-day candle because it includes trading
+// from before the report was generated. If both levels occur in one later
+// daily candle, their order is unknowable and we say so rather than guessing.
+const evaluatePreviousReport = (previous, currentReport) => {
+  if (!previous) return null;
+  const currentPrice = Number(currentReport?.price || 0) || null;
+  const entry = Number(previous.entryPrice || 0) || null;
+  const target = Number(previous.takeProfit || 0) || null;
+  const stop = Number(previous.stopLoss || 0) || null;
+  const direction = previous.direction;
+  const directional = direction === 'BUY' || direction === 'SELL';
+  const rawMovePct = entry && currentPrice ? ((currentPrice - entry) / entry) * 100 : null;
+  const performancePct = directional && rawMovePct != null
+    ? roundPct(direction === 'SELL' ? -rawMovePct : rawMovePct)
+    : null;
+  const evaluated = {
+    ...previous,
+    currentPrice,
+    performancePct,
+    status: directional && target && stop ? 'OPEN' : 'NO_SIGNAL',
+    statusAt: null,
+  };
+  if (!directional || !target || !stop) return evaluated;
+
+  const reportTime = new Date(previous.generatedAt).getTime();
+  const candles = (currentReport?.priceHistory || [])
+    .filter(candle => Number(candle?.time) * 1000 > reportTime)
+    .sort((a, b) => Number(a.time) - Number(b.time));
+
+  for (const candle of candles) {
+    const high = Number(candle.high);
+    const low = Number(candle.low);
+    const targetHit = direction === 'BUY' ? high >= target : low <= target;
+    const stopHit = direction === 'BUY' ? low <= stop : high >= stop;
+    if (!targetHit && !stopHit) continue;
+    evaluated.status = targetHit && stopHit ? 'AMBIGUOUS' : targetHit ? 'TARGET_HIT' : 'STOP_HIT';
+    evaluated.statusAt = new Date(Number(candle.time) * 1000).toISOString();
+    return evaluated;
+  }
+
+  if (currentPrice != null) {
+    const currentlyAtTarget = direction === 'BUY' ? currentPrice >= target : currentPrice <= target;
+    const currentlyAtStop = direction === 'BUY' ? currentPrice <= stop : currentPrice >= stop;
+    if (currentlyAtTarget) evaluated.status = 'CURRENTLY_AT_TARGET';
+    else if (currentlyAtStop) evaluated.status = 'CURRENTLY_AT_STOP';
+  }
+  return evaluated;
+};
+
 const persistReport = async (report) => {
   const freshMs = Math.max(60_000, Number(process.env.PRO_REPORT_FRESH_MS) || DEFAULT_FRESH_MS);
   const generatedAt = new Date(report.generatedAt || Date.now());
@@ -131,17 +202,23 @@ const generateProReport = async (symbol) => {
   const sym = String(symbol || '').toUpperCase().trim();
   if (!sym) throw new Error('A stock ticker is required.');
   const generatedAt = new Date();
-  const [technical, newsAnalysis] = await Promise.all([
+  const [technical, newsAnalysis, previousDoc] = await Promise.all([
     getProTechnicalScore(sym),
     getOpenAINewsAnalysis(sym),
+    ProReport.findOne({ symbol: sym }).sort({ generatedAt: -1 }).lean().catch(error => {
+      console.log('Previous Pro report lookup error:', error.message);
+      return null;
+    }),
   ]);
   const report = combineProAnalysis(sym, technical, newsAnalysis, generatedAt);
-  if (report.insufficientData) return report;
+  const previousReport = evaluatePreviousReport(toReportHistorySummary(previousDoc), report);
+  if (report.insufficientData) return { ...report, previousReport };
   try {
-    return await persistReport(report);
+    const persisted = await persistReport(report);
+    return { ...persisted, previousReport };
   } catch (error) {
     console.log('Pro report persistence error:', error.message);
-    return { ...report, reportId: '', freshUntil: report.generatedAt, isStale: true };
+    return { ...report, reportId: '', freshUntil: report.generatedAt, isStale: true, previousReport };
   }
 };
 
@@ -159,7 +236,9 @@ const getLatestProReports = async (symbols) => {
 
 module.exports = {
   combineProAnalysis,
+  evaluatePreviousReport,
   generateProReport,
   getLatestProReports,
+  toReportHistorySummary,
   toReportSnapshot,
 };
