@@ -101,10 +101,13 @@ const NEWS_ANALYSIS_FORMAT = {
 };
 
 // ── MAIN: Real OpenAI-powered news analysis (Pro only) ───────────────
-// ── Fetch REAL upcoming earnings dates from Finnhub (not guessed) ─────
-const fetchUpcomingEarnings = (symbol) => new Promise((resolve) => {
+// ── Fetch REAL past + upcoming earnings dates/results from Finnhub ────
+// One calendar call supplies the latest reported quarter (including revenue
+// when Finnhub has it) and future dates, avoiding an extra API request.
+const fetchEarningsCalendar = (symbol) => new Promise((resolve) => {
   const now = new Date();
-  const from = now.toISOString().split('T')[0];
+  const today = now.toISOString().split('T')[0];
+  const from = new Date(now.getTime() - 200 * 86400000).toISOString().split('T')[0];
   const to = new Date(now.getTime() + 270 * 86400000).toISOString().split('T')[0]; // next ~9 months
   const apiKey = process.env.FINNHUB_API_KEY;
   const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${symbol}&token=${apiKey}`;
@@ -114,21 +117,27 @@ const fetchUpcomingEarnings = (symbol) => new Promise((resolve) => {
     res.on('end', () => {
       try {
         const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        const list = (parsed.earningsCalendar || [])
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
-          .slice(0, 3)
-          .map(e => ({
+        const list = (parsed.earningsCalendar || []).map(e => ({
             date: e.date,
             quarter: e.quarter,
             year: e.year,
             hour: e.hour === 'bmo' ? 'Before Market Open' : e.hour === 'amc' ? 'After Market Close' : 'Time TBD',
             epsEstimate: e.epsEstimate,
+            epsActual: e.epsActual,
             revenueEstimate: e.revenueEstimate,
+            revenueActual: e.revenueActual,
           }));
-        resolve(list);
-      } catch (e) { resolve([]); }
+        const upcoming = list
+          .filter(e => e.date >= today)
+          .sort((a, b) => new Date(a.date) - new Date(b.date))
+          .slice(0, 3);
+        const latestReported = list
+          .filter(e => e.date < today && (e.epsActual != null || e.revenueActual != null))
+          .sort((a, b) => new Date(b.date) - new Date(a.date))[0] || null;
+        resolve({ upcoming, latestReported });
+      } catch (e) { resolve({ upcoming: [], latestReported: null }); }
     });
-  }).on('error', () => resolve([]));
+  }).on('error', () => resolve({ upcoming: [], latestReported: null }));
   req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
@@ -142,11 +151,11 @@ const fetchEarningsHistory = (symbol) => new Promise((resolve) => {
     res.on('end', () => {
       try {
         const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        const list = Array.isArray(parsed) ? parsed.slice(0, 4).map(e => ({
+        const list = Array.isArray(parsed) ? parsed.map(e => ({
           period: e.period, quarter: e.quarter, year: e.year,
           epsActual: e.actual, epsEstimate: e.estimate,
           surprisePercent: e.surprisePercent,
-        })) : [];
+        })).sort((a, b) => new Date(b.period) - new Date(a.period)).slice(0, 4) : [];
         resolve(list);
       } catch (e) { resolve([]); }
     });
@@ -181,19 +190,54 @@ const fetchPriceTarget = (symbol) => new Promise((resolve) => {
   req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
+const finiteOrNull = value => value != null && Number.isFinite(Number(value)) ? Number(value) : null;
+const pctSurprise = (actual, estimate) => {
+  const a = finiteOrNull(actual);
+  const e = finiteOrNull(estimate);
+  return a == null || e == null || e === 0 ? null : +(((a - e) / Math.abs(e)) * 100).toFixed(2);
+};
+
+const buildLatestEarningsReport = (calendarLatest, earningsHistory) => {
+  const history = Array.isArray(earningsHistory) ? earningsHistory : [];
+  const matchingHistory = calendarLatest
+    ? history.find(item => Number(item.quarter) === Number(calendarLatest.quarter) && Number(item.year) === Number(calendarLatest.year))
+    : history[0];
+  if (!calendarLatest && !matchingHistory) return null;
+  const epsActual = finiteOrNull(calendarLatest?.epsActual ?? matchingHistory?.epsActual);
+  const epsEstimate = finiteOrNull(calendarLatest?.epsEstimate ?? matchingHistory?.epsEstimate);
+  const revenueActual = finiteOrNull(calendarLatest?.revenueActual);
+  const revenueEstimate = finiteOrNull(calendarLatest?.revenueEstimate);
+  return {
+    reportedDate: calendarLatest?.date || null,
+    fiscalPeriod: matchingHistory?.period || null,
+    quarter: calendarLatest?.quarter ?? matchingHistory?.quarter ?? null,
+    year: calendarLatest?.year ?? matchingHistory?.year ?? null,
+    hour: calendarLatest?.hour || null,
+    epsActual,
+    epsEstimate,
+    epsSurprisePercent: finiteOrNull(matchingHistory?.surprisePercent) ?? pctSurprise(epsActual, epsEstimate),
+    revenueActual,
+    revenueEstimate,
+    revenueSurprisePercent: pctSurprise(revenueActual, revenueEstimate),
+    source: 'Finnhub earnings calendar/history',
+  };
+};
+
 const getOpenAINewsAnalysis = async (symbol, companyName) => {
   const cacheKey = 'news_' + symbol.toUpperCase();
   const cached = fromNewsCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
   try {
-    const [articles, ratings, upcomingEarnings, earningsHistory, priceTarget] = await Promise.all([
+    const [articles, ratings, earningsCalendar, earningsHistory, priceTarget] = await Promise.all([
       enqueueFinnhubCall(() => fetchFinnhubNews(symbol), { priority: true }),
       enqueueFinnhubCall(() => fetchAnalystRatings(symbol), { priority: true }),
-      enqueueFinnhubCall(() => fetchUpcomingEarnings(symbol), { priority: true }),
+      enqueueFinnhubCall(() => fetchEarningsCalendar(symbol), { priority: true }),
       enqueueFinnhubCall(() => fetchEarningsHistory(symbol), { priority: true }),
       enqueueFinnhubCall(() => fetchPriceTarget(symbol), { priority: true }),
     ]);
+    const upcomingEarnings = earningsCalendar.upcoming || [];
+    const latestEarningsReport = buildLatestEarningsReport(earningsCalendar.latestReported, earningsHistory);
 
     let analystSummary = 'No analyst rating data available.';
     if (ratings) {
@@ -252,6 +296,7 @@ Respond with the JSON format specified.`;
       holdingPeriod: parsed.holdingPeriod || '',
       upcomingEarnings: upcomingEarnings,
       earningsHistory: earningsHistory,
+      latestEarningsReport,
       analystSummary,
       priceTarget,
       analyzedAt: new Date().toISOString(),
@@ -266,9 +311,11 @@ Respond with the JSON format specified.`;
       score: 0, label: 'Unavailable',
       summary: 'AI news analysis temporarily unavailable — technical score only.',
       reasoning: '',
-      catalysts: [], risks: [], articleCount: 0, analystSummary: '', priceTarget: null, fromCache: false, error: true,
+      catalysts: [], risks: [], articleCount: 0, analystSummary: '', priceTarget: null,
+      upcomingEarnings: [], earningsHistory: [], latestEarningsReport: null,
+      fromCache: false, error: true,
     };
   }
 };
 
-module.exports = { getOpenAINewsAnalysis };
+module.exports = { buildLatestEarningsReport, getOpenAINewsAnalysis };

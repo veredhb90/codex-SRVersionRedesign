@@ -68,15 +68,37 @@
       .replace(/'/g, '&#039;');
   }
 
-  window.setChatStockContext = function(stockData) {
-    // Don't auto-open chat. Just prepare context and show a subtle prompt bubble.
+  function prepareChatStockContext(stockData) {
     var symbol = stockSymbol(stockData);
-    if (!symbol) return;
+    if (!symbol) return false;
     stockData = Object.assign({}, stockData, { symbol: symbol });
     pendingStockData = stockData;
     currentStock = null; // not yet loaded into chat until user opens it
     chatHistory  = [];
-    showAskAiPrompt(stockData);
+    return true;
+  }
+
+  // Preparing Pro context never opens or advertises the chat by itself. The
+  // user explicitly chooses the result-card button before seeing chat options.
+  window.setChatStockContext = prepareChatStockContext;
+
+  window.srProAiExploreButtonHtml = function(stockData) {
+    var direction = String((stockData && stockData.direction) || '').toUpperCase();
+    if (direction !== 'BUY' && direction !== 'SELL') return '';
+    return '<button type="button" class="sr-pro-ai-explore" data-sr-pro-ai-explore>' +
+      '<span aria-hidden="true">💬</span> ' +
+      chatCopy('Explore deeper with AI chat', 'استكشف بشكل أعمق مع محادثة الذكاء الاصطناعي', 'העמיקו עם צ׳אט AI') +
+      '</button>';
+  };
+
+  window.srAttachProAiExplore = function(container, stockData) {
+    if (!container || !stockData) return;
+    var button = container.querySelector('[data-sr-pro-ai-explore]');
+    if (!button) return;
+    button.addEventListener('click', function() {
+      if (!prepareChatStockContext(stockData)) return;
+      showNewOrContinueChoice();
+    });
   };
 
   async function loadPendingStockIntoChat() {
@@ -150,40 +172,6 @@
       });
       if (saveResult && saveResult.sessionId) { currentSessionId = saveResult.sessionId; }
     } catch (e) { console.log('Failed to persist Pro Engine summary:', e.message); }
-  }
-
-  function showAskAiPrompt(stockData) {
-    var old = document.getElementById('sr-ask-prompt');
-    if (old) old.remove();
-    var overlay = document.createElement('div');
-    overlay.id = 'sr-ask-prompt';
-    overlay.className = 'sr-ask-overlay';
-    var score = Number(stockData.score || 0);
-    var direction = stockData.direction || 'NEUTRAL';
-    var scoreText = score > 0 ? '+' + score : String(score);
-    var signalIcon = direction === 'BUY' ? '▲' : direction === 'SELL' ? '▼' : '●';
-    overlay.innerHTML =
-      '<div class="sr-ask-card" role="dialog" aria-modal="true" aria-label="' + chatCopy('Ask AI about ', 'اسأل الذكاء الاصطناعي عن ', 'שאל את הבינה המלאכותית על ') + stockData.symbol + '">' +
-        '<button type="button" class="sr-ask-close" aria-label="' + chatCopy('Dismiss', 'إغلاق', 'סגור') + '">✕</button>' +
-        '<div class="sr-ask-kicker">' + chatCopy('PRO ANALYSIS READY', 'تحليل Pro جاهز', 'ניתוח Pro מוכן') + '</div>' +
-        '<div class="sr-ask-symbol">$' + stockData.symbol + '</div>' +
-        '<div class="sr-ask-signal ' + direction.toLowerCase() + '"><span>' + signalIcon + ' ' + signalLabel(direction) + '</span><strong>' + chatCopy('Score ', 'النتيجة ', 'ציון ') + scoreText + '/24</strong></div>' +
-        '<p>' + chatCopy('Open the AI analyst with this ticker, live signal context, and your full Pro Engine analysis ready to discuss.', 'افتح محلل الذكاء الاصطناعي لهذا الرمز مع سياق الإشارة المباشر وتحليل Pro الكامل الجاهز للنقاش.', 'פתח את האנליסט הבינה מלאכותית עם הטיקר הזה, הקשר האיתות החי, וניתוח ה-Pro Engine המלא המוכן לדיון.') + '</p>' +
-        '<button type="button" class="sr-ask-action">' + chatCopy('Ask AI about $', 'اسأل الذكاء الاصطناعي عن $', 'שאל את הבינה המלאכותית על $') + stockData.symbol + '</button>' +
-      '</div>';
-    overlay.querySelector('.sr-ask-action').addEventListener('click', function() {
-      overlay.remove();
-      showNewOrContinueChoice();
-    });
-    overlay.querySelector('.sr-ask-close').addEventListener('click', function() { overlay.remove(); });
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-    document.body.appendChild(overlay);
-    var badge = document.getElementById('sr-chat-badge');
-    if (badge) { badge.style.display = 'flex'; badge.textContent = '1'; }
-    setTimeout(function() {
-      var b = document.getElementById('sr-ask-prompt');
-      if (b) b.remove();
-    }, 15000);
   }
 
   var widget = document.createElement('div');
@@ -290,7 +278,6 @@
     '#sr-chat-btn{width:60px;height:60px;bottom:calc(16px + env(safe-area-inset-bottom));right:16px;}' +
     '#sr-chat-btn svg{width:44px;height:41px;}' +
     '#sr-chat-badge{top:-2px;right:-2px;min-width:19px;height:19px;font-size:10px;}' +
-    '#sr-ask-prompt{bottom:calc(84px + env(safe-area-inset-bottom)) !important;right:12px !important;left:12px;max-width:none;font-size:12px;padding:9px 14px;}' +
     '#sr-chat-box.normal{width:100vw;height:100vh;height:100dvh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
     '#sr-chat-box.fullscreen{width:100vw;height:100vh;height:100dvh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
     '#sr-chat-header{padding:calc(10px + env(safe-area-inset-top)) 12px 10px;gap:8px;}' +

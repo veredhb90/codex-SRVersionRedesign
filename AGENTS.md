@@ -19,6 +19,7 @@ SwingRush is a social trading network (live at swing-rush.com) where traders sha
 - `backend/routes/users.js` — follow/unfollow + follow notifications
 - `backend/routes/proEngine.js` — Pro Engine API endpoint
 - `backend/services/proEngine.js` — technical scoring, `getQuote` (pre/after-market dual pricing), `getCandles(symbol, days, interval)`
+- `backend/services/stockHistory.js` — verified Yahoo daily OHLCV and server-calculated historical/date-range performance for chat
 - `backend/services/openaiResponses.js` — shared raw OpenAI Responses API client and output parser
 - `backend/services/openaiNewsAnalysis.js` — OpenAI GPT-5.6 news analysis (freshness-aware cache, 30-minute default)
 - `backend/services/proReportService.js` + `backend/models/ProReport.js` — canonical Pro calculation and immutable timestamped report history shared by Pro Engine and chat
@@ -26,7 +27,7 @@ SwingRush is a social trading network (live at swing-rush.com) where traders sha
 - `backend/services/stockScanner.js` — scanner over a 2000-stock pool (`backend/data/usUniverse2000.js`), each run covers 500 (300 fixed core biggest-cap + 200 randomly rotated from the remaining tail), auto-runs every 6h on trading (week)days via setInterval
 - `backend/services/emailService.js` — all Resend email templates
 - `backend/server.js` — `io.notifyUser(userId, event, data)` — saves notification to DB (including fromUser) AND emits socket. Callers must NOT also call Notification.create (that caused duplicate-notification bugs, already fixed).
-- `frontend/js/chat.js` — chat UI, `loadPendingStockIntoChat` (engine→chat handoff)
+- `frontend/js/chat.js` — chat UI and the user-controlled Pro result → New/Recent chat handoff
 - `frontend/js/engine.js` — Free Signal Engine (home page)
 - `frontend/feed.html` — feed + notification bell/ring UI (inline scripts)
 
@@ -50,7 +51,7 @@ Chat uses the model's own knowledge for stable concepts and reasoning, the Pro E
 - `callOpenAI` replays every `response.output` item, executes function calls server-side, returns `{text, charts, reports}`, and allows at most five tool rounds plus three truncation continuations.
 - Tool choice is automatic. The prompt requires tools for current/private facts but does not force them for stable knowledge questions.
 - `${nameContext}` (user's first name) is injected at the top of the system prompt.
-- For detected tickers, the latest saved Pro report is supplied as timestamped ambient context and rendered as a separate UI card. It never replaces a requested live Pro run and does not change the existing AI-news cache.
+- Saved Pro reports are available through `get_latest_pro_report` only when the model judges a previous/latest Pro result relevant. They are not injected into every ticker question; historical-price/news/company questions must not revive an old engine report.
 
 ## OpenAI Configuration
 
@@ -92,9 +93,12 @@ Chat uses the model's own knowledge for stable concepts and reasoning, the Pro E
 ## Current Checkpoint — 2026-08-19
 
 - Two-model chat upgrade implemented: Terra/medium for main chat; Sol/high for Pro Engine news reasoning.
-- Completed Pro reports are stored in local MongoDB as immutable timestamped snapshots and attached to chat history/UI cards. A message that explicitly names a ticker/company briefly acknowledges the latest saved report when one exists, without forcing a trade recommendation. Never revive the previous ticker automatically for a new no-ticker message; that caused unrelated answers to include an old Pro report.
+- Completed Pro reports are stored in local MongoDB as immutable timestamped snapshots. Chat can retrieve one on demand with `get_latest_pro_report`; it is never forced into ordinary ticker questions. Never revive a previous ticker/report automatically.
 - Existing `OPENAI_NEWS_CACHE_MS` behavior is unchanged; saved reports are context/history, not a replacement cache for new Pro runs.
-- Pro Engine results now include a dedicated previous-report follow-up section on the home popup, feed, and Scanner. It shows the prior report date, direction/score, entry/TP/SL, current direction-adjusted performance, and an evidence-based TP/SL/open status from later daily candles; same-candle TP+SL is explicitly marked order-unknown. The latest report timestamp is also always visible. This is local only until pushed.
-- Automated status: backend/frontend syntax clean, `npm test` passes 19/19, local Mongo synthetic round-trip passed.
+- Pro Engine results now include the company's latest quarterly earnings report on the home popup, feed, and Scanner: verified report date/fiscal quarter, EPS actual vs estimate, revenue actual vs estimate, and beat/miss percentages from Finnhub. "Last report" in Ward's request means the company's last earnings/quarterly report, never the previous SwingRush engine run.
+- Chat now has a lightweight Yahoo historical-price tool for exact OHLCV on any available past date and server-calculated gain/loss over any requested period (split/dividend-adjusted for long returns). It must use web search with citations if Yahoo cannot provide the requested history, and web search for the reason/news behind a move. This does not invoke Pro news analysis.
+- Pro Engine BUY/SELL results no longer trigger an immediate chat advertisement. Every Pro result surface shows an explicit “Explore deeper with AI chat” button; only a click opens the New Chat / Recent Chat chooser and loads that report into chat.
+- Automated status: backend/frontend syntax clean, `npm test` passes 26/26, local Mongo synthetic round-trip passed. A real Yahoo-only NVDA check verified the exact 2026-08-18 OHLC/daily move and 2026-08-10→2026-08-18 period return.
+- Live localhost chat validation passed for NVDA on 2026-08-18: exact OHLC, -$5.27/-2.34% close-vs-prior-close, and -0.32% open-to-close. The reply attached no old Pro report and recognized only NVDA, not the word LOW.
 - Live status: one NVDA Pro report completed on localhost and persisted with matching direction/score. The next session should finish human-style chat validation in English, Arabic, and Hebrew, visually inspect the report card, then decide whether to prepare production deployment.
 - Local preview uses port `5001`, MongoDB `127.0.0.1:27018/swingrush`, dummy Resend, and disabled scanner/background jobs. Production has not been changed.

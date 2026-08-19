@@ -123,7 +123,7 @@
       .scanner-title { font-size:24px; }
     }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1786560030"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1787156500"/>
 </head>
 <body class="scanner-page">
 
@@ -263,8 +263,8 @@
 
 <script src="/js/api.js?v=1786600856"></script>
 <script src="/js/auth.js"></script>
-<script src="/js/i18n.js?v=1787153834"></script>
-<script src="/js/pro_report_history.js?v=1787153834"></script>
+<script src="/js/i18n.js?v=1787155218"></script>
+<script src="/js/pro_earnings_report.js?v=1787155218"></script>
 <script>
   if (!Auth.require()) {}
   const me = Auth.user();
@@ -738,7 +738,7 @@
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
         '<span style="font-size:14px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:12.5px;">' + tt('feed.pe_title', 'AI Pro Analysis') + '</span>' +
         '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:3px 10px;border-radius:8px;font-size:11.5px;margin-left:auto;">' + d.direction + '</span></div>' +
-        (window.srProReportHistoryHtml ? window.srProReportHistoryHtml(d) : '') +
+        (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d) : '') +
         '<div style="font-size:12px;color:#475569;margin-bottom:6px;">' + tt('scanner.pe_score_label', 'Score') + ': <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' ' + tt('home.eng_confidence', 'Confidence') + '</div>' +
         '<div style="display:flex;gap:10px;font-size:11px;color:#64748b;margin-bottom:10px;padding:7px 10px;background:#F8FAFF;border-radius:8px;"><span>' + tt('scanner.pe_tech_short', 'Tech') + ': <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + tt('scanner.pe_news_short', 'News') + ': <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + tt('home.eng_total', 'Total') + ': <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
         (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">' +
@@ -757,8 +757,9 @@
         catalystsHtml + risksHtml +
         '</div>' +
         '<div style="margin-top:10px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + tt('home.eng_powered_by', 'Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + tt('scanner.pe_articles', 'articles') + '</div>' +
+        (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '') +
         '</div>';
-      if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
+      if (window.srAttachProAiExplore) window.srAttachProAiExplore(container, d);
     } catch (err) {
       clearTimeout(_peAbortTimer);
       clearInterval(_peTicker);
@@ -770,7 +771,7 @@
   // The scanner is schedule-driven. This page only loads the latest saved result.
   runScan();
 </script>
-<script src="/js/chat.js?v=1787117676"></script>
+<script src="/js/chat.js?v=1787156500"></script>
 <script src="/js/paywall.js?v=1786627898"></script>
 </body>
 </html>

@@ -8,8 +8,10 @@ const chatRouteSource = fs.readFileSync(
   'utf8'
 );
 
-test('automatic Pro report context uses only tickers in the current message', () => {
+test('saved Pro reports are available on demand and never injected into every ticker question', () => {
   assert.match(chatRouteSource, /const symbols = extractSymbols\(message \|\| ''\);/);
-  assert.doesNotMatch(chatRouteSource, /const prevSyms = extractSymbols/);
-  assert.doesNotMatch(chatRouteSource, /sticky symbol memory reused/i);
+  assert.match(chatRouteSource, /name: 'get_latest_pro_report'/);
+  assert.match(chatRouteSource, /getLatestProReports\(\[sym\]\)/);
+  assert.doesNotMatch(chatRouteSource, /const ambientReports = await getLatestProReports/);
+  assert.doesNotMatch(chatRouteSource, /always acknowledge the latest saved report briefly/i);
 });

@@ -288,6 +288,7 @@
         return;
       }
       body.innerHTML = renderProEngineResult(d);
+      if (window.srAttachProAiExplore) window.srAttachProAiExplore(body, d);
     } catch (err) {
       body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">' + t('home.eng_pro_failed', 'AI Pro Engine failed to load. Please try again.') + '</p>';
     }
@@ -317,7 +318,7 @@
         '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
       '</div>' +
       (special ? '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">' + t('home.eng_regular_session_close', 'Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
-      (window.srProReportHistoryHtml ? window.srProReportHistoryHtml(d, { theme: 'dark' }) : '') +
+      (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d, { theme: 'dark' }) : '') +
       '<div style="font-size:13px;color:var(--text2);margin-bottom:6px;">' + t('home.eng_combined_score', 'Combined Score') + ': <strong style="color:var(--text);">' + d.score + '</strong> · ' + d.confidence + ' ' + t('home.eng_confidence', 'Confidence') + '</div>' +
       '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text2);margin-bottom:14px;padding:9px 12px;background:var(--bg2);border-radius:8px;"><span>' + t('home.eng_technical', 'Technical') + ': <strong style="color:var(--text);">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + t('home.eng_news_ai', 'News (AI)') + ': <strong style="color:var(--text);">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + t('home.eng_total', 'Total') + ': <strong style="color:var(--text);">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
       (d.holdingPeriod ? '<div style="font-size:12px;color:var(--text);font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period', 'Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
@@ -337,6 +338,7 @@
         (d.analystSummary ? '<p style="font-size:12px;color:var(--text2);margin-top:8px;">' + d.analystSummary + '</p>' : '') +
         catalysts + risks +
       '</div>' +
-      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by', 'Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed', 'articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached', 'cached') : '') + '</div>';
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by', 'Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed', 'articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached', 'cached') : '') + '</div>' +
+      (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '');
   }
 })();

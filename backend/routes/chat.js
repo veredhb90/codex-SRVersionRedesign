@@ -2,6 +2,7 @@ const express    = require('express');
 const router     = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { getQuote } = require('../services/proEngine');
+const { getVerifiedStockHistory } = require('../services/stockHistory');
 const { createOpenAIResponse, extractOutputText } = require('../services/openaiResponses');
 const { generateProReport, getLatestProReports, toReportSnapshot } = require('../services/proReportService');
 const { extractSymbols } = require('../services/symbolExtraction');
@@ -13,6 +14,10 @@ const formatProEngineText = (e, sym) => {
   const breakdownText = (e.technicalBreakdown || []).map(b => `  ${b.indicator}: ${b.points > 0 ? '+' : ''}${b.points} (${b.note})`).join('\n');
   const catalystsText = (e.catalysts || []).length ? e.catalysts.map(c => `  \u2022 ${c}`).join('\n') : '  None identified';
   const risksText = (e.risks || []).length ? e.risks.map(r2 => `  \u2022 ${r2}`).join('\n') : '  None identified';
+  const earnings = e.latestEarningsReport;
+  const latestEarningsText = earnings
+    ? `LATEST REPORTED EARNINGS (verified Finnhub data): reported ${earnings.reportedDate || 'date not supplied'}, ${earnings.quarter != null ? 'Q' + earnings.quarter : 'quarter not supplied'} FY${earnings.year || 'not supplied'}${earnings.fiscalPeriod ? ', fiscal period ' + earnings.fiscalPeriod : ''}; EPS actual ${earnings.epsActual ?? 'not supplied'} vs estimate ${earnings.epsEstimate ?? 'not supplied'}${earnings.epsSurprisePercent != null ? ' (' + (earnings.epsSurprisePercent > 0 ? '+' : '') + earnings.epsSurprisePercent + '% surprise)' : ''}; revenue actual ${earnings.revenueActual ?? 'not supplied'} vs estimate ${earnings.revenueEstimate ?? 'not supplied'}${earnings.revenueSurprisePercent != null ? ' (' + (earnings.revenueSurprisePercent > 0 ? '+' : '') + earnings.revenueSurprisePercent + '% surprise)' : ''}.`
+    : 'LATEST REPORTED EARNINGS: no verified reported-quarter result was returned.';
   return `SWINGRUSH PRO ENGINE: ${sym}
 Report generated: ${e.generatedAt || 'not supplied'} | Report fresh-until marker: ${e.freshUntil || 'not supplied'}
 ${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}% | Quote time: ${e.quoteTime || 'not supplied'}
@@ -34,6 +39,7 @@ RISKS:
 ${risksText}
 ${e.analystSummary ? 'ANALYST CONSENSUS: ' + e.analystSummary : ''}
 ${e.holdingPeriod ? 'RECOMMENDED HOLDING PERIOD: ' + e.holdingPeriod : ''}
+${latestEarningsText}
 ${e.upcomingEarnings && e.upcomingEarnings.length ? 'UPCOMING EARNINGS (confirmed dates - cite these exactly, never guess other dates): ' + e.upcomingEarnings.map(x => x.date + ' (Q' + x.quarter + ' FY' + x.year + ', ' + x.hour + ')').join('; ') : 'No confirmed upcoming earnings date in the calendar.'}
 RAW DAILY PRICE HISTORY (last 30 trading days, oldest to newest \u2014 use this to answer ANY historical question yourself):
 ${(e.priceHistory || []).slice(-30).map(c => {
@@ -63,11 +69,33 @@ const SWINGRUSH_FUNCTION_TOOLS = [
     },
   },
   {
+    name: 'get_stock_history',
+    description: 'Get verified Yahoo Finance daily OHLCV for any exact past US trading date or any historical period available for the ticker. It returns exact closes, open/high/low/volume, daily close-vs-prior-close and intraday percentages, plus server-calculated start-to-end gain/loss using split/dividend-adjusted closes for long periods. Use this whenever the user asks what a stock closed at on a date, what it did yesterday, or how much it gained/lost over any period. Do not use the live quote alone or guess. If Yahoo returns no usable session, use web_search as fallback and cite the source.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string', description: 'US stock ticker, e.g. NVDA.' },
+        startDate: { type: 'string', description: 'Exact first market date in YYYY-MM-DD format. Resolve words such as yesterday from the ground-truth dates in the system prompt.' },
+        endDate: { type: 'string', description: 'Optional final date in YYYY-MM-DD format. May span any historical period available for the ticker.' },
+      },
+      required: ['symbol', 'startDate'],
+    },
+  },
+  {
     name: 'get_stock_analysis',
-    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators (RSI, EMA, MACD, ADX, etc), AI-powered news analysis with real catalysts and risks, upcoming earnings dates, suggested holding period, and current price (including pre-market/after-hours if applicable). Tends to be most useful when the user is asking about a specific stock in a way that would genuinely benefit from live technical/news data (e.g. "should I buy X", "what\'s the signal on X", "analyze X"). For general knowledge questions about a company (like "who is the CEO"), or anything your own knowledge already covers well, you likely won\'t need it \u2014 but it\'s your call either way.',
+    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators, AI-powered news analysis with real catalysts and risks, the latest reported quarterly earnings result (EPS/revenue actual vs estimate), upcoming earnings dates, suggested holding period, and current price including extended hours. Use it for a full live trade analysis; it is not needed for a simple historical-price question.',
     input_schema: {
       type: 'object',
       properties: { symbol: { type: 'string', description: 'The stock ticker symbol, e.g. NVDA, AAPL, TSLA' } },
+      required: ['symbol'],
+    },
+  },
+  {
+    name: 'get_latest_pro_report',
+    description: 'Retrieve the latest immutable SAVED SwingRush Pro Engine report for one ticker without running a new paid analysis. Use this when the user asks about the previous/latest Pro signal, score, generated report, or wants to compare an older saved result. Do not use or mention it for a simple historical-price, news, earnings, or company-fact question unless the user explicitly connects that question to the Pro Engine report.',
+    input_schema: {
+      type: 'object',
+      properties: { symbol: { type: 'string', description: 'US stock ticker, e.g. NVDA.' } },
       required: ['symbol'],
     },
   },
@@ -292,6 +320,15 @@ const executeTool = async (toolName, toolInput, chartRequests, reportRequests, u
       return `Could not fetch a verified live quote for ${sym}: ${e.message}. Do not guess the price.`;
     }
   }
+  if (toolName === 'get_stock_history') {
+    const sym = String(toolInput.symbol || '').toUpperCase().trim();
+    try {
+      const history = await getVerifiedStockHistory(sym, toolInput.startDate, toolInput.endDate || toolInput.startDate);
+      return JSON.stringify(history);
+    } catch (e) {
+      return `Could not fetch verified historical prices for ${sym || 'that ticker'}: ${e.message}. Do not guess historical prices.`;
+    }
+  }
   if (toolName === 'get_stock_analysis') {
     const sym = (toolInput.symbol || '').toUpperCase().trim();
     try {
@@ -301,6 +338,18 @@ const executeTool = async (toolName, toolInput, chartRequests, reportRequests, u
       return formatProEngineText(result, sym);
     } catch (e) {
       return `Failed to fetch analysis for ${sym}: ${e.message}`;
+    }
+  }
+  if (toolName === 'get_latest_pro_report') {
+    const sym = String(toolInput.symbol || '').toUpperCase().trim();
+    try {
+      const reports = await getLatestProReports([sym]);
+      const report = reports[0];
+      if (!report) return `No saved Pro Engine report exists for ${sym}.`;
+      addReportRequest(reportRequests, report);
+      return formatProEngineText(report, sym);
+    } catch (e) {
+      return `Could not retrieve the latest saved Pro Engine report for ${sym || 'that ticker'}: ${e.message}`;
     }
   }
   if (toolName === 'show_chart') {
@@ -719,21 +768,6 @@ router.post('/', protect, async (req, res) => {
     const symbols = extractSymbols(message || '');
     const needsEngine = symbols.length > 0; // used by community context below; engine data comes through the AI's tool calls
 
-    // Give the model the most recent SAVED Pro result automatically, without
-    // silently treating it as live or forcing a new paid analysis. The model
-    // can use it, ignore it for an unrelated factual question, or refresh via
-    // get_stock_analysis when current technical/news data materially matters.
-    const ambientReports = await getLatestProReports(symbols);
-    const latestReportsContext = ambientReports.length ? `
-╔══════════════════════════════════════╗
-  LATEST SAVED PRO ENGINE REPORT(S)
-╚══════════════════════════════════════╝
-${ambientReports.map(report => JSON.stringify(report)).join('\n')}
-These immutable saved reports are automatically supplied as context. Each includes generatedAt, freshUntil, and isStale. Because the user is asking about a ticker, always acknowledge the latest saved report briefly: name the symbol, generated time, direction, and combined score before or alongside the direct answer. Never describe its quote or signal as current when isStale is true; call the appropriate live tool when freshness matters. Mentioning the report does NOT mean forcing a trade recommendation into a factual question. For a real trade decision, combine relevant report evidence with the user's profile and actual position when available.
-` : symbols.length ? `
-LATEST SAVED PRO ENGINE REPORT: No saved Pro report currently exists for ${symbols.join(', ')}. Briefly tell the user that there is no previous saved report for the ticker, then answer the question normally. Do not run a paid Pro analysis solely to fill this gap unless current technical/news analysis materially helps answer what the user asked.
-` : '';
-
     // ── This user's own open position(s) in whatever symbol(s) are in play ──
     // Ambient fact, not a tool call — same pattern as trader profile / community
     // sentiment below. Whether the user already holds a symbol is always
@@ -879,6 +913,8 @@ ACCURACY POLICY (non-negotiable):
 - If data is missing, stale, conflicting, or a tool fails, say exactly what could not be verified. Never fill the gap with a plausible guess.
 - For current news or public facts, use web_search and include source citations/links. Check publication date and event date; prefer primary sources and recent reporting.
 - For an exact current stock quote, prefer get_stock_quote over web results. For a full one-stock trade view, prefer get_stock_analysis. For market breadth, use the Scanner tools. For private user facts, use SwingRush database tools.
+- For an exact past session or any historical period—including "yesterday"—use get_stock_history. It supplies verified closes and precomputed daily/period gain-loss percentages. A current quote and its prior-close field are not enough.
+- If get_stock_history returns no usable session, use web_search as a fallback and cite the historical-data source. If the user asks WHY the stock moved, use web_search for dated news/catalysts after obtaining the exact price move.
 - When two sources conflict for the same stock, do not blend the numbers. State the conflict and timestamp/source. For the SwingRush signal, Pro Engine is authoritative over Scanner.
 - Do not promise certainty or guaranteed outcomes. Give the strongest supportable conclusion and identify material uncertainty.
 
@@ -886,7 +922,9 @@ Your tools:
 - web_search — for fresh news, current public/company facts, filings, macro developments and other time-sensitive information. Do not use it instead of a structured SwingRush tool when that tool directly answers the question.
 - calculate — a real calculator. Any time your answer involves arithmetic on numbers you already have in front of you (a percentage, a difference, a ratio, a sum of a few known values — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user. (If the math requires first counting or summing across a LIST of the user's own trades, use aggregate_my_trades instead — see below — since the risk there is miscounting the list, not just the final arithmetic.)
 - get_stock_quote — freshest structured quote for a simple exact price/change question, including market state and timestamp.
-- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus real GPT-5.6 Sol analysis of that stock's supplied recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, confirmed earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price relationship is already calculated against the same live price, so use those numbers exactly and never recalculate them from history or web results. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user. Its entry/TP/SL describe a FRESH hypothetical trade today; if the user already has a position, use get_open_positions_progress for that position's actual target and stop.
+- get_stock_history — verified Yahoo daily candles for any exact past date or historical period, with exact OHLCV plus server-calculated daily and start-to-end gain/loss percentages. Long-period returns use split/dividend-adjusted closes. Use it for "what did NVDA close at yesterday?" and "how much did NVDA gain from date A to date B?"; it does not run Pro news analysis or consume those credits. If Yahoo has no usable data, fall back to web_search with citations.
+- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus real GPT-5.6 Sol analysis of that stock's supplied recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, the latest reported quarterly EPS/revenue actual-vs-estimate result, confirmed upcoming earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price relationship is already calculated against the same live price, so use those numbers exactly and never recalculate them from history or web results. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user. Its entry/TP/SL describe a FRESH hypothetical trade today; if the user already has a position, use get_open_positions_progress for that position's actual target and stop.
+- get_latest_pro_report — latest immutable SAVED Pro Engine report for one ticker, retrieved without rerunning paid analysis. Use only when a saved/previous Pro signal or score is relevant; do not inject an old engine report into an unrelated price-history, company, earnings, or news answer.
 - get_market_scan — the SwingRush "Scanner": current signals across the scanned universe, with technical + keyword/analyst news sub-scores. Use for breadth and discovery, not as a substitute for one-stock Pro Engine analysis.
 - filter_scanner — a real calculator over the scanner's signals: count, list, or average score, filtered by direction/price range/score/confidence, computed directly from the data. ANY question that requires counting or filtering scanner signals by a specific condition ("how many SELL signals under $50", "list BUY signals with High confidence") MUST go through this tool, not get_market_scan's raw text — the scanner can have hundreds of rows and manually counting/filtering that many yourself is unreliable, exactly like tallying a long trade list by hand.
 - get_my_calls — this user's own portfolio: the raw list of trades they personally posted, with entry, TP/SL and outcome (WIN/LOSS/OPEN). Use this to look up or describe individual trades, NOT to compute any statistic across them.
@@ -908,7 +946,6 @@ ${ownPositionsContext}
 ${communityContext}
 ${profileContext}
 ${accountContext}
-${latestReportsContext}
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
 Yesterday was: ${new Date(Date.now() - 86400000).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
 Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true })} (server time) — treat these exact dates as ground truth, do not recompute them yourself.`;
@@ -938,7 +975,6 @@ Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit
     const responseText = openAIResult.text;
     const stockDataList = openAIResult.charts || [];
     const latestReports = [];
-    ambientReports.forEach(report => addReportRequest(latestReports, report));
     (openAIResult.reports || []).forEach(report => addReportRequest(latestReports, report));
     // ── Save AI reply to session ──────────────────
     // (User message was already saved above, before the OpenAI call.)

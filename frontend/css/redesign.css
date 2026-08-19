@@ -315,40 +315,21 @@ select {
 #sr-history-list > div { background: var(--surface2) !important; border-color: var(--border) !important; }
 #sr-history-list [style*="color:#1a1a2e"] { color: var(--text) !important; }
 
-.sr-ask-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 40000;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(2,5,8,.72);
-  backdrop-filter: blur(8px);
-  animation: srAskIn .18s ease-out;
+.sr-pro-ai-explore {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 16px;
+  border: 1px solid rgba(79, 125, 255, 0.48);
+  border-radius: var(--radius-sm, 10px);
+  background: linear-gradient(135deg, #315ee8, #6948d9);
+  color: #fff;
+  font: 800 14px var(--font-body, sans-serif);
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(49, 94, 232, 0.24);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
-
-.sr-ask-card {
-  position: relative;
-  width: min(420px, 100%);
-  padding: 28px;
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,.07);
-  text-align: center;
-}
-
-.sr-ask-kicker { color: var(--green2); font: 800 10px var(--font-mono); }
-.sr-ask-symbol { margin: 6px 0 8px; color: var(--text); font: 800 34px var(--font-mono); }
-.sr-ask-signal { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); font: 800 12px var(--font-mono); }
-.sr-ask-signal strong { color: var(--text); }
-.sr-ask-signal.buy span { color: var(--green2); }
-.sr-ask-signal.sell span { color: var(--red); }
-.sr-ask-signal.neutral span { color: var(--gold); }
-.sr-ask-card p { margin: 0 0 20px; color: var(--text2); font-size: 14px; line-height: 1.55; }
-.sr-ask-action { width: 100%; min-height: 44px; border: 0; border-radius: var(--radius-sm); background: var(--green); color: #03120a; font: 800 14px var(--font-body); cursor: pointer; }
-.sr-ask-action:hover { background: var(--green2); }
-.sr-ask-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); color: var(--text2); cursor: pointer; }
+.sr-pro-ai-explore:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 11px 30px rgba(49, 94, 232, 0.32); }
+.sr-pro-ai-explore:focus-visible { outline: 3px solid rgba(79, 125, 255, 0.32); outline-offset: 2px; }
 
 #sr-chat-choice > div {
   background: var(--surface) !important;
@@ -360,8 +341,6 @@ select {
 #sr-chat-choice [style*="color:#64748b"] { color: var(--text2) !important; }
 #sr-choice-new { background: var(--green) !important; color: #03120a !important; border-radius: var(--radius-sm) !important; }
 #sr-choice-continue { background: var(--surface2) !important; color: var(--text) !important; border-color: var(--border) !important; border-radius: var(--radius-sm) !important; }
-
-@keyframes srAskIn { from { opacity: 0; } to { opacity: 1; } }
 
 html[dir="rtl"] #sr-chat-header,
 html[dir="rtl"] #sr-chat-messages,

@@ -15,6 +15,14 @@ test('extractSymbols does not treat platform prose as stock symbols', () => {
   assert.deepEqual(extractSymbols('I want accurate answers, not guesses.'), []);
 });
 
+test('extractSymbols does not mistake OHLC vocabulary for tickers', () => {
+  assert.deepEqual(
+    extractSymbols("What was NVDA's exact open, high, low, close, and percentage move?"),
+    ['NVDA']
+  );
+  assert.deepEqual(extractSymbols('Show $LOW versus NVDA'), ['LOW', 'NVDA']);
+});
+
 test('extractSymbols works when Arabic or Hebrew text surrounds a ticker', () => {
   assert.deepEqual(extractSymbols('ما هو السعر الحالي لسهم NVDA؟'), ['NVDA']);
   assert.deepEqual(extractSymbols('מה הדוח האחרון של TSLA?'), ['TSLA']);

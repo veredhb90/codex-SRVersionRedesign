@@ -141,14 +141,16 @@ const getQuote = async (symbol, opts = {}) => {
   return quote;
 };
 
-const getCandles = async (symbol, days = 120, interval = '1d') => {
+const getCandlesForRange = async (symbol, period1, period2, interval = '1d') => {
   const resolved = resolveSymbol(symbol);
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - days * 86400;
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=${interval}&period1=${from}&period2=${now}`;
+  const from = Math.floor(Number(period1));
+  const to = Math.floor(Number(period2));
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) throw new Error('Invalid candle date range.');
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=${interval}&period1=${from}&period2=${to}`;
   const json = await fetchJSON(url);
   const result = json.chart.result[0];
   const q = result.indicators.quote[0];
+  const adj = result.indicators.adjclose?.[0]?.adjclose || [];
   const ts = result.timestamp || [];
   // Filter to indices where close is valid, keeping all fields aligned to the same indices
   const validIdx = [];
@@ -157,9 +159,15 @@ const getCandles = async (symbol, days = 120, interval = '1d') => {
   const highs  = validIdx.map(i => q.high[i]);
   const lows   = validIdx.map(i => q.low[i]);
   const opens  = validIdx.map(i => q.open[i]);
+  const adjustedCloses = validIdx.map(i => adj[i] == null ? q.close[i] : adj[i]);
   const times  = validIdx.map(i => ts[i]);
   const vols   = validIdx.map(i => (q.volume || [])[i] || 0);
-  return { c: closes, h: highs, l: lows, v: vols, o: opens, t: times };
+  return { c: closes, h: highs, l: lows, v: vols, o: opens, a: adjustedCloses, t: times };
+};
+
+const getCandles = async (symbol, days = 120, interval = '1d') => {
+  const now = Math.floor(Date.now() / 1000);
+  return getCandlesForRange(symbol, now - days * 86400, now, interval);
 };
 
 // ── Technical indicator math (standard formulas) ────────────────────
@@ -396,4 +404,4 @@ const getProTechnicalScore = async (symbol) => {
   };
 };
 
-module.exports = { getProTechnicalScore, getQuote, getCandles };
+module.exports = { getProTechnicalScore, getQuote, getCandles, getCandlesForRange };
