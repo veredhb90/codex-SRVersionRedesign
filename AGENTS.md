@@ -92,7 +92,7 @@ Chat uses the model's own knowledge for stable concepts and reasoning, the Pro E
 ## Current Checkpoint — 2026-08-19
 
 - Two-model chat upgrade implemented: Terra/medium for main chat; Sol/high for Pro Engine news reasoning.
-- Completed Pro reports are stored in local MongoDB as immutable timestamped snapshots and attached to chat history/UI cards. A ticker question always briefly acknowledges the latest saved report when one exists, without forcing a trade recommendation.
+- Completed Pro reports are stored in local MongoDB as immutable timestamped snapshots and attached to chat history/UI cards. A message that explicitly names a ticker/company briefly acknowledges the latest saved report when one exists, without forcing a trade recommendation. Never revive the previous ticker automatically for a new no-ticker message; that caused unrelated answers to include an old Pro report.
 - Existing `OPENAI_NEWS_CACHE_MS` behavior is unchanged; saved reports are context/history, not a replacement cache for new Pro runs.
 - Automated status: backend/frontend syntax clean, `npm test` passes 12/12, local Mongo synthetic round-trip passed.
 - Live status: one NVDA Pro report completed on localhost and persisted with matching direction/score. The next session should finish human-style chat validation in English, Arabic, and Hebrew, visually inspect the report card, then decide whether to prepare production deployment.

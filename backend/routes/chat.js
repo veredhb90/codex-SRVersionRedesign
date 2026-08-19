@@ -710,22 +710,13 @@ router.post('/', protect, async (req, res) => {
       session = await ChatSession.create({ user: req.user._id, title: 'New Chat', messages: [] });
     }
 
-    // ── Run engine on mentioned stocks ───────────────────────────
-    // Always run when a stock symbol is mentioned — regardless of wording
-    let symbols = extractSymbols(message || '');
-    // Sticky memory: if this message has no ticker, reuse the most recently
-    // discussed symbol(s) from earlier in THIS session, so follow-up
-    // questions ("what's the news score?") keep working without forcing
-    // the user to repeat the ticker every time.
-    if (symbols.length === 0 && session.messages && session.messages.length > 0) {
-      for (let i = session.messages.length - 1; i >= 0; i--) {
-        const m = session.messages[i];
-        if (m.role === 'user') {
-          const prevSyms = extractSymbols(m.content || '');
-          if (prevSyms.length > 0) { symbols = prevSyms; console.log('Chat: sticky symbol memory reused', symbols); break; }
-        }
-      }
-    }
+    // Only the CURRENT message may activate automatic ticker context. The
+    // previous implementation reused the last session ticker for every later
+    // no-ticker question, which leaked an old Pro report into unrelated chats.
+    // Conversation history still lets the model understand natural follow-ups,
+    // but the backend will not attach a structured report unless this message
+    // explicitly names the ticker/company.
+    const symbols = extractSymbols(message || '');
     const needsEngine = symbols.length > 0; // used by community context below; engine data comes through the AI's tool calls
 
     // Give the model the most recent SAVED Pro result automatically, without
