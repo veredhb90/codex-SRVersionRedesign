@@ -59,6 +59,15 @@
     return labels[direction] || labels.NEUTRAL;
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   window.setChatStockContext = function(stockData) {
     // Don't auto-open chat. Just prepare context and show a subtle prompt bubble.
     var symbol = stockSymbol(stockData);
@@ -129,11 +138,16 @@
     msg += '\n\n' + chatCopy3('Ask me anything about ', 'اسألني أي شيء عن ', 'שאל אותי כל דבר על ') + stockData.symbol + chatCopy3(' — I have the full analysis above!', ' — التحليل الكامل جاهز لدي.', ' — הניתוח המלא מוכן למעלה!');
 
     addMessage('ai', msg);
+    if (stockData.reportId) renderProReportCard(stockData);
     pendingStockData = null;
     // Persist this system-generated summary to the actual session in the DB,
     // so it's still there if the user reopens this chat later without typing anything.
     try {
-      var saveResult = await API.saveChatMessage({ sessionId: currentSessionId, content: msg });
+      var saveResult = await API.saveChatMessage({
+        sessionId: currentSessionId,
+        content: msg,
+        reportIds: stockData.reportId ? [stockData.reportId] : []
+      });
       if (saveResult && saveResult.sessionId) { currentSessionId = saveResult.sessionId; }
     } catch (e) { console.log('Failed to persist Pro Engine summary:', e.message); }
   }
@@ -227,6 +241,22 @@
     '.sr-bubble.sr-md code { background:#EEF4FF; padding:1px 5px; border-radius:4px; font-size:12px; }' +
     '.sr-bubble.sr-md a { color:#1565C0; }' +
     '.sr-msg-time { font-size:10px; color:#94a3b8; padding:0 4px; }' +
+    '.sr-report-card-wrap { align-self:flex-start; width:min(92%,720px); max-width:720px; animation:srMsgIn .25s ease; }' +
+    '.sr-report-card { background:var(--surface2,#fff); color:var(--text,#1A2540); border:1px solid var(--border,#E3EEFF); border-radius:14px; padding:14px 16px; box-shadow:0 2px 12px rgba(0,0,0,.06); }' +
+    '.sr-report-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:9px; }' +
+    '.sr-report-title { font-size:11px; font-weight:800; letter-spacing:.8px; color:var(--muted,#64748b); }' +
+    '.sr-report-symbol { font-size:20px; font-weight:900; color:var(--text,#0D2244); }' +
+    '.sr-report-signal { padding:5px 10px; border-radius:999px; font-size:12px; font-weight:800; white-space:nowrap; }' +
+    '.sr-report-signal.buy { background:rgba(38,166,154,.16); color:var(--green2,#14866f); }' +
+    '.sr-report-signal.sell { background:rgba(239,83,80,.14); color:var(--red,#c62828); }' +
+    '.sr-report-signal.neutral { background:rgba(148,163,184,.16); color:var(--muted,#64748b); }' +
+    '.sr-report-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px 12px; font-size:12px; }' +
+    '.sr-report-cell { background:var(--bg3,#F8FAFF); border-radius:8px; padding:7px 9px; }' +
+    '.sr-report-cell span { display:block; color:var(--muted,#64748b); font-size:10px; margin-bottom:2px; }' +
+    '.sr-report-cell strong { color:var(--text,#1A2540); font-size:12.5px; }' +
+    '.sr-report-meta { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:9px; padding-top:8px; border-top:1px solid var(--border,#E3EEFF); color:var(--muted,#64748b); font-size:10px; }' +
+    '.sr-report-fresh { color:var(--green2,#14866f); font-weight:800; }' +
+    '.sr-report-stale { color:var(--orange,#c77800); font-weight:800; }' +
     '#sr-selection-popup { position:fixed; z-index:10000; background:#1565C0; color:#fff; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(13,71,161,0.4); display:none; align-items:center; gap:6px; border:none; }' +
     '.sr-typing-wrap { display:flex; flex-direction:column; gap:5px; }' +
     '.sr-typing { display:flex; gap:5px; padding:14px 16px; background:#fff; border-radius:4px 18px 18px 18px; width:fit-content; box-shadow:0 2px 12px rgba(180,140,40,0.06); border:1px solid #F0E6D2; }' +
@@ -426,6 +456,9 @@
         lastDateLabel = dateLabel;
       }
       addMessage(m.role === 'user' ? 'user' : 'ai', m.content, m.time);
+      if (m.role === 'ai' && Array.isArray(m.reports)) {
+        m.reports.forEach(function(report) { renderProReportCard(report); });
+      }
     });
   }
 
@@ -480,6 +513,9 @@
         clearInterval(pollTimer); pollTimer = null;
         removeTyping(typingEl);
         addMessage('ai', lastNow.content, lastNow.time);
+        if (Array.isArray(lastNow.reports)) {
+          lastNow.reports.forEach(function(report) { renderProReportCard(report); });
+        }
         isTyping = false; sendBtn.disabled = false;
         clearPending();
       } else if (polls >= RESUME_MAX_POLLS) {
@@ -854,6 +890,9 @@
         throw new Error(result.data.message);
       }
       addMessage('ai', result.data.response);
+      if (result.data.latestReports && result.data.latestReports.length > 0) {
+        result.data.latestReports.forEach(function(report) { renderProReportCard(report); });
+      }
       if (result.data.stockDataList && result.data.stockDataList.length > 0) {
         result.data.stockDataList.forEach(function(sd) { renderStockChart(sd); });
       } else if (result.data.stockData) {
@@ -1015,6 +1054,73 @@
     if (!div) return;
     if (div._statusInterval) clearInterval(div._statusInterval);
     div.remove();
+  }
+
+  // Structured evidence card. The model remains free to answer naturally;
+  // this card independently shows the exact saved Pro Engine snapshot and its
+  // timestamp, so the user never has to rely on a paraphrased score or price.
+  function renderProReportCard(report) {
+    if (!report || !stockSymbol(report) || report.score == null) return;
+    var symbol = stockSymbol(report);
+    var direction = ['BUY', 'SELL', 'NEUTRAL'].indexOf(report.direction) >= 0 ? report.direction : 'NEUTRAL';
+    var directionClass = direction.toLowerCase();
+    var score = Number(report.score);
+    var scoreText = (score > 0 ? '+' : '') + (Number.isFinite(score) ? score : '—');
+    var generatedAt = report.generatedAt ? new Date(report.generatedAt) : null;
+    var generatedMs = generatedAt && !isNaN(generatedAt.getTime()) ? generatedAt.getTime() : 0;
+    var freshUntilMs = report.freshUntil ? new Date(report.freshUntil).getTime() : 0;
+    var isStale = Boolean(report.isStale) || !freshUntilMs || freshUntilMs < Date.now();
+    var locale = lastChatLang() === 'he' ? 'he' : lastChatLang() === 'ar' ? 'ar' : 'en-US';
+    var generatedLabel = generatedMs
+      ? generatedAt.toLocaleString(locale, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+      : chatCopy3('time unavailable', 'الوقت غير متاح', 'הזמן אינו זמין');
+    var numberText = function(value) {
+      var n = Number(value);
+      return Number.isFinite(n) ? n.toFixed(2) : '—';
+    };
+    var signedText = function(value) {
+      var n = Number(value);
+      return Number.isFinite(n) ? (n > 0 ? '+' : '') + n : '—';
+    };
+    var confidenceMap = {
+      'Very High': chatCopy3('Very High', 'عالية جداً', 'גבוהה מאוד'),
+      'High': chatCopy3('High', 'عالية', 'גבוהה'),
+      'Medium': chatCopy3('Medium', 'متوسطة', 'בינונית'),
+      'Low': chatCopy3('Low', 'منخفضة', 'נמוכה'),
+      'Insufficient': chatCopy3('Insufficient', 'غير كافية', 'לא מספקת')
+    };
+    var freshnessText = isStale
+      ? chatCopy3('Saved report — refresh when current data matters', 'تقرير محفوظ — حدّثه عندما تكون البيانات الحالية مهمة', 'דוח שמור — יש לרענן כשנדרשים נתונים עדכניים')
+      : chatCopy3('Latest report snapshot', 'أحدث لقطة من التقرير', 'תמונת מצב מהדוח האחרון');
+
+    var container = document.createElement('div');
+    container.className = 'sr-report-card-wrap';
+    if (lastChatLang() !== 'en') container.setAttribute('dir', 'rtl');
+    container.innerHTML =
+      '<div class="sr-report-card">' +
+        '<div class="sr-report-head">' +
+          '<div><div class="sr-report-title">' + escapeHtml(chatCopy3('LATEST PRO ENGINE REPORT', 'أحدث تقرير PRO ENGINE', 'דוח PRO ENGINE אחרון')) + '</div>' +
+          '<div class="sr-report-symbol">$' + escapeHtml(symbol) + '</div></div>' +
+          '<div class="sr-report-signal ' + directionClass + '">' + escapeHtml(signalLabel(direction)) + ' · ' + escapeHtml(scoreText) + '/24</div>' +
+        '</div>' +
+        '<div class="sr-report-grid">' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Price / session', 'السعر / الجلسة', 'מחיר / מסחר')) + '</span><strong>$' + escapeHtml(numberText(report.price)) + ' · ' + escapeHtml(report.marketState || '—') + '</strong></div>' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Confidence', 'الثقة', 'ביטחון')) + '</span><strong>' + escapeHtml(confidenceMap[report.confidence] || report.confidence || '—') + '</strong></div>' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Technical score', 'النتيجة الفنية', 'ציון טכני')) + '</span><strong>' + escapeHtml(signedText(report.technicalScore)) + '/14</strong></div>' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('AI news score', 'نتيجة أخبار AI', 'ציון חדשות AI')) + '</span><strong>' + escapeHtml(signedText(report.newsScore)) + '/10</strong></div>' +
+          (report.takeProfit != null && report.stopLoss != null
+            ? '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Take profit', 'هدف الربح', 'יעד רווח')) + '</span><strong>$' + escapeHtml(numberText(report.takeProfit)) + '</strong></div>' +
+              '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Stop loss', 'وقف الخسارة', 'סטופ לוס')) + '</span><strong>$' + escapeHtml(numberText(report.stopLoss)) + '</strong></div>'
+            : '') +
+        '</div>' +
+        '<div class="sr-report-meta"><span>' + escapeHtml(chatCopy3('Generated: ', 'تم الإنشاء: ', 'נוצר: ')) + escapeHtml(generatedLabel) + '</span>' +
+        '<span class="' + (isStale ? 'sr-report-stale' : 'sr-report-fresh') + '">' + escapeHtml(freshnessText) + '</span></div>' +
+      '</div>';
+
+    var wasNearBottom = isNearBottom();
+    messages.appendChild(container);
+    if (wasNearBottom) messages.scrollTop = messages.scrollHeight;
+    return container;
   }
 
   // ── Stock Chart Rendering ───────────────────────────────────────

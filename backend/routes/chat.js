@@ -1,126 +1,12 @@
 const express    = require('express');
 const router     = express.Router();
 const { protect } = require('../middleware/authMiddleware');
-const { getProTechnicalScore, getQuote } = require('../services/proEngine');
-const { getOpenAINewsAnalysis } = require('../services/openaiNewsAnalysis');
+const { getQuote } = require('../services/proEngine');
 const { createOpenAIResponse, extractOutputText } = require('../services/openaiResponses');
+const { generateProReport, getLatestProReports, toReportSnapshot } = require('../services/proReportService');
+const { extractSymbols } = require('../services/symbolExtraction');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
-
-// ── Company name → ticker mapping ──────────────────────────────────
-const NAME_TO_TICKER = {
-  'APPLE':'AAPL', 'MICROSOFT':'MSFT', 'GOOGLE':'GOOGL', 'ALPHABET':'GOOGL',
-  'AMAZON':'AMZN', 'TESLA':'TSLA', 'FACEBOOK':'META', 'NVIDIA':'NVDA',
-  'NETFLIX':'NFLX', 'ORACLE':'ORCL', 'INTEL':'INTC', 'DISNEY':'DIS',
-  'BOEING':'BA', 'PAYPAL':'PYPL', 'STARBUCKS':'SBUX', 'WALMART':'WMT',
-  'COSTCO':'COST', 'MCDONALDS':'MCD', 'NIKE':'NKE', 'VISA':'V',
-  'MASTERCARD':'MA', 'PEPSI':'PEP', 'ADOBE':'ADBE', 'SALESFORCE':'CRM',
-  'AIRBNB':'ABNB', 'PALANTIR':'PLTR', 'COINBASE':'COIN', 'ROBINHOOD':'HOOD',
-  'SNAPCHAT':'SNAP', 'SPOTIFY':'SPOT', 'MONGODB':'MDB', 'BROADCOM':'AVGO',
-  'QUALCOMM':'QCOM', 'MICRON':'MU', 'FORD':'F', 'RIVIAN':'RIVN',
-  'LUCID':'LCID', 'ALIBABA':'BABA', 'BAIDU':'BIDU', 'AMD':'AMD',
-};
-
-// ── Extract stock symbols ──────────────────────────────────────────
-const extractSymbols = (text) => {
-  const words = (text.toUpperCase().match(/\b[A-Z]{2,12}\b/g)) || [];
-  const SKIP = new Set([
-    'THE','AND','FOR','BUY','SELL','NOW','TOP','GET','HOW','WHY','CAN','ARE',
-    'YOU','WHAT','WHEN','WILL','DOES','HAS','ITS','SHOULD','WOULD','TELL',
-    'ABOUT','STOCK','NEWS','PRICE','TODAY','MARKET','TRADE','SIGNAL','ALL',
-    'GIVE','SHOW','LIST','BEST','WITH','FROM','LAST','YEAR','WEEK','THIS',
-    'THAT','HAVE','BEEN','THEY','WERE','SAID','EACH','WHICH','THEIR','THAN',
-    'RSI','MACD','ADX','EMA','SMA','ATR','CEO','CFO','IPO','ETF','USD',
-    'NEW','OLD','HIGH','LOW','OPEN','CLOSE','GOOD','BAD','MORE','LESS',
-    'ME','MY','SO','IF','IS','IT','AT','ON','IN','TO','OF','OR','AN','AS',
-    'BE','BY','DO','GO','HE','WE','UP','US','AM','PM','OK','NO','YES','ANY',
-    'GRAPH','CHART','CHARTS','TREND','STOCKS','SCORE','GRAPHS',
-    'SHE','WAS','HER','HIS','HIM','WHO','OUR','OUT','OFF','OVER',
-    'INTO','HERE','WANT','NEED','TAKE','MAKE','LIKE','JUST','KNOW',
-    'LOOK','FIND','KEEP','COME','LET','SAY','SAYS','TRY','HELP',
-    'SOME','SUCH','MUCH','MANY','ONLY','VERY','EVEN','ALSO','BOTH',
-    'MUST','COULD','ASKED','ASK','TELLS','FEEL','FEELS','SEEM','SEEMS',
-    'LOOKS','MAYBE','STILL','EVER','NEVER','ALWAYS','OFTEN','SOON',
-    'LATER','THEN','WHOM','WHILE','DURING','AFTER','BEFORE','SINCE',
-    'UNTIL','THUS','MOVE','MOVES','HOLD','HOLDS','WAIT','WAITS',
-    'WORK','WORKS','PLAN','PLANS','PLAY','PLAYS','LIVE','LIVES',
-    'REAL','TRUE','FACT','FACTS','CASE','CASES','PART','PARTS',
-    'SIDE','SIDES','WAYS','WAY','LINE','LINES','HALF','ROSE','FELL',
-  ]);
-  const found = [];
-  for (const w of words) {
-    if (NAME_TO_TICKER[w]) found.push(NAME_TO_TICKER[w]);
-  }
-  for (const w of words) {
-    if (w.length >= 2 && w.length <= 5 && !SKIP.has(w) && !NAME_TO_TICKER[w]) found.push(w);
-  }
-  return [...new Set(found)].slice(0, 3);
-};
-
-// ── Run the Pro Engine (technical + AI news) for one symbol ─────────
-// Returns null if there's insufficient data. Used by the get_stock_analysis tool.
-const runProEngineFor = async (sym) => {
-  const [tech, newsA] = await Promise.all([
-    getProTechnicalScore(sym),
-    getOpenAINewsAnalysis(sym),
-  ]);
-  if (tech.insufficientData) return null;
-  // Analyst-target upside/downside, computed here using the SAME live price
-  // (tech.price) used for everything else in this result — so it can never
-  // be paired with a price from a different point in time (the real cause
-  // of the TEVA bug: a stale search-sourced % next to a live price).
-  let targetUpsidePct = null;
-  if (newsA.priceTarget && newsA.priceTarget.mean && tech.price) {
-    targetUpsidePct = +(((newsA.priceTarget.mean - tech.price) / tech.price) * 100).toFixed(2);
-  }
-  const combinedScore = tech.score + newsA.score;
-  const absScore = Math.abs(combinedScore);
-  const MIN_SCORE = 4;
-  const hasSignal = absScore >= MIN_SCORE;
-  const direction = !hasSignal ? 'NEUTRAL' : (combinedScore > 0 ? 'BUY' : 'SELL');
-  let confidence = 'Insufficient';
-  if (hasSignal) {
-    if (absScore >= 17) confidence = 'Very High';
-    else if (absScore >= 12) confidence = 'High';
-    else if (absScore >= 8) confidence = 'Medium';
-    else confidence = 'Low';
-  }
-  const tpMult = absScore >= 12 ? 4.5 : absScore >= 8 ? 3.5 : absScore >= 5 ? 2.5 : 2.0;
-  const slMult = 1.5;
-  const realAtr = tech.realAtr || (tech.price * 0.02);
-  let takeProfit = null, stopLoss = null, riskReward = null;
-  // Every "distance between two prices already in this result" figure is
-  // precomputed here too, not just the analyst target — TP% and SL% are the
-  // other two prices a user routinely asks "how far is that" about. General
-  // rule: any price-pair relationship we already have the ingredients for
-  // gets computed once here, so no specific phrasing of the question can
-  // catch the model deriving it fresh (and possibly wrong) mid-sentence.
-  let tpPct = null, slPct = null;
-  if (direction !== 'NEUTRAL') {
-    takeProfit = direction === 'BUY' ? +(tech.price + realAtr * tpMult).toFixed(2) : +(tech.price - realAtr * tpMult).toFixed(2);
-    stopLoss   = direction === 'BUY' ? +(tech.price - realAtr * slMult).toFixed(2) : +(tech.price + realAtr * slMult).toFixed(2);
-    riskReward = +((Math.abs(takeProfit - tech.price) / Math.abs(stopLoss - tech.price)).toFixed(2));
-    tpPct = +(((takeProfit - tech.price) / tech.price) * 100).toFixed(2);
-    slPct = +(((stopLoss - tech.price) / tech.price) * 100).toFixed(2);
-  }
-  return {
-    symbol: sym, price: tech.price, regularSessionPrice: tech.regularSessionPrice || tech.price, changePct: tech.changePct, marketState: tech.marketState || 'Regular Session',
-    quoteTime: tech.priceTime ? new Date(tech.priceTime * 1000).toISOString() : null,
-    direction, score: combinedScore, confidence,
-    takeProfit, stopLoss, riskReward, tpPct, slPct,
-    technicalScore: tech.score, technicalBreakdown: tech.breakdown || [],
-    change1w: tech.change1w, change1m: tech.change1m,
-    newsScore: newsA.score, newsLabel: newsA.label, newsSummary: newsA.summary, newsReasoning: newsA.reasoning || '',
-    catalysts: newsA.catalysts || [], risks: newsA.risks || [],
-    analystSummary: newsA.analystSummary || '',
-    priceTarget: newsA.priceTarget || null, targetUpsidePct,
-    holdingPeriod: newsA.holdingPeriod || '',
-    upcomingEarnings: newsA.upcomingEarnings || [],
-    newsAnalyzedAt: newsA.analyzedAt || null,
-    priceHistory: tech.candles || [],
-    news: [],
-  };
-};
 
 // ── Format a Pro Engine result into verified text for the AI ────────
 const formatProEngineText = (e, sym) => {
@@ -128,6 +14,7 @@ const formatProEngineText = (e, sym) => {
   const catalystsText = (e.catalysts || []).length ? e.catalysts.map(c => `  \u2022 ${c}`).join('\n') : '  None identified';
   const risksText = (e.risks || []).length ? e.risks.map(r2 => `  \u2022 ${r2}`).join('\n') : '  None identified';
   return `SWINGRUSH PRO ENGINE: ${sym}
+Report generated: ${e.generatedAt || 'not supplied'} | Report fresh-until marker: ${e.freshUntil || 'not supplied'}
 ${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}% | Quote time: ${e.quoteTime || 'not supplied'}
 SIGNAL: ${e.direction} | Combined Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
 ${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}` : 'No trade setup \u2014 score below conviction threshold'}
@@ -360,7 +247,15 @@ const fetchMarketMovers = (direction, count) => new Promise((resolve) => {
 // decimal points can reach Function(), so there is no way to inject anything
 // beyond plain arithmetic (no letters, no semicolons, no property access).
 const SAFE_EXPR = /^[0-9+\-*/(). \s]+$/;
-const executeTool = async (toolName, toolInput, chartRequests, userId) => {
+const addReportRequest = (reportRequests, report) => {
+  const snapshot = toReportSnapshot(report);
+  if (!snapshot || snapshot.insufficientData) return;
+  const existingIndex = reportRequests.findIndex(item => item.symbol === snapshot.symbol);
+  if (existingIndex === -1) reportRequests.push(snapshot);
+  else if (new Date(snapshot.generatedAt) >= new Date(reportRequests[existingIndex].generatedAt)) reportRequests[existingIndex] = snapshot;
+};
+
+const executeTool = async (toolName, toolInput, chartRequests, reportRequests, userId) => {
   if (toolName === 'calculate') {
     const expr = String(toolInput.expression || '').trim();
     if (!expr || !SAFE_EXPR.test(expr)) {
@@ -400,8 +295,9 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
   if (toolName === 'get_stock_analysis') {
     const sym = (toolInput.symbol || '').toUpperCase().trim();
     try {
-      const result = await runProEngineFor(sym);
-      if (!result) return `No sufficient price history available for ${sym}.`;
+      const result = await generateProReport(sym);
+      if (!result || result.insufficientData) return `No sufficient price history available for ${sym}.`;
+      addReportRequest(reportRequests, result);
       return formatProEngineText(result, sym);
     } catch (e) {
       return `Failed to fetch analysis for ${sym}: ${e.message}`;
@@ -413,10 +309,11 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
       // Uses the exact same function as get_stock_analysis, so the chart's
       // score/direction ALWAYS matches the Pro Engine result exactly — no
       // separate recalculation, no possibility of the two numbers disagreeing.
-      const result = await runProEngineFor(sym);
-      if (!result || !result.priceHistory || !result.priceHistory.length) {
+      const result = await generateProReport(sym);
+      if (!result || result.insufficientData || !result.priceHistory || !result.priceHistory.length) {
         return `No chart data available for ${sym}.`;
       }
+      addReportRequest(reportRequests, result);
       chartRequests.push({
         symbol: sym, price: result.price, direction: result.direction,
         score: result.score, confidence: result.confidence,
@@ -647,6 +544,7 @@ const executeTool = async (toolName, toolInput, chartRequests, userId) => {
 // private SwingRush/user context from provider-side response storage.
 const callOpenAI = async (messages, systemPrompt, userId) => {
   const chartRequests = [];
+  const reportRequests = [];
   let convo = [...messages];
   const MAX_TOOL_ROUNDS = 5;
   // A long, multi-symbol answer can still hit the token ceiling even after
@@ -686,7 +584,7 @@ const callOpenAI = async (messages, systemPrompt, userId) => {
             output: `Invalid JSON arguments for ${call.name}. Call the tool again with valid JSON.`,
           };
         }
-        const resultText = await executeTool(call.name, args, chartRequests, userId);
+        const resultText = await executeTool(call.name, args, chartRequests, reportRequests, userId);
         return {
           type: 'function_call_output',
           call_id: call.call_id,
@@ -710,6 +608,7 @@ const callOpenAI = async (messages, systemPrompt, userId) => {
     return {
       text: accumulatedText || 'I had trouble completing that analysis \u2014 please try again.',
       charts: chartRequests,
+      reports: reportRequests,
     };
   }
 };
@@ -829,6 +728,21 @@ router.post('/', protect, async (req, res) => {
     }
     const needsEngine = symbols.length > 0; // used by community context below; engine data comes through the AI's tool calls
 
+    // Give the model the most recent SAVED Pro result automatically, without
+    // silently treating it as live or forcing a new paid analysis. The model
+    // can use it, ignore it for an unrelated factual question, or refresh via
+    // get_stock_analysis when current technical/news data materially matters.
+    const ambientReports = await getLatestProReports(symbols);
+    const latestReportsContext = ambientReports.length ? `
+╔══════════════════════════════════════╗
+  LATEST SAVED PRO ENGINE REPORT(S)
+╚══════════════════════════════════════╝
+${ambientReports.map(report => JSON.stringify(report)).join('\n')}
+These immutable saved reports are automatically supplied as context. Each includes generatedAt, freshUntil, and isStale. Because the user is asking about a ticker, always acknowledge the latest saved report briefly: name the symbol, generated time, direction, and combined score before or alongside the direct answer. Never describe its quote or signal as current when isStale is true; call the appropriate live tool when freshness matters. Mentioning the report does NOT mean forcing a trade recommendation into a factual question. For a real trade decision, combine relevant report evidence with the user's profile and actual position when available.
+` : symbols.length ? `
+LATEST SAVED PRO ENGINE REPORT: No saved Pro report currently exists for ${symbols.join(', ')}. Briefly tell the user that there is no previous saved report for the ticker, then answer the question normally. Do not run a paid Pro analysis solely to fill this gap unless current technical/news analysis materially helps answer what the user asked.
+` : '';
+
     // ── This user's own open position(s) in whatever symbol(s) are in play ──
     // Ambient fact, not a tool call — same pattern as trader profile / community
     // sentiment below. Whether the user already holds a symbol is always
@@ -852,7 +766,7 @@ router.post('/', protect, async (req, res) => {
   THE USER'S OWN OPEN POSITION(S) IN SYMBOL(S) THEY'RE ASKING ABOUT
 ╚══════════════════════════════════════╝
 ${lines.join('\n')}
-This is real, factual data about their own portfolio — always factor it into your answer (e.g. hold/add/trim advice instead of generic entry advice), but use your own judgment on exactly how to bring it up.
+This is real, factual data about their own portfolio. Use it when it changes the answer (for example, hold/add/trim considerations instead of generic fresh-entry advice), and use your own judgment about whether it needs to be mentioned explicitly.
 `;
         }
       } catch (e) { console.log('Own positions context error:', e.message); }
@@ -879,7 +793,7 @@ This is real, factual data about their own portfolio — always factor it into y
           const sellPct = 100 - buyPct;
           let line = `${sym}: ${buyCount} open BUY (${buyPct}%) vs ${sellCount} open SELL (${sellPct}%) — ${total} total open calls on SwingRush.`;
           if (total >= 5 && (buyPct >= 90 || sellPct >= 90)) {
-            line += ` ⚠️ LOPSIDED: ${Math.max(buyPct, sellPct)}% of open calls are on one side — this can indicate a crowded trade. You MUST mention this explicitly and neutrally in your answer as a contrarian consideration, without telling the user what to do about it.`;
+            line += ` ⚠️ LOPSIDED: ${Math.max(buyPct, sellPct)}% of open calls are on one side — this may be a relevant crowded-trade consideration. Use your judgment about whether it materially helps answer the user's question.`;
           }
           sentimentParts.push(line);
         }
@@ -902,7 +816,7 @@ ${sentimentParts.join('\n')}
     if (user.traderProfile && user.traderProfile.onboardingDone) {
       const p = user.traderProfile;
       profileContext = `
-TRADER PROFILE (personalize ALL advice for this user):
+TRADER PROFILE (use for decisions where personal suitability matters):
 - Age: ${p.age || 'N/A'} | Investment budget: ${p.investmentAmount || 'N/A'}
 - Style: ${p.tradingStyle === 'day' ? 'Day Trader' : p.tradingStyle === 'swing' ? 'Swing Trader' : p.tradingStyle === 'longterm' ? 'Long-Term Investor' : 'N/A'}
 - Experience: ${p.experience || 'N/A'} | Risk tolerance: ${p.riskTolerance || 'N/A'}
@@ -914,6 +828,25 @@ TRADER PROFILE: NOT FILLED IN. This user has not completed their trader profile 
 If the user asks a general investment/recommendation question that would genuinely benefit from knowing their risk tolerance, budget, or investing style (e.g. "what's the best stock for me", "what should I invest in"), politely mention early in your answer that filling out their trader profile (in their Profile page settings) would let you give more personalized advice — then still give your best general answer regardless. Do NOT nag about this on every message, only when it's genuinely relevant to the specific question asked.
 `;
     }
+
+    let accountContext = '';
+    try {
+      const mongoose = require('mongoose');
+      const Recommendation = mongoose.models.Recommendation || require('../models/Recommendation');
+      const openPositionCount = await Recommendation.countDocuments({
+        user: req.user._id,
+        isOpen: true,
+        profileOnly: { $ne: true },
+      });
+      const watchlist = Array.isArray(user.watchlist) ? user.watchlist : [];
+      accountContext = `
+SWINGRUSH ACCOUNT CONTEXT (verified locally):
+- Plan: ${user.plan || 'free'}
+- Open posted positions: ${openPositionCount}
+- Watchlist (${watchlist.length}): ${watchlist.length ? watchlist.join(', ') : 'empty'}
+This context is available for relevance and personalization; it is not a requirement to mention account details in every answer.
+`;
+    } catch (e) { console.log('Account context error:', e.message); }
 
     // ── Build session history for OpenAI (BEFORE adding this message) ──
     // Snapshot the prior turns from the in-memory session; the current user
@@ -976,11 +909,15 @@ Your tools:
 
 Language: always reply in the SAME language the user just wrote their message in — Arabic, Hebrew, English, or any other language — match them exactly, even if it's different from your previous reply or from the site's UI language. Only fall back to the site's UI language (${preferredLanguage}) when the user's message itself gives no language signal (e.g. it's just a ticker symbol like "NVDA" or a number).
 
+Tone: use occasional relevant emojis naturally to make the conversation warmer (usually 0-2 in an answer). Keep them subtle, never decorate every paragraph or bullet, and skip them where they would reduce clarity in dense numbers, risk warnings, or serious loss discussions.
+
 Directional words matter as much as numbers — BUY vs SELL, bullish vs bearish, upside vs downside, oversold vs overbought. A polarity word in the wrong direction is worse than a wrong number: it flips the entire meaning of the fact into its opposite. This risk is highest in more complex sentence structures — especially concessive ones ("despite X% rating BUY, the news is quiet", "على الرغم من", "למרות ש") — where you're holding a fact steady while also building a contrast around it. Before writing any sentence that states a direction in a non-English language, re-read it against the source data and confirm the direction word you used still matches; if in doubt, state the fact in a simpler, more direct sentence rather than a complex contrastive one.
 ${stockContext ? `\nStock the user is currently viewing:\n${stockContext}\n` : ''}
 ${ownPositionsContext}
 ${communityContext}
 ${profileContext}
+${accountContext}
+${latestReportsContext}
 Today: ${new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
 Yesterday was: ${new Date(Date.now() - 86400000).toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
 Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true })} (server time) — treat these exact dates as ground truth, do not recompute them yourself.`;
@@ -1009,15 +946,25 @@ Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit
     const openAIResult = await callOpenAI(openAIMessages, systemPrompt, req.user._id);
     const responseText = openAIResult.text;
     const stockDataList = openAIResult.charts || [];
+    const latestReports = [];
+    ambientReports.forEach(report => addReportRequest(latestReports, report));
+    (openAIResult.reports || []).forEach(report => addReportRequest(latestReports, report));
     // ── Save AI reply to session ──────────────────
     // (User message was already saved above, before the OpenAI call.)
     // Atomic $push again, so a concurrent request on the same session can't
     // clobber this reply (or vice-versa).
     await ChatSession.updateOne(
       { _id: session._id },
-      { $push: { messages: { role: 'ai', content: responseText, time: new Date() } } }
+      { $push: { messages: { role: 'ai', content: responseText, time: new Date(), reports: latestReports } } }
     );
-    res.json({ response: responseText, symbols, sessionId: session._id, stockData: stockDataList[0] || null, stockDataList });
+    res.json({
+      response: responseText,
+      symbols,
+      sessionId: session._id,
+      stockData: stockDataList[0] || null,
+      stockDataList,
+      latestReports,
+    });
 
   } catch(err) {
     console.error('Chat error:', err.message);
@@ -1030,8 +977,17 @@ Current time right now: ${new Date().toLocaleTimeString('en-US', { hour:'2-digit
 // chat window without an actual OpenAI round-trip, so it still persists.
 router.post('/save-message', protect, async (req, res) => {
   try {
-    const { sessionId, content } = req.body;
+    const { sessionId, content, reportIds = [] } = req.body;
     if (!content) return res.status(400).json({ message: 'content required' });
+
+    let savedReports = [];
+    if (Array.isArray(reportIds) && reportIds.length) {
+      try {
+        const ProReport = require('../models/ProReport');
+        const docs = await ProReport.find({ _id: { $in: reportIds.slice(0, 3) } }).lean();
+        savedReports = docs.map(toReportSnapshot);
+      } catch (e) { console.log('save-message report lookup error:', e.message); }
+    }
 
     let session;
     if (sessionId && sessionId !== 'NEW') {
@@ -1047,13 +1003,13 @@ router.post('/save-message', protect, async (req, res) => {
       session = await ChatSession.create({ user: req.user._id, title: 'New Chat', messages: [] });
     }
 
-    session.messages.push({ role: 'ai', content });
+    session.messages.push({ role: 'ai', content, reports: savedReports });
     if (session.messages.length === 1) {
       session.title = content.length > 45 ? content.substring(0, 45) + '...' : content;
     }
     await session.save();
 
-    res.json({ sessionId: session._id });
+    res.json({ sessionId: session._id, latestReports: savedReports });
   } catch (err) {
     console.error('save-message error:', err.message);
     res.status(500).json({ message: err.message });

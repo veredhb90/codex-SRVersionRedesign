@@ -21,6 +21,8 @@ SwingRush is a social trading network (live at swing-rush.com) where traders sha
 - `backend/services/proEngine.js` — technical scoring, `getQuote` (pre/after-market dual pricing), `getCandles(symbol, days, interval)`
 - `backend/services/openaiResponses.js` — shared raw OpenAI Responses API client and output parser
 - `backend/services/openaiNewsAnalysis.js` — OpenAI GPT-5.6 news analysis (freshness-aware cache, 30-minute default)
+- `backend/services/proReportService.js` + `backend/models/ProReport.js` — canonical Pro calculation and immutable timestamped report history shared by Pro Engine and chat
+- `backend/services/symbolExtraction.js` — ticker/company-name extraction guarded by the scanner universe to prevent ordinary prose from becoming false symbols
 - `backend/services/stockScanner.js` — scanner over a 2000-stock pool (`backend/data/usUniverse2000.js`), each run covers 500 (300 fixed core biggest-cap + 200 randomly rotated from the remaining tail), auto-runs every 6h on trading (week)days via setInterval
 - `backend/services/emailService.js` — all Resend email templates
 - `backend/server.js` — `io.notifyUser(userId, event, data)` — saves notification to DB (including fromUser) AND emits socket. Callers must NOT also call Notification.create (that caused duplicate-notification bugs, already fixed).
@@ -43,17 +45,19 @@ Chat uses the model's own knowledge for stable concepts and reasoning, the Pro E
 ## Current Chat Architecture
 
 `backend/routes/chat.js` uses a real tool-use loop:
-- `createOpenAIResponse(...)` in `openaiResponses.js` calls `gpt-5.6-sol` through `/v1/responses`, defaults to high reasoning, uses `store:false`, and preserves encrypted reasoning items for manual tool-loop replay.
+- `createOpenAIResponse(...)` in `openaiResponses.js` calls `gpt-5.6-terra` through `/v1/responses` for main chat, defaults to medium reasoning, uses `store:false`, and preserves encrypted reasoning items for manual tool-loop replay. Pro Engine news analysis explicitly uses `gpt-5.6-sol` with high effort.
 - `OPENAI_TOOLS` includes OpenAI web search plus SwingRush functions for quotes, Pro Engine, charts, Scanner/filtering, market movers, user portfolio/aggregates/profile, open-position progress, community sentiment, and verified platform knowledge.
-- `callOpenAI` replays every `response.output` item, executes function calls server-side, returns `{text, charts}`, and allows at most five tool rounds plus three truncation continuations.
+- `callOpenAI` replays every `response.output` item, executes function calls server-side, returns `{text, charts, reports}`, and allows at most five tool rounds plus three truncation continuations.
 - Tool choice is automatic. The prompt requires tools for current/private facts but does not force them for stable knowledge questions.
 - `${nameContext}` (user's first name) is injected at the top of the system prompt.
+- For detected tickers, the latest saved Pro report is supplied as timestamped ambient context and rendered as a separate UI card. It never replaces a requested live Pro run and does not change the existing AI-news cache.
 
 ## OpenAI Configuration
 
 - `OPENAI_API_KEY` is required for AI chat and Pro Engine news reasoning.
-- `OPENAI_MODEL` defaults to `gpt-5.6-sol`.
-- `OPENAI_REASONING_EFFORT` defaults to `high`; `OPENAI_NEWS_REASONING_EFFORT` can override the news-analysis effort.
+- `OPENAI_CHAT_MODEL` defaults to `gpt-5.6-terra`; `OPENAI_CHAT_REASONING_EFFORT` defaults to `medium`.
+- `OPENAI_PRO_MODEL` defaults to `gpt-5.6-sol`; `OPENAI_PRO_REASONING_EFFORT` defaults to `high`.
+- Legacy `OPENAI_MODEL`, `OPENAI_REASONING_EFFORT`, and `OPENAI_NEWS_REASONING_EFFORT` remain fallback overrides.
 - `OPENAI_NEWS_CACHE_MS` defaults to 30 minutes so Pro Engine news does not stay stale for hours.
 - Do not add an OpenAI SDK dependency unless it creates a concrete benefit; the current integration deliberately uses Node's HTTPS client.
 
@@ -84,3 +88,12 @@ Chat uses the model's own knowledge for stable concepts and reasoning, the Pro E
 - **Never touch `.env`** beyond reading variable NAMES. Never commit secrets anywhere.
 - Test users: wardhbisharat (Ward's main), evia90, wardtq, daved1990.
 - When something goes wrong, give Ward an honest status report: what changed, what didn't, what's verified vs. assumed.
+
+## Current Checkpoint — 2026-08-19
+
+- Two-model chat upgrade implemented: Terra/medium for main chat; Sol/high for Pro Engine news reasoning.
+- Completed Pro reports are stored in local MongoDB as immutable timestamped snapshots and attached to chat history/UI cards. A ticker question always briefly acknowledges the latest saved report when one exists, without forcing a trade recommendation.
+- Existing `OPENAI_NEWS_CACHE_MS` behavior is unchanged; saved reports are context/history, not a replacement cache for new Pro runs.
+- Automated status: backend/frontend syntax clean, `npm test` passes 12/12, local Mongo synthetic round-trip passed.
+- Live status: one NVDA Pro report completed on localhost and persisted with matching direction/score. The next session should finish human-style chat validation in English, Arabic, and Hebrew, visually inspect the report card, then decide whether to prepare production deployment.
+- Local preview uses port `5001`, MongoDB `127.0.0.1:27018/swingrush`, dummy Resend, and disabled scanner/background jobs. Production has not been changed.

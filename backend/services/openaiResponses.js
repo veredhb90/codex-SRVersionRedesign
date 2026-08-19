@@ -1,12 +1,15 @@
 const https = require('https');
 
-const DEFAULT_MODEL = 'gpt-5.6-sol';
-const DEFAULT_REASONING_EFFORT = 'high';
+// The everyday chat route uses Terra: it keeps the full GPT-5.6 tool and
+// reasoning capabilities while materially reducing cost. Quality-first Pro
+// Engine news analysis opts into Sol explicitly at its own call site.
+const DEFAULT_MODEL = 'gpt-5.6-terra';
+const DEFAULT_REASONING_EFFORT = 'medium';
 const DEFAULT_TIMEOUT_MS = 180000;
 
 const getOpenAIConfig = () => ({
-  model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
-  reasoningEffort: process.env.OPENAI_REASONING_EFFORT || DEFAULT_REASONING_EFFORT,
+  model: process.env.OPENAI_CHAT_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
+  reasoningEffort: process.env.OPENAI_CHAT_REASONING_EFFORT || process.env.OPENAI_REASONING_EFFORT || DEFAULT_REASONING_EFFORT,
   timeoutMs: Number(process.env.OPENAI_API_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
 });
 
@@ -41,6 +44,7 @@ const createOpenAIResponse = ({
   instructions,
   tools,
   maxOutputTokens = 16000,
+  model,
   reasoningEffort,
   textFormat,
   verbosity = 'medium',
@@ -51,7 +55,7 @@ const createOpenAIResponse = ({
 
   const config = getOpenAIConfig();
   const body = {
-    model: config.model,
+    model: model || config.model,
     instructions,
     input,
     max_output_tokens: maxOutputTokens,

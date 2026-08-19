@@ -232,7 +232,8 @@ Respond with the JSON format specified.`;
       input: [{ role: 'user', content: userMessage }],
       instructions: SYSTEM_PROMPT,
       maxOutputTokens: 4000,
-      reasoningEffort: process.env.OPENAI_NEWS_REASONING_EFFORT || undefined,
+      model: process.env.OPENAI_PRO_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-sol',
+      reasoningEffort: process.env.OPENAI_PRO_REASONING_EFFORT || process.env.OPENAI_NEWS_REASONING_EFFORT || 'high',
       textFormat: NEWS_ANALYSIS_FORMAT,
       verbosity: 'low',
     });

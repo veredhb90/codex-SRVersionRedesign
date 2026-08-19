@@ -7,7 +7,7 @@
 
 SwingRush is a bilingual trading intelligence network. It combines a community feed, transparent trade tracking, a market scanner, technical analysis, and an AI research desk in one responsive web application.
 
-At the center of the product is an **always-on AI chat analyst**. It runs on OpenAI GPT-5.6 Sol and works around the clock: pulling fresh news, earnings, and analyst reports in real time, and turning them into well-studied, plain-language guidance on a single stock, on a user's open positions, or on the market in general. The assistant is designed to reason first from its own knowledge, then reach for the platform's engines when live data adds value — and, for Pro users, to personalize its answers using the user's own trader profile and posted trades (see [AI Research Desk](#ai-research-desk)).
+At the center of the product is an **always-on AI chat analyst**. Everyday conversation runs on OpenAI GPT-5.6 Terra, while quality-first Pro Engine news research runs on GPT-5.6 Sol. The assistant pulls fresh news, earnings, analyst data, and SwingRush account context when they materially help, then turns that evidence into plain-language guidance. It reasons from its own knowledge for stable concepts and autonomously reaches for tools when live or private data matters (see [AI Research Desk](#ai-research-desk)).
 
 The product supports English and Arabic, including right-to-left layouts and Arabic AI chat responses. It is built as a single Node.js service that serves both the API and the frontend.
 
@@ -34,10 +34,10 @@ When the Pro Engine or Market Scanner identifies an actionable trade, the result
 
 The AI chat is the centerpiece of the Pro experience. It is not a thin wrapper around a single data source — it is a reasoning agent that decides, per question, which tool best answers it. Every answer follows a deliberate priority order:
 
-The default model is **OpenAI GPT-5.6 Sol** through the Responses API with `high` reasoning effort. Tool choice remains automatic: the model answers stable educational questions from its own knowledge, while live prices, fresh news, current SwingRush results, and private user facts must be verified through their dedicated tools.
+The main chat uses **OpenAI GPT-5.6 Terra** through the Responses API with `medium` reasoning effort. The Pro Engine's focused news reasoning uses **GPT-5.6 Sol** with `high` effort. Tool choice remains automatic: the model answers stable educational questions from its own knowledge, while live prices, fresh news, current SwingRush results, and private user facts must be verified through their dedicated tools.
 
 1. **The assistant's own knowledge and judgment first.** For fundamentals, macro context, longer-term or general questions, it answers as a knowledgeable analyst would, without forcing engine data where it does not fit.
-2. **The Pro Engine, for a specific symbol.** When a question is about a concrete short-to-medium-term trade, it pulls the Pro Engine's objective read — technical indicators plus real OpenAI-powered news analysis, live pre/after-market pricing, catalysts, risks, and earnings dates.
+2. **The Pro Engine, for a specific symbol.** When a question is about a concrete short-to-medium-term trade, it can pull the Pro Engine's objective read — technical indicators plus real OpenAI-powered news analysis, live pre/after-market pricing, catalysts, risks, and earnings dates. Completed reports are saved as immutable timestamped snapshots, automatically available to later ticker conversations, and shown as a structured card without pretending an older report is live.
 3. **The Market Scanner, for breadth.** For "what's moving" or market-wide questions, it draws on the latest ranked scan.
 
 When the Pro Engine and Scanner disagree on the same symbol, the Pro Engine always wins. The Pro Engine's score, direction, and trade-plan levels are **objective and identical for every user** — they are computed from technicals and news, with no awareness of any individual's position.
@@ -48,7 +48,7 @@ When the Pro Engine and Scanner disagree on the same symbol, the Pro Engine alwa
 - **Your posted trades.** The assistant can look up the user's own open and closed positions — entry, take-profit, stop-loss, and WIN/LOSS/OPEN outcome — when it helps. Ask "how am I doing?" or "should I hold this?" and it reasons over what the user actually holds, with news, technicals, and risk specific to those positions.
 - **Community positioning.** For symbols in the conversation, it can factor in live community sentiment — the share of SwingRush traders currently BUY vs SELL on that ticker.
 
-Every response ends with the assistant's own combined recommendation: engine technicals plus its own knowledge, framed as guidance rather than a guarantee.
+When a user is weighing a trade, the assistant can give a personalized conclusion from the relevant evidence. Every ticker conversation briefly acknowledges the latest saved Pro report when one exists, while direct factual questions remain direct; the system does not force a recommendation or a fixed response template into every answer. Chat uses occasional, restrained emojis for warmth without cluttering financial details.
 
 ## Plans and Pricing
 
@@ -150,8 +150,10 @@ JWT_SECRET=replace-with-a-long-random-secret
 CLIENT_URL=http://localhost:5000
 
 OPENAI_API_KEY=your_openai_key
-OPENAI_MODEL=gpt-5.6-sol
-OPENAI_REASONING_EFFORT=high
+OPENAI_CHAT_MODEL=gpt-5.6-terra
+OPENAI_CHAT_REASONING_EFFORT=medium
+OPENAI_PRO_MODEL=gpt-5.6-sol
+OPENAI_PRO_REASONING_EFFORT=high
 FINNHUB_API_KEY=your_finnhub_key
 RESEND_API_KEY=your_resend_key
 ```
@@ -207,9 +209,12 @@ Use `npm run dev` with a separately started MongoDB instance for a portable setu
 | `DISABLE_SCANNER_AUTOSTART` | No | Set `true` during local previews to prevent background market scans. |
 | `DISABLE_BACKGROUND_JOBS` | No | Set `true` during local previews to prevent outcome/subscription sweepers. |
 | `OPENAI_API_KEY` | For AI features | Enables OpenAI-backed chat and Pro Engine news analysis. |
-| `OPENAI_MODEL` | No | OpenAI model ID. Defaults to `gpt-5.6-sol`. |
-| `OPENAI_REASONING_EFFORT` | No | Reasoning level for accuracy-sensitive analysis. Defaults to `high`. |
-| `OPENAI_NEWS_REASONING_EFFORT` | No | Optional separate reasoning level for Pro Engine news analysis. |
+| `OPENAI_CHAT_MODEL` | No | Main chat model. Defaults to `gpt-5.6-terra`. |
+| `OPENAI_CHAT_REASONING_EFFORT` | No | Main chat reasoning level. Defaults to `medium`. |
+| `OPENAI_PRO_MODEL` | No | Pro Engine news-research model. Defaults to `gpt-5.6-sol`. |
+| `OPENAI_PRO_REASONING_EFFORT` | No | Pro Engine news-research effort. Defaults to `high`. |
+| `OPENAI_MODEL` / `OPENAI_REASONING_EFFORT` | No | Backward-compatible legacy overrides when role-specific values are absent. |
+| `OPENAI_NEWS_REASONING_EFFORT` | No | Backward-compatible legacy Pro-news effort override. |
 | `OPENAI_NEWS_CACHE_MS` | No | AI-news cache duration. Defaults to 30 minutes for freshness. |
 | `OPENAI_API_TIMEOUT_MS` | No | OpenAI request timeout. Defaults to `180000`. |
 | `FINNHUB_API_KEY` | For news features | Enables news sentiment and analyst context. |

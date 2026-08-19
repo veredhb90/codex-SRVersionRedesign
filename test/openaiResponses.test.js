@@ -50,18 +50,26 @@ test('extractOutputText preserves web-search citations as source links', () => {
 test('OpenAI configuration defaults to the accuracy-first model', () => {
   const oldModel = process.env.OPENAI_MODEL;
   const oldEffort = process.env.OPENAI_REASONING_EFFORT;
+  const oldChatModel = process.env.OPENAI_CHAT_MODEL;
+  const oldChatEffort = process.env.OPENAI_CHAT_REASONING_EFFORT;
   delete process.env.OPENAI_MODEL;
   delete process.env.OPENAI_REASONING_EFFORT;
+  delete process.env.OPENAI_CHAT_MODEL;
+  delete process.env.OPENAI_CHAT_REASONING_EFFORT;
 
   try {
     const config = getOpenAIConfig();
-    assert.equal(config.model, 'gpt-5.6-sol');
-    assert.equal(config.reasoningEffort, 'high');
+    assert.equal(config.model, 'gpt-5.6-terra');
+    assert.equal(config.reasoningEffort, 'medium');
   } finally {
     if (oldModel === undefined) delete process.env.OPENAI_MODEL;
     else process.env.OPENAI_MODEL = oldModel;
     if (oldEffort === undefined) delete process.env.OPENAI_REASONING_EFFORT;
     else process.env.OPENAI_REASONING_EFFORT = oldEffort;
+    if (oldChatModel === undefined) delete process.env.OPENAI_CHAT_MODEL;
+    else process.env.OPENAI_CHAT_MODEL = oldChatModel;
+    if (oldChatEffort === undefined) delete process.env.OPENAI_CHAT_REASONING_EFFORT;
+    else process.env.OPENAI_CHAT_REASONING_EFFORT = oldChatEffort;
   }
 });
 
@@ -109,8 +117,8 @@ test('createOpenAIResponse sends Responses API privacy, reasoning, and automatic
     assert.equal(capturedOptions.hostname, 'api.openai.com');
     assert.equal(capturedOptions.path, '/v1/responses');
     assert.equal(capturedOptions.headers.Authorization, 'Bearer test-key-not-real');
-    assert.equal(capturedBody.model, 'gpt-5.6-sol');
-    assert.equal(capturedBody.reasoning.effort, 'high');
+    assert.equal(capturedBody.model, 'gpt-5.6-terra');
+    assert.equal(capturedBody.reasoning.effort, 'medium');
     assert.equal(capturedBody.tool_choice, 'auto');
     assert.equal(capturedBody.store, false);
     assert.deepEqual(capturedBody.include, ['reasoning.encrypted_content']);
@@ -123,5 +131,43 @@ test('createOpenAIResponse sends Responses API privacy, reasoning, and automatic
     else process.env.OPENAI_MODEL = oldModel;
     if (oldEffort === undefined) delete process.env.OPENAI_REASONING_EFFORT;
     else process.env.OPENAI_REASONING_EFFORT = oldEffort;
+  }
+});
+
+test('createOpenAIResponse supports an explicit quality-first model override', async () => {
+  const originalRequest = https.request;
+  const oldKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = 'test-key-not-real';
+  let capturedBody;
+
+  https.request = (options, onResponse) => {
+    const request = new EventEmitter();
+    request.write = value => { capturedBody = JSON.parse(value); };
+    request.end = () => {
+      const response = new EventEmitter();
+      response.statusCode = 200;
+      onResponse(response);
+      queueMicrotask(() => {
+        response.emit('data', Buffer.from(JSON.stringify({ status: 'completed', output: [] })));
+        response.emit('end');
+      });
+    };
+    request.destroy = error => request.emit('error', error);
+    return request;
+  };
+
+  try {
+    await createOpenAIResponse({
+      instructions: 'Analyze supplied evidence.',
+      input: [{ role: 'user', content: 'Analyze' }],
+      model: 'gpt-5.6-sol',
+      reasoningEffort: 'high',
+    });
+    assert.equal(capturedBody.model, 'gpt-5.6-sol');
+    assert.equal(capturedBody.reasoning.effort, 'high');
+  } finally {
+    https.request = originalRequest;
+    if (oldKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = oldKey;
   }
 });
