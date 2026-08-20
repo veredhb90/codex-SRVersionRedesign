@@ -1,6 +1,7 @@
 const ProReport = require('../models/ProReport');
 const { getProTechnicalScore } = require('./proEngine');
 const { getOpenAINewsAnalysis } = require('./openaiNewsAnalysis');
+const { getCommunitySentiment } = require('./communitySentiment');
 
 // Display/context freshness metadata only. It never controls whether a Pro
 // run executes and does not alter the existing OPENAI_NEWS_CACHE_MS cache.
@@ -14,7 +15,7 @@ const getConfidence = (absScore) => {
   return 'Insufficient';
 };
 
-const combineProAnalysis = (symbol, technical, newsAnalysis, generatedAt = new Date()) => {
+const combineProAnalysis = (symbol, technical, newsAnalysis, generatedAt = new Date(), communitySentiment = null) => {
   const sym = String(symbol || '').toUpperCase().trim();
   if (!technical || technical.insufficientData) {
     return {
@@ -27,6 +28,8 @@ const combineProAnalysis = (symbol, technical, newsAnalysis, generatedAt = new D
 
   const news = newsAnalysis || {};
   const technicalScore = Number(technical.score || 0);
+  // Social sentiment is evidence shown beside the Pro result. It deliberately
+  // does not affect the original technical + AI-news scoring formula.
   const newsScore = Number(news.score || 0);
   const combinedScore = technicalScore + newsScore;
   const absScore = Math.abs(combinedScore);
@@ -93,6 +96,7 @@ const combineProAnalysis = (symbol, technical, newsAnalysis, generatedAt = new D
     upcomingEarnings: news.upcomingEarnings || [],
     earningsHistory: news.earningsHistory || [],
     latestEarningsReport: news.latestEarningsReport || null,
+    communitySentiment: communitySentiment || null,
     newsFromCache: Boolean(news.fromCache),
     newsAnalyzedAt: news.analyzedAt || null,
     priceHistory: technical.candles || [],
@@ -132,11 +136,15 @@ const generateProReport = async (symbol) => {
   const sym = String(symbol || '').toUpperCase().trim();
   if (!sym) throw new Error('A stock ticker is required.');
   const generatedAt = new Date();
-  const [technical, newsAnalysis] = await Promise.all([
+  const [technical, newsAnalysis, communitySentiment] = await Promise.all([
     getProTechnicalScore(sym),
     getOpenAINewsAnalysis(sym),
+    getCommunitySentiment(sym).catch(error => {
+      console.log('Community sentiment lookup error:', error.message);
+      return null;
+    }),
   ]);
-  const report = combineProAnalysis(sym, technical, newsAnalysis, generatedAt);
+  const report = combineProAnalysis(sym, technical, newsAnalysis, generatedAt, communitySentiment);
   if (report.insufficientData) return report;
   try {
     return await persistReport(report);

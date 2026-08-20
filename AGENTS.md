@@ -90,7 +90,7 @@ Chat uses the model's own knowledge for stable concepts and reasoning, the Pro E
 - Test users: wardhbisharat (Ward's main), evia90, wardtq, daved1990.
 - When something goes wrong, give Ward an honest status report: what changed, what didn't, what's verified vs. assumed.
 
-## Current Checkpoint — 2026-08-19
+## Current Checkpoint — 2026-08-20
 
 - Two-model chat upgrade implemented: Terra/medium for main chat; Sol/high for Pro Engine news reasoning.
 - Completed Pro reports are stored in local MongoDB as immutable timestamped snapshots. Chat can retrieve one on demand with `get_latest_pro_report`; it is never forced into ordinary ticker questions. Never revive a previous ticker/report automatically.
@@ -98,7 +98,8 @@ Chat uses the model's own knowledge for stable concepts and reasoning, the Pro E
 - Pro Engine results now include the company's latest quarterly earnings report on the home popup, feed, and Scanner: verified report date/fiscal quarter, EPS actual vs estimate, revenue actual vs estimate, and beat/miss percentages from Finnhub. "Last report" in Ward's request means the company's last earnings/quarterly report, never the previous SwingRush engine run.
 - Chat now has a lightweight Yahoo historical-price tool for exact OHLCV on any available past date and server-calculated gain/loss over any requested period (split/dividend-adjusted for long returns). It must use web search with citations if Yahoo cannot provide the requested history, and web search for the reason/news behind a move. This does not invoke Pro news analysis.
 - Pro Engine BUY/SELL results no longer trigger an immediate chat advertisement. Every Pro result surface shows an explicit “Explore deeper with AI chat” button; only a click opens the New Chat / Recent Chat chooser and loads that report into chat.
-- Automated status: backend/frontend syntax clean, `npm test` passes 26/26, local Mongo synthetic round-trip passed. A real Yahoo-only NVDA check verified the exact 2026-08-18 OHLC/daily move and 2026-08-10→2026-08-18 period return.
+- Community sentiment is now shared by chat and the Pro Engine. It counts one latest currently-open public non-repost call per unique trader; at least 5 unique traders and a 70% majority are required before sentiment is labeled clear. Ticker chat checks it automatically and mentions it only when clear unless the user explicitly asks. Every Pro result displays it as a separate context card, including insufficient/mixed samples. Social sentiment never changes the original Pro formula: technical ±14 + AI news ±10 = combined ±24.
+- Automated status: backend/frontend syntax and inline HTML scripts are clean, `npm test` passes 35/35, and the local Mongo sentiment service was validated read-only against live local records. A real Yahoo-only NVDA check verified the exact 2026-08-18 OHLC/daily move and 2026-08-10→2026-08-18 period return.
 - Live localhost chat validation passed for NVDA on 2026-08-18: exact OHLC, -$5.27/-2.34% close-vs-prior-close, and -0.32% open-to-close. The reply attached no old Pro report and recognized only NVDA, not the word LOW.
 - Live status: one NVDA Pro report completed on localhost and persisted with matching direction/score. The next session should finish human-style chat validation in English, Arabic, and Hebrew, visually inspect the report card, then decide whether to prepare production deployment.
 - Local preview uses port `5001`, MongoDB `127.0.0.1:27018/swingrush`, dummy Resend, and disabled scanner/background jobs. Production has not been changed.

@@ -59,6 +59,26 @@
     return labels[direction] || labels.NEUTRAL;
   }
 
+  function communitySentimentText(sentiment) {
+    if (!sentiment) {
+      return chatCopy3(
+        'Community data unavailable',
+        'بيانات المجتمع غير متاحة',
+        'נתוני הקהילה אינם זמינים'
+      );
+    }
+    var counts = sentiment.buyPct + '% ' + signalLabel('BUY') + ' / ' +
+      sentiment.sellPct + '% ' + signalLabel('SELL') + ' · ' +
+      sentiment.uniqueTraders + ' ' + chatCopy3('unique traders', 'متداولين فريدين', 'סוחרים ייחודיים');
+    if (sentiment.clear) {
+      return counts + ' — ' + chatCopy3('clear ', 'معنويات واضحة: ', 'סנטימנט ברור: ') + signalLabel(sentiment.direction);
+    }
+    if (!sentiment.reliableSample) {
+      return counts + ' — ' + chatCopy3('not enough data for a clear reading', 'لا توجد بيانات كافية لقراءة واضحة', 'אין מספיק נתונים לקריאה ברורה');
+    }
+    return counts + ' — ' + chatCopy3('no clear majority', 'لا توجد أغلبية واضحة', 'אין רוב ברור');
+  }
+
   function escapeHtml(value) {
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;')
@@ -151,6 +171,9 @@
 
     msg += '\n' + chatCopy3('Technical (', 'التحليل الفني (', 'טכני (') + stockData.technicalScore + chatCopy3(' pts):\n', ' نقطة):\n', ' נק\'):\n') + breakdownLines + '\n';
     msg += '\n' + chatCopy3('News/AI (', 'الأخبار والذكاء الاصطناعي (', 'חדשות/AI (') + (stockData.newsScore > 0 ? '+' : '') + stockData.newsScore + chatCopy3(' pts) — ', ' نقطة) — ', ' נק\') — ') + stockData.newsLabel + ':\n' + (stockData.newsSummary || '') + '\n';
+    msg += '\n👥 ' + chatCopy3('SwingRush social sentiment: ', 'معنويات مجتمع SwingRush: ', 'סנטימנט קהילת SwingRush: ') +
+      communitySentimentText(stockData.communitySentiment) + '\n' +
+      chatCopy3('(Context only — not included in the Pro score.)', '(للسياق فقط — غير مشمول في نتيجة Pro.)', '(להקשר בלבד — לא נכלל בציון ה־Pro.)') + '\n';
 
     if (catalystLines) msg += '\n' + chatCopy3('Catalysts:', 'المحفزات:', 'זרזים:') + '\n' + catalystLines + '\n';
     if (riskLines) msg += '\n' + chatCopy3('Risks:', 'المخاطر:', 'סיכונים:') + '\n' + riskLines + '\n';
@@ -1095,6 +1118,7 @@
           '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Confidence', 'الثقة', 'ביטחון')) + '</span><strong>' + escapeHtml(confidenceMap[report.confidence] || report.confidence || '—') + '</strong></div>' +
           '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Technical score', 'النتيجة الفنية', 'ציון טכני')) + '</span><strong>' + escapeHtml(signedText(report.technicalScore)) + '/14</strong></div>' +
           '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('AI news score', 'نتيجة أخبار AI', 'ציון חדשות AI')) + '</span><strong>' + escapeHtml(signedText(report.newsScore)) + '/10</strong></div>' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Community sentiment (not scored)', 'معنويات المجتمع (غير محسوبة)', 'סנטימנט קהילתי (ללא ציון)')) + '</span><strong>' + escapeHtml(communitySentimentText(report.communitySentiment)) + '</strong></div>' +
           (report.takeProfit != null && report.stopLoss != null
             ? '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Take profit', 'هدف الربح', 'יעד רווח')) + '</span><strong>$' + escapeHtml(numberText(report.takeProfit)) + '</strong></div>' +
               '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Stop loss', 'وقف الخسارة', 'סטופ לוס')) + '</span><strong>$' + escapeHtml(numberText(report.stopLoss)) + '</strong></div>'

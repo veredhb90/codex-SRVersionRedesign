@@ -41,6 +41,17 @@ test('combineProAnalysis preserves SELL polarity and precomputes all price relat
   assert.equal(report.latestEarningsReport.reportedDate, '2026-08-17');
 });
 
+test('combineProAnalysis preserves social context without changing the original score', () => {
+  const technical = {
+    score: 4, price: 100, realAtr: 2, signals: [], breakdown: [], candles: [],
+  };
+  const clearBuy = { clear: true, direction: 'BUY', uniqueTraders: 10, buyPct: 70, sellPct: 30 };
+  const report = combineProAnalysis('NVDA', technical, { score: 3 }, new Date('2026-08-20T00:00:00Z'), clearBuy);
+  assert.equal(report.newsScore, 3);
+  assert.equal(report.score, 7);
+  assert.equal(report.communitySentiment.direction, 'BUY');
+});
+
 test('toReportSnapshot removes chart history while preserving evidence and freshness', () => {
   const snapshot = toReportSnapshot({
     _id: 'report-1',

@@ -5,6 +5,7 @@ const { getQuote } = require('../services/proEngine');
 const { getVerifiedStockHistory } = require('../services/stockHistory');
 const { createOpenAIResponse, extractOutputText } = require('../services/openaiResponses');
 const { generateProReport, getLatestProReports, toReportSnapshot } = require('../services/proReportService');
+const { getCommunitySentiment } = require('../services/communitySentiment');
 const { extractSymbols } = require('../services/symbolExtraction');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
@@ -18,6 +19,12 @@ const formatProEngineText = (e, sym) => {
   const latestEarningsText = earnings
     ? `LATEST REPORTED EARNINGS (verified Finnhub data): reported ${earnings.reportedDate || 'date not supplied'}, ${earnings.quarter != null ? 'Q' + earnings.quarter : 'quarter not supplied'} FY${earnings.year || 'not supplied'}${earnings.fiscalPeriod ? ', fiscal period ' + earnings.fiscalPeriod : ''}; EPS actual ${earnings.epsActual ?? 'not supplied'} vs estimate ${earnings.epsEstimate ?? 'not supplied'}${earnings.epsSurprisePercent != null ? ' (' + (earnings.epsSurprisePercent > 0 ? '+' : '') + earnings.epsSurprisePercent + '% surprise)' : ''}; revenue actual ${earnings.revenueActual ?? 'not supplied'} vs estimate ${earnings.revenueEstimate ?? 'not supplied'}${earnings.revenueSurprisePercent != null ? ' (' + (earnings.revenueSurprisePercent > 0 ? '+' : '') + earnings.revenueSurprisePercent + '% surprise)' : ''}.`
     : 'LATEST REPORTED EARNINGS: no verified reported-quarter result was returned.';
+  const social = e.communitySentiment;
+  const socialText = !social
+    ? 'Community data unavailable for this run.'
+    : social.uniqueTraders === 0
+      ? 'No currently open public non-repost community calls.'
+      : `${social.buyCalls} BUY (${social.buyPct}%) vs ${social.sellCalls} SELL (${social.sellPct}%) across ${social.uniqueTraders} unique traders. ${social.clear ? `Clear ${social.direction} sentiment under the minimum-five-traders / 70%-majority rule.` : social.reliableSample ? 'No clear 70% community majority.' : `Sample is too small for a clear reading (${social.uniqueTraders}/${social.minTraders} unique traders).`}`;
   return `SWINGRUSH PRO ENGINE: ${sym}
 Report generated: ${e.generatedAt || 'not supplied'} | Report fresh-until marker: ${e.freshUntil || 'not supplied'}
 ${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}% | Quote time: ${e.quoteTime || 'not supplied'}
@@ -33,6 +40,8 @@ TECHNICAL BREAKDOWN (${e.technicalScore} pts):
 ${breakdownText}
 AI NEWS ANALYSIS (${e.newsScore > 0 ? '+' : ''}${e.newsScore} pts) \u2014 ${e.newsLabel} | Analyzed at: ${e.newsAnalyzedAt || 'not supplied'}:
 ${e.newsSummary}${e.newsReasoning ? '\nWHY THIS SCORE: ' + e.newsReasoning : ''}
+SWINGRUSH SOCIAL SENTIMENT (context only; never included in the Pro score):
+${socialText}
 CATALYSTS:
 ${catalystsText}
 RISKS:
@@ -83,7 +92,7 @@ const SWINGRUSH_FUNCTION_TOOLS = [
   },
   {
     name: 'get_stock_analysis',
-    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators, AI-powered news analysis with real catalysts and risks, the latest reported quarterly earnings result (EPS/revenue actual vs estimate), upcoming earnings dates, suggested holding period, and current price including extended hours. Use it for a full live trade analysis; it is not needed for a simple historical-price question.',
+    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators, AI-powered news analysis with real catalysts and risks, SwingRush unique-trader social sentiment, the latest reported quarterly earnings result (EPS/revenue actual vs estimate), upcoming earnings dates, suggested holding period, and current price including extended hours. Social sentiment is display context only and never changes the Pro score, which remains technical + AI news. Use it for a full live trade analysis; it is not needed for a simple historical-price question.',
     input_schema: {
       type: 'object',
       properties: { symbol: { type: 'string', description: 'The stock ticker symbol, e.g. NVDA, AAPL, TSLA' } },
@@ -167,7 +176,7 @@ const SWINGRUSH_FUNCTION_TOOLS = [
   },
   {
     name: 'get_community_sentiment',
-    description: 'Get live SwingRush community positioning for one ticker: counts and percentages of currently open BUY and SELL calls. Use for questions about what SwingRush traders or the community are doing. Community positioning is context, not proof that a trade is correct.',
+    description: 'Get live SwingRush community positioning for one ticker, based on one currently open public non-repost call per unique trader. It returns BUY/SELL counts and percentages plus whether sentiment is clear: at least five unique traders and at least 70% on one side. Use for detailed questions about what SwingRush traders are doing. Community positioning is context, not proof that a trade is correct.',
     input_schema: {
       type: 'object',
       properties: { symbol: { type: 'string', description: 'US stock ticker, e.g. TSLA.' } },
@@ -515,23 +524,7 @@ const executeTool = async (toolName, toolInput, chartRequests, reportRequests, u
     const sym = String(toolInput.symbol || '').toUpperCase().trim();
     if (!sym) return 'A stock ticker is required.';
     try {
-      const Recommendation = require('../models/Recommendation');
-      const [buyCount, sellCount] = await Promise.all([
-        Recommendation.countDocuments({ symbol: sym, isOpen: true, direction: 'BUY', profileOnly: { $ne: true } }),
-        Recommendation.countDocuments({ symbol: sym, isOpen: true, direction: 'SELL', profileOnly: { $ne: true } }),
-      ]);
-      const total = buyCount + sellCount;
-      const buyPct = total ? +((buyCount / total) * 100).toFixed(2) : 0;
-      return JSON.stringify({
-        source: 'SwingRush community database',
-        retrievedAt: new Date().toISOString(),
-        symbol: sym,
-        openCalls: total,
-        buyCalls: buyCount,
-        sellCalls: sellCount,
-        buyPct,
-        sellPct: total ? +(100 - buyPct).toFixed(2) : 0,
-      });
+      return JSON.stringify(await getCommunitySentiment(sym));
     } catch (e) {
       return `Failed to fetch SwingRush community sentiment for ${sym}: ${e.message}`;
     }
@@ -540,7 +533,7 @@ const executeTool = async (toolName, toolInput, chartRequests, reportRequests, u
     const facts = {
       overview: 'SwingRush is a social trading network with a community feed, transparent trade calls, profiles and leaderboard, a Free Signal Engine, a Pro Engine, a Market Scanner, and an AI research desk. MongoDB is authoritative for accounts, trades, social activity, chat history, notifications, and stored scanner results.',
       social: 'Users can publish BUY or SELL trade calls with entry, take-profit, and stop-loss; close trades with realized outcomes; follow traders; like, comment, and repost; receive notifications; review trader profiles and leaderboard performance. Open community BUY/SELL positioning for a ticker is contextual sentiment, not a guarantee.',
-      pro_engine: 'The Pro Engine is the highest-quality SwingRush source for one symbol. It combines 8 technical indicators worth up to ±14 points with GPT-5.6 Sol analysis of recent Finnhub news worth up to ±10 points, producing a combined score from -24 to +24. It includes live/extended-hours Yahoo pricing, catalysts, risks, analyst consensus and targets, confirmed earnings dates, and ATR-based entry/TP/SL. It is calibrated for roughly 1–3 week swing trades and is objective, identical for every user.',
+      pro_engine: 'The Pro Engine is the highest-quality SwingRush source for one symbol. It combines 8 technical indicators worth up to ±14 points with GPT-5.6 Sol analysis of recent Finnhub news worth up to ±10 points, producing a combined score from -24 to +24. It also always displays current SwingRush unique-trader social sentiment as separate context; social sentiment never changes either sub-score or the combined score. It includes live/extended-hours Yahoo pricing, catalysts, risks, analyst consensus and targets, confirmed earnings dates, and ATR-based entry/TP/SL. It is calibrated for roughly 1–3 week swing trades and is objective, identical for every user.',
       scanner: 'The Market Scanner is a breadth/discovery tool, not the Pro Engine. Its universe is 2,000 US stocks ranked by market cap. Each run scans 500: the largest 300 always, plus 200 rotated from the remaining roughly 1,700. On trading weekdays it refreshes every 6 hours and retains the last completed run. It uses the Free Signal Engine technical logic plus Finnhub keyword/analyst news scoring; it does not run deep GPT-5.6 news analysis for every scanned ticker. If Scanner and Pro Engine disagree for one symbol, the Pro Engine is authoritative.',
       portfolio: 'SwingRush stores each user\'s posted calls, including direction, entry, target, stop, open/closed state, WIN/LOSS outcome, and recorded return. Portfolio aggregate tools calculate counts, win rate, average return and total return directly from stored records. Open-position progress uses each position\'s actual recorded TP/SL with a fresh quote; it must never substitute a new Pro Engine hypothetical target.',
       data_sources: 'Yahoo Finance supplies quotes and candles. Finnhub supplies recent company news, analyst recommendations, earnings calendars/history, and analyst price targets. The SwingRush database supplies user, portfolio, social, community and scanner state. OpenAI GPT-5.6 Sol provides language reasoning and deep news interpretation; it is not itself the source of live prices or private user data.',
@@ -766,7 +759,6 @@ router.post('/', protect, async (req, res) => {
     // but the backend will not attach a structured report unless this message
     // explicitly names the ticker/company.
     const symbols = extractSymbols(message || '');
-    const needsEngine = symbols.length > 0; // used by community context below; engine data comes through the AI's tool calls
 
     // ── This user's own open position(s) in whatever symbol(s) are in play ──
     // Ambient fact, not a tool call — same pattern as trader profile / community
@@ -799,26 +791,21 @@ This is real, factual data about their own portfolio. Use it when it changes the
 
     // ── Community sentiment: what SwingRush traders are doing (open calls only) ──
     let communityContext = '';
-    if (needsEngine && symbols.length > 0) {
+    if (symbols.length > 0) {
       try {
-        const mongoose = require('mongoose');
-        const Recommendation = mongoose.models.Recommendation || require('../models/Recommendation');
         const sentimentParts = [];
         for (const sym of symbols) {
-          const [buyCount, sellCount] = await Promise.all([
-            Recommendation.countDocuments({ symbol: sym, isOpen: true, direction: 'BUY', profileOnly: { $ne: true } }),
-            Recommendation.countDocuments({ symbol: sym, isOpen: true, direction: 'SELL', profileOnly: { $ne: true } }),
-          ]);
-          const total = buyCount + sellCount;
-          if (total === 0) {
+          const sentiment = await getCommunitySentiment(sym);
+          if (sentiment.uniqueTraders === 0) {
             sentimentParts.push(`${sym}: No open community calls yet.`);
             continue;
           }
-          const buyPct = Math.round((buyCount / total) * 100);
-          const sellPct = 100 - buyPct;
-          let line = `${sym}: ${buyCount} open BUY (${buyPct}%) vs ${sellCount} open SELL (${sellPct}%) — ${total} total open calls on SwingRush.`;
-          if (total >= 5 && (buyPct >= 90 || sellPct >= 90)) {
-            line += ` ⚠️ LOPSIDED: ${Math.max(buyPct, sellPct)}% of open calls are on one side — this may be a relevant crowded-trade consideration. Use your judgment about whether it materially helps answer the user's question.`;
+          let line = `${sym}: ${sentiment.buyCalls} unique open BUY (${sentiment.buyPct}%) vs ${sentiment.sellCalls} unique open SELL (${sentiment.sellPct}%) — ${sentiment.uniqueTraders} unique SwingRush traders.`;
+          if (sentiment.clear) {
+            const clearPct = sentiment.direction === 'BUY' ? sentiment.buyPct : sentiment.sellPct;
+            line += ` CLEAR ${sentiment.direction} SENTIMENT (${clearPct}%). Always mention this clear community positioning briefly in the answer, including the percentage and sample size. Treat it as supporting context, never proof or a guarantee.`;
+          } else {
+            line += ` Not clear/reliable under the rule of at least ${sentiment.minTraders} unique traders and ${sentiment.clearThresholdPct}% on one side. Do not introduce it into the answer unless the user specifically asks about community sentiment.`;
           }
           sentimentParts.push(line);
         }
@@ -923,14 +910,14 @@ Your tools:
 - calculate — a real calculator. Any time your answer involves arithmetic on numbers you already have in front of you (a percentage, a difference, a ratio, a sum of a few known values — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user. (If the math requires first counting or summing across a LIST of the user's own trades, use aggregate_my_trades instead — see below — since the risk there is miscounting the list, not just the final arithmetic.)
 - get_stock_quote — freshest structured quote for a simple exact price/change question, including market state and timestamp.
 - get_stock_history — verified Yahoo daily candles for any exact past date or historical period, with exact OHLCV plus server-calculated daily and start-to-end gain/loss percentages. Long-period returns use split/dividend-adjusted closes. Use it for "what did NVDA close at yesterday?" and "how much did NVDA gain from date A to date B?"; it does not run Pro news analysis or consume those credits. If Yahoo has no usable data, fall back to web_search with citations.
-- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus real GPT-5.6 Sol analysis of that stock's supplied recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, the latest reported quarterly EPS/revenue actual-vs-estimate result, confirmed upcoming earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price relationship is already calculated against the same live price, so use those numbers exactly and never recalculate them from history or web results. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user. Its entry/TP/SL describe a FRESH hypothetical trade today; if the user already has a position, use get_open_positions_progress for that position's actual target and stop.
+- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus real GPT-5.6 Sol analysis of that stock's supplied recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, current SwingRush unique-trader social sentiment, the latest reported quarterly EPS/revenue actual-vs-estimate result, confirmed upcoming earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price relationship is already calculated against the same live price, so use those numbers exactly and never recalculate them from history or web results. Social sentiment is separate context only and NEVER changes the technical score, AI-news score, combined score, direction, or confidence. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user. Its entry/TP/SL describe a FRESH hypothetical trade today; if the user already has a position, use get_open_positions_progress for that position's actual target and stop.
 - get_latest_pro_report — latest immutable SAVED Pro Engine report for one ticker, retrieved without rerunning paid analysis. Use only when a saved/previous Pro signal or score is relevant; do not inject an old engine report into an unrelated price-history, company, earnings, or news answer.
 - get_market_scan — the SwingRush "Scanner": current signals across the scanned universe, with technical + keyword/analyst news sub-scores. Use for breadth and discovery, not as a substitute for one-stock Pro Engine analysis.
 - filter_scanner — a real calculator over the scanner's signals: count, list, or average score, filtered by direction/price range/score/confidence, computed directly from the data. ANY question that requires counting or filtering scanner signals by a specific condition ("how many SELL signals under $50", "list BUY signals with High confidence") MUST go through this tool, not get_market_scan's raw text — the scanner can have hundreds of rows and manually counting/filtering that many yourself is unreliable, exactly like tallying a long trade list by hand.
 - get_my_calls — this user's own portfolio: the raw list of trades they personally posted, with entry, TP/SL and outcome (WIN/LOSS/OPEN). Use this to look up or describe individual trades, NOT to compute any statistic across them.
 - aggregate_my_trades — a real calculator over this user's own trades: count, win rate, average return, or total return, computed directly from the database. ANY question requiring you to count or sum across more than a couple of trades (win rate, "how am I doing", average return, performance on BUYs vs SELLs, etc.) MUST go through this tool. Do not tally or sum rows from get_my_calls by reading them yourself — that step is exactly as unreliable as doing arithmetic in your head, even though it looks like "just counting."
 - get_my_profile — verified account, trader-profile, watchlist and social-count facts for this user.
-- get_community_sentiment — live open BUY/SELL call counts and percentages from the SwingRush community for one ticker.
+- get_community_sentiment — live unique-trader public BUY/SELL positioning for one ticker. Sentiment is clear only with at least five unique traders and at least 70% on one side. Clear sentiment must be mentioned briefly whenever the current user message names that ticker; unclear or undersized samples should stay silent unless the user asks about them.
 - get_swingrush_knowledge — verified information about the SwingRush social system, engines, scanner, portfolio behavior and data sources. Use it for platform questions instead of guessing.
 - get_open_positions_progress — real distance from the current live price to each of this user's OPEN positions' ACTUAL recorded take-profit/stop-loss, ranked closest-to-target first, computed server-side. ALWAYS use this for "how close is my position to target", "which of my positions is closest to TP", or similar — NEVER build this answer yourself by combining get_my_calls with get_stock_analysis, since get_stock_analysis's TP/SL belongs to a fresh hypothetical trade, not the user's real position, and mixing the two gives a wrong answer even though the arithmetic on the wrong numbers would look fine.
 - get_market_movers — structured live top US-market gainers or losers for the current or most recent trading session.
