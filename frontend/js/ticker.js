@@ -27,6 +27,8 @@ const DISPLAY_NAMES = {
 async function loadTicker() {
   const inner = document.getElementById('ticker-inner');
   if (!inner) return;
+  const wrap = inner.closest('.ticker-wrap');
+  const alreadyLoaded = inner.dataset.loaded === 'true';
 
   const results = await Promise.allSettled(TICKER_SYMBOLS.map(s => API.quote(s)));
   const items   = results
@@ -34,7 +36,13 @@ async function loadTicker() {
     .filter(x => x.result.status === 'fulfilled' && x.result.value.price)
     .map(x => ({ ...x.result.value, displayName: DISPLAY_NAMES[x.sym] || x.result.value.symbol }));
 
-  if (!items.length) return;
+  if (!items.length) {
+    if (!alreadyLoaded && wrap) {
+      wrap.classList.remove('is-loading');
+      wrap.classList.add('is-unavailable');
+    }
+    return;
+  }
 
   // Triplicate for seamless infinite scroll
   const html = [...items, ...items, ...items].map(q => {
@@ -53,6 +61,8 @@ async function loadTicker() {
   }).join('');
 
   inner.innerHTML = html;
+  inner.dataset.loaded = 'true';
+  if (wrap) wrap.classList.remove('is-loading', 'is-unavailable');
 }
 
 document.addEventListener('DOMContentLoaded', loadTicker);

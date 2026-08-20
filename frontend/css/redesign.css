@@ -2,17 +2,17 @@
    Loaded after page-local styles so legacy UI can be upgraded safely. */
 
 :root {
-  --bg: #060708;
-  --bg2: #0b0d10;
-  --bg3: #13171d;
-  --surface: #0f141a;
-  --surface2: #171d24;
-  --surface3: #202832;
-  --border: rgba(230, 237, 243, 0.11);
-  --border2: rgba(230, 237, 243, 0.2);
+  --bg: #080b0f;
+  --bg2: #0d1218;
+  --bg3: #171e27;
+  --surface: #121922;
+  --surface2: #1a232e;
+  --surface3: #232f3c;
+  --border: rgba(230, 237, 243, 0.14);
+  --border2: rgba(230, 237, 243, 0.24);
   --text: #eef3f8;
-  --text2: #a9b5c4;
-  --muted: #6f7d8c;
+  --text2: #bbc6d2;
+  --muted: #8997a7;
   --green: #25d06f;
   --green2: #7cf3b3;
   --green3: #b9ffd6;
@@ -86,6 +86,16 @@ body::before {
   height: 36px !important;
   background: #070809 !important;
   border-bottom: 1px solid var(--border) !important;
+}
+
+.ticker-wrap.is-loading .ticker-inner {
+  width: 100%;
+  justify-content: center;
+  animation: none !important;
+}
+
+.ticker-wrap.is-unavailable {
+  display: none;
 }
 
 .ticker-wrap::before {
@@ -351,6 +361,14 @@ html[dir="rtl"] .sr-msg.user .sr-bubble { border-radius: var(--radius) var(--rad
 html[dir="rtl"] .sr-msg.ai .sr-bubble { border-radius: var(--radius) 3px var(--radius) var(--radius) !important; }
 
 @media (max-width: 680px) {
+  #sr-chat-btn {
+    width: 52px !important;
+    height: 52px !important;
+    right: 14px !important;
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+  }
+  #sr-chat-btn svg { width: 41px !important; height: 38px !important; }
+  #sr-chat-pulse { display: none !important; }
   #sr-chat-box.normal, #sr-chat-box.fullscreen { inset: 0 !important; width: 100vw !important; height: 100dvh !important; border-radius: 0 !important; }
   #sr-chat-header { min-height: 62px; padding-top: calc(10px + env(safe-area-inset-top)) !important; }
   #sr-chat-messages, #sr-chat-box.fullscreen #sr-chat-messages { padding: 14px 12px !important; }
@@ -467,7 +485,7 @@ textarea:focus {
   background:
     linear-gradient(135deg, rgba(37,208,111,0.13), transparent 28%),
     linear-gradient(315deg, rgba(54,197,240,0.12), transparent 30%),
-    #060708 !important;
+    #080b0f !important;
 }
 
 .home-page .hero::before {
@@ -485,7 +503,7 @@ textarea:focus {
   height: 170px;
   pointer-events: none;
   background:
-    linear-gradient(180deg, transparent, rgba(6,7,8,0.95)),
+    linear-gradient(180deg, transparent, rgba(8,11,15,0.95)),
     repeating-linear-gradient(90deg, rgba(37,208,111,0.18) 0 2px, transparent 2px 18px);
   opacity: .42;
 }
@@ -610,15 +628,15 @@ textarea:focus {
 }
 
 .home-page .hero-stat-lbl {
-  color: var(--muted) !important;
-  font-size: 10px !important;
+  color: var(--text2) !important;
+  font-size: 11px !important;
 }
 
 .hero-terminal {
-  min-height: 430px;
+  min-height: 390px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018)),
-    rgba(10, 13, 17, 0.88);
+    linear-gradient(180deg, rgba(255,255,255,0.065), rgba(255,255,255,0.022)),
+    rgba(16, 22, 29, 0.94);
   border: 1px solid var(--border2);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.06);
@@ -747,7 +765,7 @@ textarea:focus {
 .engine-mini span {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -855,6 +873,7 @@ textarea:focus {
   margin: -62px auto 78px !important;
   grid-template-columns: minmax(360px, .92fr) minmax(420px, 1.08fr) !important;
   gap: 18px !important;
+  align-items: start;
 }
 
 .home-page .glass-panel {
@@ -864,9 +883,16 @@ textarea:focus {
 
 .home-page .reg-card,
 .home-page .eng-card {
+  align-self: start;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02)),
-    rgba(13,17,22,0.94) !important;
+    linear-gradient(180deg, rgba(255,255,255,0.065), rgba(255,255,255,0.025)),
+    rgba(18,25,34,0.97) !important;
+}
+
+#register,
+#engine,
+#pricing {
+  scroll-margin-top: 82px;
 }
 
 .home-page .reg-card h2,
@@ -881,6 +907,11 @@ textarea:focus {
 
 .home-page .eng-card h2 {
   color: var(--green2) !important;
+}
+
+.home-page .eng-inp::placeholder {
+  color: var(--muted) !important;
+  opacity: 1;
 }
 
 .stepper {
@@ -906,8 +937,27 @@ textarea:focus {
 
 .pricing,
 .features {
-  background: var(--bg) !important;
   border-top: 1px solid var(--border) !important;
+}
+
+.pricing {
+  background: var(--bg2) !important;
+}
+
+.features {
+  background: var(--bg) !important;
+}
+
+.pricing .pr-sub,
+.feat-item p,
+.home-page .reg-card .sub,
+.home-page .eng-card .sub {
+  color: var(--text2) !important;
+}
+
+.form-label {
+  color: var(--text2) !important;
+  font-size: 12px !important;
 }
 
 .pr-grid {
@@ -1680,6 +1730,10 @@ html[dir="rtl"] .rec-card.sell {
     padding: 38px 16px 86px !important;
   }
 
+  .hero-panel {
+    gap: 28px;
+  }
+
   .home-page .hero h1 {
     font-size: 52px !important;
   }
@@ -1753,7 +1807,11 @@ html[dir="rtl"] .rec-card.sell {
   }
 
   .market-map {
-    min-height: 190px;
+    display: none;
+  }
+
+  .hero-terminal {
+    min-height: 0;
   }
 
   .engine-mini {
@@ -1766,11 +1824,23 @@ html[dir="rtl"] .rec-card.sell {
 }
 
 @media (max-width: 460px) {
-  .home-page .hero-stats,
   .hero-btns,
   .scanner-meta {
     display: grid !important;
     grid-template-columns: 1fr !important;
+  }
+
+  .home-page .hero-stats {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .home-page .hero-stat {
+    min-width: 0;
+  }
+
+  .home-page .hero-stat:last-child {
+    grid-column: 1 / -1;
   }
 
   .market-node {

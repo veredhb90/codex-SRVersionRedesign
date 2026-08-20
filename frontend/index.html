@@ -351,7 +351,7 @@
       .feat-item { padding:24px 18px; }
     }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1787156500"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1787248000"/>
 </head>
 <body class="home-page">
 
@@ -374,7 +374,7 @@
 </nav>
 
 <!-- Ticker -->
-<div class="ticker-wrap">
+<div class="ticker-wrap is-loading">
   <div class="ticker-inner" id="ticker-inner">
     <span class="ticker-item"><span class="sym" data-i18n="home.loading_live_data">Loading live data…</span></span>
   </div>
@@ -407,7 +407,7 @@
         <a href="#engine" class="btn btn-lg" style="background:rgba(255,255,255,0.1);color:#fff;border:1.5px solid rgba(255,255,255,0.25);" data-i18n="home.cta_engine">Try Free Engine</a>
       </div>
       <div class="hero-stats">
-        <div class="hero-stat"><div class="hero-stat-val">2000</div><div class="hero-stat-lbl" data-i18n="home.stat_scanned">Stocks Scanned</div></div>
+        <div class="hero-stat"><div class="hero-stat-val">2,000</div><div class="hero-stat-lbl" data-i18n="home.stat_scanned">Stock Universe</div></div>
         <div class="hero-stat"><div class="hero-stat-val">$0</div><div class="hero-stat-lbl" data-i18n="home.stat_free">Free Forever</div></div>
         <div class="hero-stat"><div class="hero-stat-val">AI</div><div class="hero-stat-lbl" data-i18n="home.stat_ai">Powered Analysis</div></div>
       </div>
@@ -416,7 +416,6 @@
       <div class="terminal-topbar">
         <span class="live-dot-sm"></span>
         <span class="terminal-title" data-i18n="home.terminal_title">Live AI Intelligence Network</span>
-        <span class="terminal-status" data-i18n="home.terminal_status">AI ONLINE 24/7</span>
       </div>
       <div class="terminal-grid">
         <div class="market-map" aria-hidden="true">
@@ -435,7 +434,6 @@
       </div>
       <div class="ai-consult-panel">
         <div class="ai-consult-copy">
-          <span class="ai-consult-eyebrow"><span class="live-dot-sm"></span> <span data-i18n="home.ai_consult_eyebrow">REAL-TIME AI CONSULTATION</span></span>
           <strong data-i18n="home.ai_consult_title">Ask the analyst what matters now.</strong>
           <p data-i18n="home.ai_consult_copy">Your 24/7 AI copilot combines live pricing, technical signals, news catalysts and risk levels before you decide.</p>
         </div>
@@ -446,11 +444,6 @@
             <button type="button" class="ai-prompt" onclick="openAiConsult('What are the strongest real-time opportunities from the market scanner today?')" data-i18n="home.ai_prompt_opportunities">Find opportunities</button>
           </div>
         </div>
-      </div>
-      <div class="terminal-tape">
-        <div class="terminal-tile"><b>NVDA +14</b><span data-i18n="home.tile_nvda">AI signal: strong BUY setup</span></div>
-        <div class="terminal-tile"><b>SPY 0</b><span data-i18n="home.tile_spy">AI read: neutral market tape</span></div>
-        <div class="terminal-tile"><b>CL=F -8</b><span data-i18n="home.tile_cl">AI signal: tactical SELL</span></div>
       </div>
     </div>
   </div>
@@ -656,10 +649,10 @@
 
 <script src="/js/api.js?v=1786600856"></script>
 <script src="/js/auth.js"></script>
-<script src="/js/i18n.js?v=1787240000"></script>
+<script src="/js/i18n.js?v=1787248000"></script>
 <script src="/js/pro_earnings_report.js?v=1787155218"></script>
 <script src="/js/pro_social_sentiment.js?v=1787240000"></script>
-<script src="/js/ticker.js?v=1786002519"></script>
+<script src="/js/ticker.js?v=1787248000"></script>
 <script src="/js/engine.js?v=1787240000"></script>
 <script>
   function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
