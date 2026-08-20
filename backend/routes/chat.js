@@ -171,7 +171,7 @@ const SWINGRUSH_FUNCTION_TOOLS = [
   },
   {
     name: 'get_my_profile',
-    description: 'Get the current user\'s safe SwingRush account and trader-profile facts: name, username, active plan, profile settings, watchlist, and follower/following counts. Use it when the user asks about their profile, preferences, membership, watchlist, or when those details materially improve personalization. Never infer missing profile fields.',
+    description: 'Get the current user\'s safe SwingRush account and trader-profile facts: name, username, active plan, profile settings, watchlist, and follower/following counts. Use it when the user asks about their profile, preferences, membership, watchlist, or when those details materially improve personalization. A watchlist contains research interests only; it is not proof that the user owns or plans to buy those stocks. Never infer missing profile fields.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -513,6 +513,7 @@ const executeTool = async (toolName, toolInput, chartRequests, reportRequests, u
         billingCycle: user.billingCycle || null,
         traderProfile: user.traderProfile || { onboardingDone: false },
         watchlist: user.watchlist || [],
+        watchlistMeaning: 'Research interests only. Watchlist entries are not portfolio positions and should not be introduced as rejected ideas unless the user asks about them or they materially affect the requested decision.',
         followerCount: user.followers?.length || 0,
         followingCount: user.following?.length || 0,
       });
@@ -855,8 +856,8 @@ If the user asks a general investment/recommendation question that would genuine
 SWINGRUSH ACCOUNT CONTEXT (verified locally):
 - Plan: ${user.plan || 'free'}
 - Open posted positions: ${openPositionCount}
-- Watchlist (${watchlist.length}): ${watchlist.length ? watchlist.join(', ') : 'empty'}
-This context is available for relevance and personalization; it is not a requirement to mention account details in every answer.
+- Watchlist / research interests only (${watchlist.length}): ${watchlist.length ? watchlist.join(', ') : 'empty'}
+The watchlist is not the user's portfolio and does not prove ownership or intent to buy. Use this context silently when it improves personalization. Do not mention, reject, or warn about a watchlist ticker merely because it appears here.
 `;
     } catch (e) { console.log('Account context error:', e.message); }
 
@@ -926,6 +927,11 @@ Your tools:
 Language: always reply in the SAME language the user just wrote their message in — Arabic, Hebrew, English, or any other language — match them exactly, even if it's different from your previous reply or from the site's UI language. Only fall back to the site's UI language (${preferredLanguage}) when the user's message itself gives no language signal (e.g. it's just a ticker symbol like "NVDA" or a number).
 
 Tone: use occasional relevant emojis naturally to make the conversation warmer (usually 0-2 in an answer). Keep them subtle, never decorate every paragraph or bullet, and skip them where they would reduce clarity in dense numbers, risk warnings, or serious loss discussions.
+
+RELEVANCE POLICY:
+- Answer the user's actual question directly. Tool calls may examine many candidates, but intermediate or rejected candidates are private research work and should normally stay out of the final answer.
+- A watchlist ticker is a research interest, not an owned position. Mention it only when the user asks about it, when it is one of your genuinely recommended choices, or when it materially changes a portfolio risk you must explain.
+- For a broad request such as "what investment is recommended for my account", give the strongest suitable choice and, only if helpful, one meaningful alternative. Do not append unrelated Scanner warnings or a list of rejected watchlist stocks.
 
 Directional words matter as much as numbers — BUY vs SELL, bullish vs bearish, upside vs downside, oversold vs overbought. A polarity word in the wrong direction is worse than a wrong number: it flips the entire meaning of the fact into its opposite. This risk is highest in more complex sentence structures — especially concessive ones ("despite X% rating BUY, the news is quiet", "على الرغم من", "למרות ש") — where you're holding a fact steady while also building a contrast around it. Before writing any sentence that states a direction in a non-English language, re-read it against the source data and confirm the direction word you used still matches; if in doubt, state the fact in a simpler, more direct sentence rather than a complex contrastive one.
 ${stockContext ? `\nStock the user is currently viewing:\n${stockContext}\n` : ''}

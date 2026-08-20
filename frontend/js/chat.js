@@ -234,7 +234,7 @@
     '.sr-msg.ai { align-self:flex-start; align-items:flex-start; }' +
     '.sr-msg-row { display:flex; align-items:flex-end; gap:8px; }' +
     '.sr-av-sm { width:28px; height:28px; border-radius:50%; background:#1565C0; display:flex; align-items:center; justify-content:center; flex-shrink:0; }' +
-    '.sr-bubble { padding:12px 16px; font-size:13.5px; line-height:1.65; white-space:pre-wrap; word-break:break-word; }' +
+    '.sr-bubble { padding:12px 16px; font-size:13.5px; line-height:1.65; white-space:pre-wrap; word-break:break-word; -webkit-user-select:text; user-select:text; }' +
     '.sr-msg.user .sr-bubble { background:#1565C0; color:#fff; border-radius:14px 14px 4px 14px; }' +
     '.sr-msg.ai .sr-bubble { background:#fff; color:#1A2540; border-radius:4px 14px 14px 14px; box-shadow:0 2px 12px rgba(180,140,40,0.06); border:1px solid #F0E6D2; cursor:text; user-select:text; }' +
     '.sr-bubble.sr-md { white-space:normal; }' +
@@ -268,7 +268,7 @@
     '.sr-report-meta { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:9px; padding-top:8px; border-top:1px solid var(--border,#E3EEFF); color:var(--muted,#64748b); font-size:10px; }' +
     '.sr-report-fresh { color:var(--green2,#14866f); font-weight:800; }' +
     '.sr-report-stale { color:var(--orange,#c77800); font-weight:800; }' +
-    '#sr-selection-popup { position:fixed; z-index:10000; background:#1565C0; color:#fff; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(13,71,161,0.4); display:none; align-items:center; gap:6px; border:none; }' +
+    '#sr-selection-popup { position:fixed; z-index:10000; max-width:calc(100vw - 16px); white-space:nowrap; background:#1565C0; color:#fff; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(13,71,161,0.4); display:none; align-items:center; gap:6px; border:none; }' +
     '.sr-typing-wrap { display:flex; flex-direction:column; gap:5px; }' +
     '.sr-typing { display:flex; gap:5px; padding:14px 16px; background:#fff; border-radius:4px 18px 18px 18px; width:fit-content; box-shadow:0 2px 12px rgba(180,140,40,0.06); border:1px solid #F0E6D2; }' +
     '.sr-dot { width:8px; height:8px; border-radius:50%; background:#1565C0; animation:srBounce 1.4s ease infinite; opacity:.7; }' +
@@ -733,17 +733,51 @@
   // gesture itself), so we also listen for touchend + selectionchange —
   // the latter is what actually fires reliably once a mobile user lifts
   // their finger after long-press-and-drag selecting text.
+  var MAX_QUOTED_TEXT_LENGTH = 4000;
+
+  function selectedMessageBubble(node) {
+    var el = node && node.nodeType === 1 ? node : node && node.parentElement;
+    return el && el.closest ? el.closest('.sr-bubble') : null;
+  }
+
   function updateSelectionPopup() {
     var sel  = window.getSelection();
     var text = sel && sel.rangeCount ? sel.toString().trim() : '';
-    if (text.length > 3 && text.length < 300 && messages.contains(sel.anchorNode)) {
+    if (text && sel.rangeCount) {
       var range = sel.getRangeAt(0);
+      var startBubble = selectedMessageBubble(range.startContainer);
+      var endBubble = selectedMessageBubble(range.endContainer);
+      if (!startBubble || !endBubble || !messages.contains(startBubble) || !messages.contains(endBubble)) {
+        selPopup.style.display = 'none';
+        return;
+      }
       var rect  = range.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return; // selection not settled yet
+      if (rect.width === 0 && rect.height === 0) {
+        selPopup.style.display = 'none';
+        return; // selection not settled yet
+      }
+
       selPopup.style.display = 'flex';
-      selPopup.style.left = Math.min(Math.max(rect.left, 8), window.innerWidth - 220) + 'px';
-      selPopup.style.top  = Math.max(rect.top - 42 + window.scrollY, 8) + 'px';
-      selPopup.dataset.text = text;
+      var visual = window.visualViewport;
+      var viewportLeft = visual ? visual.offsetLeft : 0;
+      var viewportTop = visual ? visual.offsetTop : 0;
+      var viewportWidth = visual ? visual.width : window.innerWidth;
+      var viewportHeight = visual ? visual.height : window.innerHeight;
+      var popupWidth = selPopup.offsetWidth || 160;
+      var popupHeight = selPopup.offsetHeight || 32;
+      var desiredLeft = rect.left + (rect.width / 2) - (popupWidth / 2);
+      var maxLeft = viewportLeft + viewportWidth - popupWidth - 8;
+      var desiredTop = rect.top - popupHeight - 8;
+      if (desiredTop < viewportTop + 8) desiredTop = rect.bottom + 8;
+      var maxTop = viewportTop + viewportHeight - popupHeight - 8;
+
+      // Both the Range rectangle and a position:fixed popup use viewport
+      // coordinates. Adding window.scrollY here pushed the button off-screen
+      // whenever the underlying page was scrolled.
+      selPopup.style.left = Math.max(viewportLeft + 8, Math.min(desiredLeft, maxLeft)) + 'px';
+      selPopup.style.top = Math.max(viewportTop + 8, Math.min(desiredTop, maxTop)) + 'px';
+      selPopup.dataset.text = text.slice(0, MAX_QUOTED_TEXT_LENGTH);
+      selPopup.dataset.truncated = text.length > MAX_QUOTED_TEXT_LENGTH ? 'true' : 'false';
     } else {
       selPopup.style.display = 'none';
     }
@@ -760,10 +794,11 @@
 
   selPopup.addEventListener('click', function() {
     var text = selPopup.dataset.text;
+    var wasTruncated = selPopup.dataset.truncated === 'true';
     selPopup.style.display = 'none';
     window.getSelection().removeAllRanges();
     if (text) {
-      quotedText = text;
+      quotedText = text + (wasTruncated ? '\n[The selected passage continues in the previous answer.]' : '');
       // Show quote preview above input
       var quotePreview = document.getElementById('sr-quote-preview');
       if (!quotePreview) {
@@ -774,7 +809,7 @@
         inputRow.parentNode.insertBefore(quotePreview, inputRow);
       }
       var shortText = text.length > 80 ? text.substring(0, 80) + '...' : text;
-      quotePreview.innerHTML = '<span style="flex:1;font-style:italic;">"' + shortText.replace(/</g,'&lt;') + '"</span><button onclick="srCancelQuote()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;flex-shrink:0;">✕</button>';
+      quotePreview.innerHTML = '<span style="flex:1;font-style:italic;">"' + escapeHtml(shortText) + '"</span><button onclick="srCancelQuote()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;flex-shrink:0;">✕</button>';
       quotePreview.style.display = 'flex';
       if (!isOpen) openChat();
       input.focus();
@@ -794,6 +829,8 @@
   }
   document.addEventListener('mousedown', dismissSelectionPopupIfOutside);
   document.addEventListener('touchstart', dismissSelectionPopupIfOutside);
+  messages.addEventListener('scroll', function() { selPopup.style.display = 'none'; });
+  window.addEventListener('resize', function() { selPopup.style.display = 'none'; });
 
   // ── Register prompt — close chat and scroll to register ─────────
   function handleRegisterClick() {
