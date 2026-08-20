@@ -3,6 +3,7 @@ const router     = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const { getQuote } = require('../services/proEngine');
 const { getVerifiedStockHistory } = require('../services/stockHistory');
+const { getCompanyReports, getImportantUpcomingEarnings } = require('../services/companyReports');
 const { createOpenAIResponse, extractOutputText } = require('../services/openaiResponses');
 const { generateProReport, getLatestProReports, toReportSnapshot } = require('../services/proReportService');
 const { getCommunitySentiment } = require('../services/communitySentiment');
@@ -10,15 +11,55 @@ const { extractSymbols } = require('../services/symbolExtraction');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
 
+const formatCompanyReportsText = (data, symbol) => {
+  const earnings = data?.latestEarningsReport;
+  const filing = data?.latestSecFiling;
+  const material = data?.latestMaterialEvent;
+  const next = data?.nextEarnings || data?.upcomingEarnings?.[0];
+  const lines = [`COMPANY REPORTS & EVENTS: ${symbol}`];
+
+  if (earnings) {
+    lines.push(`LATEST EARNINGS: announcement date ${earnings.announcedDate || earnings.reportedDate || 'not available'}${earnings.announcementSession ? ` (${earnings.announcementSession})` : ''}; ${earnings.quarter != null ? `Q${earnings.quarter}` : 'quarter not supplied'} FY${earnings.year || 'not supplied'}; fiscal period ended ${earnings.fiscalPeriod || 'not supplied'}. The fiscal-period end is NOT the announcement date.`);
+    if (!earnings.announcedDate && earnings.earningsReleaseFiledDate) {
+      lines.push(`EARNINGS-RELATED 8-K: filed ${earnings.earningsReleaseFiledDate}${earnings.earningsReleaseSecUrl ? `; official filing ${earnings.earningsReleaseSecUrl}` : ''}. This SEC filing date is evidence of the release but is not labeled as the announcement date.`);
+    }
+    lines.push(`EARNINGS RESULT: EPS actual ${earnings.epsActual ?? 'not supplied'} vs estimate ${earnings.epsEstimate ?? 'not supplied'}${earnings.epsSurprisePercent != null ? ` (${earnings.epsSurprisePercent > 0 ? '+' : ''}${earnings.epsSurprisePercent}% surprise)` : ''}; revenue actual ${earnings.revenueActual ?? 'not supplied'} vs estimate ${earnings.revenueEstimate ?? 'not supplied'}${earnings.revenueSurprisePercent != null ? ` (${earnings.revenueSurprisePercent > 0 ? '+' : ''}${earnings.revenueSurprisePercent}% surprise)` : ''}.`);
+    lines.push(earnings.secFiledDate
+      ? `MATCHING SEC REPORT: ${earnings.secForm || 'periodic filing'} filed ${earnings.secFiledDate}${earnings.secAcceptedAt ? `; SEC accepted ${earnings.secAcceptedAt}` : ''}${earnings.secUrl ? `; official filing ${earnings.secUrl}` : ''}.`
+      : 'MATCHING SEC REPORT: no matching periodic filing date was returned; do not substitute the fiscal-period end for the filing date.');
+  } else {
+    lines.push('LATEST EARNINGS: no verified reported-quarter result was returned.');
+  }
+
+  lines.push(filing
+    ? `LATEST IMPORTANT SEC FILING: ${filing.form} filed ${filing.filedDate}${filing.acceptedAt ? `; SEC accepted ${filing.acceptedAt}` : ''}${filing.itemLabels?.length ? `; ${filing.itemLabels.join(' · ')}` : ''}${filing.url ? `; official filing ${filing.url}` : ''}.`
+    : 'LATEST IMPORTANT SEC FILING: unavailable from SEC EDGAR.');
+  if (material) {
+    lines.push(material.duplicatesLatestEarnings
+      ? 'LATEST MATERIAL EVENT: the latest 8-K is the same earnings release already shown above; do not present it as a separate event.'
+      : `LATEST MATERIAL EVENT: ${material.title || material.form || 'SEC event'} filed ${material.filedDate || 'date unavailable'}${material.summary ? `; what happened: ${material.summary}` : ''}${material.url ? `; official filing ${material.url}` : ''}.`);
+  } else {
+    lines.push('LATEST MATERIAL EVENT: no recent 8-K/6-K event was returned.');
+  }
+  lines.push(next
+    ? `NEXT EARNINGS: ${next.date} (${next.hour || 'Time TBD'}; ${next.scheduleStatus || 'calendar timing status unavailable'}). This is a future calendar date, not a reported result.`
+    : 'NEXT EARNINGS: no future date was returned by the earnings calendar.');
+  lines.push(`Sources: ${data?.source || 'Finnhub earnings data + SEC EDGAR'}; retrieved ${data?.retrievedAt || 'time unavailable'}.`);
+  return lines.join('\n');
+};
+
 // ── Format a Pro Engine result into verified text for the AI ────────
 const formatProEngineText = (e, sym) => {
   const breakdownText = (e.technicalBreakdown || []).map(b => `  ${b.indicator}: ${b.points > 0 ? '+' : ''}${b.points} (${b.note})`).join('\n');
   const catalystsText = (e.catalysts || []).length ? e.catalysts.map(c => `  \u2022 ${c}`).join('\n') : '  None identified';
   const risksText = (e.risks || []).length ? e.risks.map(r2 => `  \u2022 ${r2}`).join('\n') : '  None identified';
-  const earnings = e.latestEarningsReport;
-  const latestEarningsText = earnings
-    ? `LATEST REPORTED EARNINGS (verified Finnhub data): reported ${earnings.reportedDate || 'date not supplied'}, ${earnings.quarter != null ? 'Q' + earnings.quarter : 'quarter not supplied'} FY${earnings.year || 'not supplied'}${earnings.fiscalPeriod ? ', fiscal period ' + earnings.fiscalPeriod : ''}; EPS actual ${earnings.epsActual ?? 'not supplied'} vs estimate ${earnings.epsEstimate ?? 'not supplied'}${earnings.epsSurprisePercent != null ? ' (' + (earnings.epsSurprisePercent > 0 ? '+' : '') + earnings.epsSurprisePercent + '% surprise)' : ''}; revenue actual ${earnings.revenueActual ?? 'not supplied'} vs estimate ${earnings.revenueEstimate ?? 'not supplied'}${earnings.revenueSurprisePercent != null ? ' (' + (earnings.revenueSurprisePercent > 0 ? '+' : '') + earnings.revenueSurprisePercent + '% surprise)' : ''}.`
-    : 'LATEST REPORTED EARNINGS: no verified reported-quarter result was returned.';
+  const companyReportsText = formatCompanyReportsText({
+    latestEarningsReport: e.latestEarningsReport,
+    upcomingEarnings: e.upcomingEarnings,
+    latestSecFiling: e.latestSecFiling,
+    latestMaterialEvent: e.latestMaterialEvent,
+    retrievedAt: e.companyReportsRetrievedAt,
+  }, sym);
   const social = e.communitySentiment;
   const socialText = !social
     ? 'Community data unavailable for this run.'
@@ -48,8 +89,7 @@ RISKS:
 ${risksText}
 ${e.analystSummary ? 'ANALYST CONSENSUS: ' + e.analystSummary : ''}
 ${e.holdingPeriod ? 'RECOMMENDED HOLDING PERIOD: ' + e.holdingPeriod : ''}
-${latestEarningsText}
-${e.upcomingEarnings && e.upcomingEarnings.length ? 'UPCOMING EARNINGS (confirmed dates - cite these exactly, never guess other dates): ' + e.upcomingEarnings.map(x => x.date + ' (Q' + x.quarter + ' FY' + x.year + ', ' + x.hour + ')').join('; ') : 'No confirmed upcoming earnings date in the calendar.'}
+${companyReportsText}
 RAW DAILY PRICE HISTORY (last 30 trading days, oldest to newest \u2014 use this to answer ANY historical question yourself):
 ${(e.priceHistory || []).slice(-30).map(c => {
   const d = new Date(c.time * 1000);
@@ -91,8 +131,30 @@ const SWINGRUSH_FUNCTION_TOOLS = [
     },
   },
   {
+    name: 'get_company_reports',
+    description: 'Get structured reports and events for ONE US ticker without running the paid Pro analysis: latest quarterly earnings actual vs estimate, the actual announcement date/session, fiscal-period end shown separately, matching SEC 10-Q/10-K filing date and official link, latest important SEC filing, latest material 8-K event, and next earnings date/timing status. Use this for company-report, earnings, filing, 8-K, 10-Q, 10-K, and next-earnings questions. Never treat a fiscal-period end as an announcement or filing date.',
+    input_schema: {
+      type: 'object',
+      properties: { symbol: { type: 'string', description: 'US stock ticker, e.g. NVDA.' } },
+      required: ['symbol'],
+    },
+  },
+  {
+    name: 'get_upcoming_earnings',
+    description: 'Get important upcoming US earnings across the market, ranked using the SwingRush 2,000-stock market-cap universe. Use when the user asks which important companies report next/today/this week or requests an earnings calendar. Dates come from Finnhub; preserve Before Market Open, After Market Close, or Time TBD exactly and do not call a date confirmed when timing is TBD.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fromDate: { type: 'string', description: 'Optional start date YYYY-MM-DD; defaults to today.' },
+        toDate: { type: 'string', description: 'Optional end date YYYY-MM-DD; defaults to seven days after start, maximum 31 days.' },
+        count: { type: 'number', description: 'Optional number of companies, 1-30; defaults to 15.' },
+      },
+      required: [],
+    },
+  },
+  {
     name: 'get_stock_analysis',
-    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators, AI-powered news analysis with real catalysts and risks, SwingRush unique-trader social sentiment, the latest reported quarterly earnings result (EPS/revenue actual vs estimate), upcoming earnings dates, suggested holding period, and current price including extended hours. Social sentiment is display context only and never changes the Pro score, which remains technical + AI news. Use it for a full live trade analysis; it is not needed for a simple historical-price question.',
+    description: 'Get live SwingRush Pro Engine analysis for ONE specific stock: technical indicators, AI-powered news analysis with real catalysts and risks, SwingRush unique-trader social sentiment, latest earnings with announcement and fiscal dates separated, important SEC filing/event data, upcoming earnings, suggested holding period, and current price including extended hours. Social sentiment is display context only and never changes the Pro score, which remains technical + AI news. Use it for a full live trade analysis; for a reports-only question use get_company_reports.',
     input_schema: {
       type: 'object',
       properties: { symbol: { type: 'string', description: 'The stock ticker symbol, e.g. NVDA, AAPL, TSLA' } },
@@ -336,6 +398,25 @@ const executeTool = async (toolName, toolInput, chartRequests, reportRequests, u
       return JSON.stringify(history);
     } catch (e) {
       return `Could not fetch verified historical prices for ${sym || 'that ticker'}: ${e.message}. Do not guess historical prices.`;
+    }
+  }
+  if (toolName === 'get_company_reports') {
+    const sym = String(toolInput.symbol || '').toUpperCase().trim();
+    try {
+      return formatCompanyReportsText(await getCompanyReports(sym), sym);
+    } catch (e) {
+      return `Could not retrieve verified company reports for ${sym || 'that ticker'}: ${e.message}. Do not guess dates or results.`;
+    }
+  }
+  if (toolName === 'get_upcoming_earnings') {
+    try {
+      const data = await getImportantUpcomingEarnings(toolInput.fromDate, toolInput.toDate, toolInput.count);
+      if (!data.earnings.length) return `No important upcoming earnings were returned for ${data.from} through ${data.to}.`;
+      return `IMPORTANT UPCOMING EARNINGS (${data.from} through ${data.to}):\n` + data.earnings.map(item =>
+        `${item.date}: ${item.symbol}${item.quarter != null ? ` Q${item.quarter}` : ''}${item.year != null ? ` FY${item.year}` : ''}; ${item.hour}; ${item.scheduleStatus}; EPS estimate ${item.epsEstimate ?? 'not supplied'}; revenue estimate ${item.revenueEstimate ?? 'not supplied'}; ${item.importance}.`
+      ).join('\n') + `\nSource: ${data.source}; retrieved ${data.retrievedAt}.`;
+    } catch (e) {
+      return `Could not retrieve the upcoming earnings calendar: ${e.message}. Do not guess dates.`;
     }
   }
   if (toolName === 'get_stock_analysis') {
@@ -902,6 +983,8 @@ ACCURACY POLICY (non-negotiable):
 - For current news or public facts, use web_search and include source citations/links. Check publication date and event date; prefer primary sources and recent reporting.
 - For an exact current stock quote, prefer get_stock_quote over web results. For a full one-stock trade view, prefer get_stock_analysis. For market breadth, use the Scanner tools. For private user facts, use SwingRush database tools.
 - For an exact past session or any historical period—including "yesterday"—use get_stock_history. It supplies verified closes and precomputed daily/period gain-loss percentages. A current quote and its prior-close field are not enough.
+- For one company's earnings, reports, SEC filings, material events, or next earnings date, use get_company_reports. Keep announcement date, fiscal-period end, and SEC filing date explicitly separate; never substitute one for another.
+- For market-wide questions about which important companies report next, today, or this week, use get_upcoming_earnings. Preserve calendar timing and TBD status exactly.
 - If get_stock_history returns no usable session, use web_search as a fallback and cite the historical-data source. If the user asks WHY the stock moved, use web_search for dated news/catalysts after obtaining the exact price move.
 - When two sources conflict for the same stock, do not blend the numbers. State the conflict and timestamp/source. For the SwingRush signal, Pro Engine is authoritative over Scanner.
 - Do not promise certainty or guaranteed outcomes. Give the strongest supportable conclusion and identify material uncertainty.
@@ -911,7 +994,9 @@ Your tools:
 - calculate — a real calculator. Any time your answer involves arithmetic on numbers you already have in front of you (a percentage, a difference, a ratio, a sum of a few known values — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user. (If the math requires first counting or summing across a LIST of the user's own trades, use aggregate_my_trades instead — see below — since the risk there is miscounting the list, not just the final arithmetic.)
 - get_stock_quote — freshest structured quote for a simple exact price/change question, including market state and timestamp.
 - get_stock_history — verified Yahoo daily candles for any exact past date or historical period, with exact OHLCV plus server-calculated daily and start-to-end gain/loss percentages. Long-period returns use split/dividend-adjusted closes. Use it for "what did NVDA close at yesterday?" and "how much did NVDA gain from date A to date B?"; it does not run Pro news analysis or consume those credits. If Yahoo has no usable data, fall back to web_search with citations.
-- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus real GPT-5.6 Sol analysis of that stock's supplied recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, current SwingRush unique-trader social sentiment, the latest reported quarterly EPS/revenue actual-vs-estimate result, confirmed upcoming earnings dates, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price relationship is already calculated against the same live price, so use those numbers exactly and never recalculate them from history or web results. Social sentiment is separate context only and NEVER changes the technical score, AI-news score, combined score, direction, or confidence. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user. Its entry/TP/SL describe a FRESH hypothetical trade today; if the user already has a position, use get_open_positions_progress for that position's actual target and stop.
+- get_company_reports — structured reports/events for one ticker without spending on a new Pro analysis: latest earnings actual-vs-estimate, actual announcement date/session, fiscal-period end, matching SEC filing date/link, latest important SEC filing, latest material 8-K event, and next earnings with timing status. Never call a fiscal-period end an announcement or filing date.
+- get_upcoming_earnings — important upcoming earnings across the market, ranked from the SwingRush 2,000-stock universe. Use for today/this week/what reports next. Preserve BMO/AMC/TBD status; a TBD date is not confirmed timing.
+- get_stock_analysis — the SwingRush "Pro Engine": an objective, quantified swing-trade signal for ONE stock. It runs 8 technical indicators (up to ±14 pts) plus real GPT-5.6 Sol analysis of that stock's supplied recent news (up to ±10 pts) for a combined score from -24 to +24, and returns direction, confidence, entry/TP/SL, catalysts, risks, current SwingRush unique-trader social sentiment, structured company reports/events, upcoming earnings timing, and precomputed 1-week/1-month price % change, distance to TP, distance to SL, and real analyst price-target upside/downside — every price relationship is already calculated against the same live price, so use those numbers exactly and never recalculate them from history or web results. Social sentiment is separate context only and NEVER changes the technical score, AI-news score, combined score, direction, or confidence. Confidence by |score|: 17-24 Very High, 12-16 High, 8-11 Medium, 4-7 Low, 0-3 no clear signal. It is calibrated for short-to-medium-term swing trades (~1-3 weeks) and is identical for every user. Its entry/TP/SL describe a FRESH hypothetical trade today; if the user already has a position, use get_open_positions_progress for that position's actual target and stop.
 - get_latest_pro_report — latest immutable SAVED Pro Engine report for one ticker, retrieved without rerunning paid analysis. Use only when a saved/previous Pro signal or score is relevant; do not inject an old engine report into an unrelated price-history, company, earnings, or news answer.
 - get_market_scan — the SwingRush "Scanner": current signals across the scanned universe, with technical + keyword/analyst news sub-scores. Use for breadth and discovery, not as a substitute for one-stock Pro Engine analysis.
 - filter_scanner — a real calculator over the scanner's signals: count, list, or average score, filtered by direction/price range/score/confidence, computed directly from the data. ANY question that requires counting or filtering scanner signals by a specific condition ("how many SELL signals under $50", "list BUY signals with High confidence") MUST go through this tool, not get_market_scan's raw text — the scanner can have hundreds of rows and manually counting/filtering that many yourself is unreliable, exactly like tallying a long trade list by hand.

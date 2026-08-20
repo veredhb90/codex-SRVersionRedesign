@@ -10,6 +10,7 @@
 const https = require('https');
 const { enqueueFinnhubCall } = require('./finnhubQueue');
 const { createOpenAIResponse, extractOutputText } = require('./openaiResponses');
+const { getCompanyReports, buildLatestEarningsReport } = require('./companyReports');
 
 // ── Freshness-aware cache (per symbol) ──────────────────────────────
 const newsCache = new Map();
@@ -78,7 +79,7 @@ const fetchAnalystRatings = (symbol) => new Promise((resolve) => {
 
 const SYSTEM_PROMPT = `You are an equity research analyst. You will be given this stock's recent news headlines. Read them, analyze what they actually mean, and give the stock a sentiment score from -10 (very bearish) to +10 (very bullish). The score is entirely your own call - analyze it however you see fit, with full freedom. No rules, no thresholds. Also explain, in a few clear sentences, WHY you landed on that exact score.
 
-You are also given analyst-consensus data and confirmed upcoming-earnings dates for reference; if you mention an earnings date, use the exact one provided. Never invent a headline, date, analyst figure, or event that is not present in the supplied data. If there is no meaningful news, say so and score it 0. Distinguish facts in the supplied data from your interpretation.`;
+You are also given analyst-consensus data and structured upcoming-earnings calendar dates for reference; if you mention an earnings date, use the exact one provided and preserve whether its time is supplied or TBD. Never invent a headline, date, analyst figure, or event that is not present in the supplied data. If there is no meaningful news, say so and score it 0. Distinguish facts in the supplied data from your interpretation.`;
 
 const NEWS_ANALYSIS_FORMAT = {
   type: 'json_schema',
@@ -99,69 +100,6 @@ const NEWS_ANALYSIS_FORMAT = {
     required: ['score', 'label', 'summary', 'reasoning', 'catalysts', 'risks', 'holdingPeriod'],
   },
 };
-
-// ── MAIN: Real OpenAI-powered news analysis (Pro only) ───────────────
-// ── Fetch REAL past + upcoming earnings dates/results from Finnhub ────
-// One calendar call supplies the latest reported quarter (including revenue
-// when Finnhub has it) and future dates, avoiding an extra API request.
-const fetchEarningsCalendar = (symbol) => new Promise((resolve) => {
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
-  const from = new Date(now.getTime() - 200 * 86400000).toISOString().split('T')[0];
-  const to = new Date(now.getTime() + 270 * 86400000).toISOString().split('T')[0]; // next ~9 months
-  const apiKey = process.env.FINNHUB_API_KEY;
-  const url = `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${symbol}&token=${apiKey}`;
-  const req = require('https').get(url, { timeout: 15000 }, (res) => {
-    const chunks = [];
-    res.on('data', d => chunks.push(d));
-    res.on('end', () => {
-      try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        const list = (parsed.earningsCalendar || []).map(e => ({
-            date: e.date,
-            quarter: e.quarter,
-            year: e.year,
-            hour: e.hour === 'bmo' ? 'Before Market Open' : e.hour === 'amc' ? 'After Market Close' : 'Time TBD',
-            epsEstimate: e.epsEstimate,
-            epsActual: e.epsActual,
-            revenueEstimate: e.revenueEstimate,
-            revenueActual: e.revenueActual,
-          }));
-        const upcoming = list
-          .filter(e => e.date >= today)
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
-          .slice(0, 3);
-        const latestReported = list
-          .filter(e => e.date < today && (e.epsActual != null || e.revenueActual != null))
-          .sort((a, b) => new Date(b.date) - new Date(a.date))[0] || null;
-        resolve({ upcoming, latestReported });
-      } catch (e) { resolve({ upcoming: [], latestReported: null }); }
-    });
-  }).on('error', () => resolve({ upcoming: [], latestReported: null }));
-  req.on('timeout', () => req.destroy(new Error('timed out')));
-});
-
-// ── Fetch past earnings history (last 4 quarters, actual vs estimate) ─────
-const fetchEarningsHistory = (symbol) => new Promise((resolve) => {
-  const apiKey = process.env.FINNHUB_API_KEY;
-  const url = `https://finnhub.io/api/v1/stock/earnings?symbol=${symbol}&token=${apiKey}`;
-  const req = require('https').get(url, { timeout: 15000 }, (res) => {
-    const chunks = [];
-    res.on('data', d => chunks.push(d));
-    res.on('end', () => {
-      try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        const list = Array.isArray(parsed) ? parsed.map(e => ({
-          period: e.period, quarter: e.quarter, year: e.year,
-          epsActual: e.actual, epsEstimate: e.estimate,
-          surprisePercent: e.surprisePercent,
-        })).sort((a, b) => new Date(b.period) - new Date(a.period)).slice(0, 4) : [];
-        resolve(list);
-      } catch (e) { resolve([]); }
-    });
-  }).on('error', () => resolve([]));
-  req.on('timeout', () => req.destroy(new Error('timed out')));
-});
 
 // ── Fetch REAL analyst price targets from Finnhub — structured numbers,
 // not something the model has to read off a random webpage via web search.
@@ -190,54 +128,21 @@ const fetchPriceTarget = (symbol) => new Promise((resolve) => {
   req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
-const finiteOrNull = value => value != null && Number.isFinite(Number(value)) ? Number(value) : null;
-const pctSurprise = (actual, estimate) => {
-  const a = finiteOrNull(actual);
-  const e = finiteOrNull(estimate);
-  return a == null || e == null || e === 0 ? null : +(((a - e) / Math.abs(e)) * 100).toFixed(2);
-};
-
-const buildLatestEarningsReport = (calendarLatest, earningsHistory) => {
-  const history = Array.isArray(earningsHistory) ? earningsHistory : [];
-  const matchingHistory = calendarLatest
-    ? history.find(item => Number(item.quarter) === Number(calendarLatest.quarter) && Number(item.year) === Number(calendarLatest.year))
-    : history[0];
-  if (!calendarLatest && !matchingHistory) return null;
-  const epsActual = finiteOrNull(calendarLatest?.epsActual ?? matchingHistory?.epsActual);
-  const epsEstimate = finiteOrNull(calendarLatest?.epsEstimate ?? matchingHistory?.epsEstimate);
-  const revenueActual = finiteOrNull(calendarLatest?.revenueActual);
-  const revenueEstimate = finiteOrNull(calendarLatest?.revenueEstimate);
-  return {
-    reportedDate: calendarLatest?.date || null,
-    fiscalPeriod: matchingHistory?.period || null,
-    quarter: calendarLatest?.quarter ?? matchingHistory?.quarter ?? null,
-    year: calendarLatest?.year ?? matchingHistory?.year ?? null,
-    hour: calendarLatest?.hour || null,
-    epsActual,
-    epsEstimate,
-    epsSurprisePercent: finiteOrNull(matchingHistory?.surprisePercent) ?? pctSurprise(epsActual, epsEstimate),
-    revenueActual,
-    revenueEstimate,
-    revenueSurprisePercent: pctSurprise(revenueActual, revenueEstimate),
-    source: 'Finnhub earnings calendar/history',
-  };
-};
-
 const getOpenAINewsAnalysis = async (symbol, companyName) => {
   const cacheKey = 'news_' + symbol.toUpperCase();
   const cached = fromNewsCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
   try {
-    const [articles, ratings, earningsCalendar, earningsHistory, priceTarget] = await Promise.all([
+    const [articles, ratings, companyReports, priceTarget] = await Promise.all([
       enqueueFinnhubCall(() => fetchFinnhubNews(symbol), { priority: true }),
       enqueueFinnhubCall(() => fetchAnalystRatings(symbol), { priority: true }),
-      enqueueFinnhubCall(() => fetchEarningsCalendar(symbol), { priority: true }),
-      enqueueFinnhubCall(() => fetchEarningsHistory(symbol), { priority: true }),
+      getCompanyReports(symbol),
       enqueueFinnhubCall(() => fetchPriceTarget(symbol), { priority: true }),
     ]);
-    const upcomingEarnings = earningsCalendar.upcoming || [];
-    const latestEarningsReport = buildLatestEarningsReport(earningsCalendar.latestReported, earningsHistory);
+    const upcomingEarnings = companyReports.upcomingEarnings || [];
+    const earningsHistory = companyReports.earningsHistory || [];
+    const latestEarningsReport = companyReports.latestEarningsReport || null;
 
     let analystSummary = 'No analyst rating data available.';
     if (ratings) {
@@ -263,12 +168,12 @@ const getOpenAINewsAnalysis = async (symbol, companyName) => {
 
     const earningsText = upcomingEarnings.length
       ? upcomingEarnings.map(e => `${e.date} (${e.quarter} ${e.year}, ${e.hour})${e.epsEstimate ? ' - EPS est: ' + e.epsEstimate : ''}`).join('\n')
-      : 'No confirmed upcoming earnings date found in the calendar.';
+      : 'No upcoming earnings date found in the calendar.';
     const userMessage = `Stock: ${symbol}${companyName ? ' (' + companyName + ')' : ''}
 RECENT HEADLINES (last 7 days):
 ${headlinesText}
 ANALYST CONSENSUS (reference): ${analystSummary}
-CONFIRMED UPCOMING EARNINGS DATES (real calendar data - if you cite earnings, use these EXACT dates, do not guess others):
+UPCOMING EARNINGS CALENDAR (real Finnhub data - preserve the supplied timing/TBD status and do not guess other dates):
 ${earningsText}
 Respond with the JSON format specified.`;
 
@@ -297,6 +202,9 @@ Respond with the JSON format specified.`;
       upcomingEarnings: upcomingEarnings,
       earningsHistory: earningsHistory,
       latestEarningsReport,
+      latestSecFiling: companyReports.latestSecFiling || null,
+      latestMaterialEvent: companyReports.latestMaterialEvent || null,
+      companyReportsRetrievedAt: companyReports.retrievedAt || null,
       analystSummary,
       priceTarget,
       analyzedAt: new Date().toISOString(),
@@ -313,6 +221,7 @@ Respond with the JSON format specified.`;
       reasoning: '',
       catalysts: [], risks: [], articleCount: 0, analystSummary: '', priceTarget: null,
       upcomingEarnings: [], earningsHistory: [], latestEarningsReport: null,
+      latestSecFiling: null, latestMaterialEvent: null, companyReportsRetrievedAt: null,
       fromCache: false, error: true,
     };
   }

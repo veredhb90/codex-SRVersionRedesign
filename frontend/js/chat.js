@@ -1161,6 +1161,7 @@
               '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Stop loss', 'وقف الخسارة', 'סטופ לוס')) + '</span><strong>$' + escapeHtml(numberText(report.stopLoss)) + '</strong></div>'
             : '') +
         '</div>' +
+        (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(report) : '') +
         '<div class="sr-report-meta"><span>' + escapeHtml(chatCopy3('Generated: ', 'تم الإنشاء: ', 'נוצר: ')) + escapeHtml(generatedLabel) + '</span>' +
         '<span class="' + (isStale ? 'sr-report-stale' : 'sr-report-fresh') + '">' + escapeHtml(freshnessText) + '</span></div>' +
       '</div>';

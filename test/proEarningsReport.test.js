@@ -4,35 +4,61 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(require.resolve('../frontend/js/pro_earnings_report.js'), 'utf8');
+const secUrl = 'https://www.sec.gov/Archives/edgar/data/1234/0001/report.htm';
 
-const render = (lang = 'en', translations = {}) => {
+const render = (lang = 'en', translations = {}, overrides = {}) => {
   const window = { SRLang: { lang, t: (key, fallback) => translations[key] || fallback } };
   vm.runInNewContext(source, { window, Date, Number });
   return window.srProEarningsReportHtml({
     latestEarningsReport: {
-      reportedDate: '2026-08-17', fiscalPeriod: '2026-07-31', quarter: 2, year: 2027,
+      announcedDate: '2026-08-17', announcementSession: 'After Market Close',
+      fiscalPeriod: '2026-07-31', quarter: 2, year: 2027,
       epsActual: 1.25, epsEstimate: 1.1, epsSurprisePercent: 13.64,
       revenueActual: 30_000_000_000, revenueEstimate: 28_500_000_000, revenueSurprisePercent: 5.26,
+      earningsReleaseFiledDate: '2026-08-17', earningsReleaseSecUrl: secUrl,
+      secForm: '10-Q', secFiledDate: '2026-08-18', secAccessionNumber: 'quarterly', secUrl,
     },
+    latestSecFiling: { form: '10-Q', filedDate: '2026-08-18', accessionNumber: 'quarterly', url: secUrl },
+    latestMaterialEvent: { form: '8-K', filedDate: '2026-08-17', accessionNumber: 'earnings', url: secUrl, title: 'Results of operations', duplicatesLatestEarnings: true },
+    upcomingEarnings: [{ date: '2026-11-03', hour: 'Time TBD', scheduleStatus: 'Time TBD; date may be estimated' }],
+    ...overrides,
   });
 };
 
-test('latest earnings card renders date, quarter, EPS and revenue results', () => {
+test('unified reports card clearly separates announcement, fiscal, filing, and next dates', () => {
   const html = render();
-  assert.match(html, /LATEST EARNINGS REPORT/);
+  assert.match(html, /COMPANY REPORTS &amp; EVENTS/);
+  assert.match(html, /Announced/);
+  assert.match(html, /Fiscal period ended/);
   assert.match(html, /Q2 FY2027/);
-  assert.match(html, /\$1\.25/);
-  assert.match(html, /\$1\.10/);
+  assert.match(html, /EPS/);
   assert.match(html, /BEAT \+13\.64%/);
   assert.match(html, /\$30\.00B/);
-  assert.match(html, /\$28\.50B/);
+  assert.match(html, /Filed/);
+  assert.match(html, /Next earnings/);
+  assert.match(html, /Time TBD/);
 });
 
-test('latest earnings card uses translated Arabic and Hebrew headings', () => {
-  const arabic = render('ar', { 'home.eng_latest_earnings_report': 'أحدث تقرير أرباح' });
-  const hebrew = render('he', { 'home.eng_latest_earnings_report': 'דוח הרווחים האחרון' });
-  assert.match(arabic, /أحدث تقرير أرباح/);
-  assert.match(hebrew, /דוח הרווחים האחרון/);
+test('earnings-related material event is not rendered as a duplicate section', () => {
+  const html = render();
+  assert.doesNotMatch(html, /Latest material company event/);
+  assert.equal((html.match(/Results of operations/g) || []).length, 0);
+});
+
+test('distinct material event is shown once', () => {
+  const html = render('en', {}, {
+    latestSecFiling: { form: '10-Q', filedDate: '2026-08-18', accessionNumber: 'quarterly', url: secUrl },
+    latestMaterialEvent: { form: '8-K', filedDate: '2026-08-19', accessionNumber: 'event', url: secUrl + '?event=1', title: 'Director or executive change', duplicatesLatestEarnings: false },
+  });
+  assert.match(html, /Latest material company event/);
+  assert.equal((html.match(/Director or executive change/g) || []).length, 1);
+});
+
+test('card uses translated Arabic and Hebrew headings', () => {
+  const arabic = render('ar', { 'home.eng_company_reports_events': 'تقارير الشركة والأحداث' });
+  const hebrew = render('he', { 'home.eng_company_reports_events': 'דוחות ואירועי חברה' });
+  assert.match(arabic, /تقارير الشركة والأحداث/);
+  assert.match(hebrew, /דוחות ואירועי חברה/);
   assert.match(arabic, /\$30\.00B/);
   assert.match(hebrew, /BEAT/);
 });
