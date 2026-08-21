@@ -295,9 +295,6 @@
   }
 
   function renderProEngineResult(d) {
-    var dirColor = d.direction === 'BUY' ? 'var(--green)' : d.direction === 'SELL' ? 'var(--red)' : 'var(--muted)';
-    var dirBg    = d.direction === 'BUY' ? 'var(--green-bg)' : d.direction === 'SELL' ? 'var(--red-bg)' : 'var(--bg3)';
-    var special  = d.marketState && d.marketState !== 'Regular Session';
     var breakdown = (d.technicalBreakdown || []).map(function(b) {
       var c = b.points > 0 ? 'var(--green)' : b.points < 0 ? 'var(--red)' : 'var(--muted)';
       return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--text2);">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
@@ -311,17 +308,9 @@
         d.risks.map(function(x) { return '<div style="font-size:13px;color:var(--text);padding:3px 0;">• ' + x + '</div>'; }).join('') + '</div>'
       : '';
     return '' +
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">' +
-        '<strong style="font-size:20px;color:var(--text);">' + d.symbol + '</strong>' +
-        '<span style="font-size:14px;color:var(--text2);">$' + d.price + '</span>' +
-        (special ? '<span style="font-size:10.5px;color:#F5D061;font-weight:700;background:rgba(245,208,97,0.12);padding:2px 8px;border-radius:6px;">' + d.marketState + '</span>' : '') +
-        '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
-      '</div>' +
-      (special ? '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">' + t('home.eng_regular_session_close', 'Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
+      (window.srProResultSummaryHtml ? window.srProResultSummaryHtml(d, { theme: 'dark' }) : '') +
       (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d, { theme: 'dark' }) : '') +
       (window.srProSocialSentimentHtml ? window.srProSocialSentimentHtml(d, { theme: 'dark' }) : '') +
-      '<div style="font-size:13px;color:var(--text2);margin-bottom:6px;">' + t('home.eng_combined_score', 'Combined Score') + ': <strong style="color:var(--text);">' + d.score + '</strong> · ' + d.confidence + ' ' + t('home.eng_confidence', 'Confidence') + '</div>' +
-      '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text2);margin-bottom:14px;padding:9px 12px;background:var(--bg2);border-radius:8px;"><span>' + t('home.eng_technical', 'Technical') + ': <strong style="color:var(--text);">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + t('home.eng_news_ai', 'News (AI)') + ': <strong style="color:var(--text);">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + t('home.eng_total', 'Total') + ': <strong style="color:var(--text);">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
       (d.holdingPeriod ? '<div style="font-size:12px;color:var(--text);font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period', 'Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
       (d.takeProfit
         ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
