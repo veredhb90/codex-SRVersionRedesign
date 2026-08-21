@@ -52,6 +52,15 @@
       (surprise === null ? '' : ' ' + (surprise > 0 ? '+' : '') + surprise.toFixed(2) + '%') + '</strong>';
   }
 
+  function metricCard(label, actual, estimate, comparisonHtml, formatter, background, border, labelColor, textColor) {
+    return '<div style="background:' + background + ';border:1px solid ' + border + ';border-radius:8px;padding:8px 9px;min-width:0;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:7px;flex-wrap:wrap;margin-bottom:5px;"><strong style="color:' + textColor + ';">' + escapeHtml(label) + '</strong>' + comparisonHtml + '</div>' +
+      '<div style="display:flex;align-items:center;gap:7px 16px;flex-wrap:wrap;color:' + labelColor + ';">' +
+        '<span>' + escapeHtml(t('home.eng_actual', 'Actual')) + ' <strong style="color:' + textColor + ';">' + formatter(actual) + '</strong></span>' +
+        '<span>' + escapeHtml(t('home.eng_estimate', 'Estimate')) + ' <strong style="color:' + textColor + ';">' + formatter(estimate) + '</strong></span>' +
+      '</div></div>';
+  }
+
   function sessionLabel(value) {
     if (value === 'Before Market Open') return t('home.eng_before_market_open', 'Before market open');
     if (value === 'After Market Close') return t('home.eng_after_market_close', 'After market close');
@@ -116,6 +125,13 @@
       var announced = report.announcedDate || report.reportedDate;
       var epsComparison = comparison(report.epsActual, report.epsEstimate, report.epsSurprisePercent);
       var revenueComparison = comparison(report.revenueActual, report.revenueEstimate, report.revenueSurprisePercent);
+      var metrics = '';
+      if (numberOrNull(report.epsActual) !== null || numberOrNull(report.epsEstimate) !== null) {
+        metrics += metricCard('EPS', report.epsActual, report.epsEstimate, epsComparison, formatEps, background, border, labelColor, textColor);
+      }
+      if (numberOrNull(report.revenueActual) !== null || numberOrNull(report.revenueEstimate) !== null) {
+        metrics += metricCard(t('home.eng_revenue', 'Revenue'), report.revenueActual, report.revenueEstimate, revenueComparison, formatRevenue, background, border, labelColor, textColor);
+      }
       html += '<div style="background:' + sectionBg + ';border:1px solid ' + border + ';border-radius:9px;padding:10px;margin-bottom:8px;">' +
         '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px;">' +
           '<strong style="font-size:11.5px;color:' + textColor + ';">' + escapeHtml(t('home.eng_latest_earnings_report', 'Latest earnings report')) + '</strong>' +
@@ -133,13 +149,8 @@
           (safeSecLink(report.earningsReleaseSecUrl, t('home.eng_view_sec', 'View SEC'), accent) ? ' · ' + safeSecLink(report.earningsReleaseSecUrl, t('home.eng_view_sec', 'View SEC'), accent) : '') + '</div>';
       }
 
-      if (numberOrNull(report.epsActual) !== null || numberOrNull(report.epsEstimate) !== null) {
-        html += '<div style="display:grid;grid-template-columns:minmax(54px,.7fr) minmax(90px,1fr) minmax(90px,1fr) auto;gap:7px;align-items:center;padding:7px 0;border-top:1px solid ' + border + ';">' +
-          '<strong style="color:' + textColor + ';">EPS</strong><span style="color:' + labelColor + ';">' + escapeHtml(t('home.eng_actual', 'Actual')) + ' <strong style="color:' + textColor + ';">' + formatEps(report.epsActual) + '</strong></span><span style="color:' + labelColor + ';">' + escapeHtml(t('home.eng_estimate', 'Estimate')) + ' <strong style="color:' + textColor + ';">' + formatEps(report.epsEstimate) + '</strong></span>' + epsComparison + '</div>';
-      }
-      if (numberOrNull(report.revenueActual) !== null || numberOrNull(report.revenueEstimate) !== null) {
-        html += '<div style="display:grid;grid-template-columns:minmax(54px,.7fr) minmax(90px,1fr) minmax(90px,1fr) auto;gap:7px;align-items:center;padding:7px 0;border-top:1px solid ' + border + ';">' +
-          '<strong style="color:' + textColor + ';">' + escapeHtml(t('home.eng_revenue', 'Revenue')) + '</strong><span style="color:' + labelColor + ';">' + escapeHtml(t('home.eng_actual', 'Actual')) + ' <strong style="color:' + textColor + ';">' + formatRevenue(report.revenueActual) + '</strong></span><span style="color:' + labelColor + ';">' + escapeHtml(t('home.eng_estimate', 'Estimate')) + ' <strong style="color:' + textColor + ';">' + formatRevenue(report.revenueEstimate) + '</strong></span>' + revenueComparison + '</div>';
+      if (metrics) {
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:7px;padding-top:7px;border-top:1px solid ' + border + ';">' + metrics + '</div>';
       }
       if (report.secFiledDate) {
         html += '<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding-top:7px;border-top:1px solid ' + border + ';color:' + labelColor + ';">' +
@@ -154,10 +165,11 @@
     var filingAlreadyShown = Boolean((report && report.secFiledDate && sameFiling(report, filing)) ||
       (material && material.duplicatesLatestEarnings && sameFiling(material, filing)));
     if (filing && !filingAlreadyShown) {
-      var filingTitle = sameFiling(filing, material) && material.title ? material.title : t('home.eng_latest_sec_filing', 'Latest important SEC filing');
+      var filingIsMaterialEvent = sameFiling(filing, material);
+      var filingTitle = filingIsMaterialEvent ? t('home.eng_latest_material_event', 'Latest material company event') : t('home.eng_latest_sec_filing', 'Latest important SEC filing');
       html += '<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 2px;border-bottom:' + ((next || (material && !sameFiling(filing, material) && !material.duplicatesLatestEarnings)) ? '1px solid ' + border : '0') + ';">' +
         '<span style="font-size:14px;line-height:1.2;">📄</span><div style="min-width:0;flex:1;"><strong style="display:block;color:' + textColor + ';">' + escapeHtml(filingTitle) + '</strong>' +
-        '<span style="color:' + labelColor + ';">' + escapeHtml(filing.form || 'SEC') + ' · ' + escapeHtml(t('home.eng_sec_filed', 'Filed')) + ' ' + escapeHtml(formatDate(filing.filedDate)) + '</span>' +
+        '<span style="color:' + labelColor + ';">' + (filingIsMaterialEvent && material.title ? escapeHtml(material.title) + ' · ' : '') + escapeHtml(filing.form || 'SEC') + ' · ' + escapeHtml(t('home.eng_sec_filed', 'Filed')) + ' ' + escapeHtml(formatDate(filing.filedDate)) + '</span>' +
         (safeSecLink(filing.url, t('home.eng_view_sec', 'View SEC'), accent) ? '<span style="margin-inline-start:8px;">' + safeSecLink(filing.url, t('home.eng_view_sec', 'View SEC'), accent) + '</span>' : '') +
         (sameFiling(filing, material) && material.summary ? '<div style="color:' + labelColor + ';font-size:10.5px;margin-top:4px;line-height:1.45;">' + escapeHtml(material.summary) + '</div>' : '') + '</div></div>';
     }
