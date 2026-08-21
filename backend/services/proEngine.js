@@ -45,6 +45,21 @@ const fetchJSON = (url, retries = 3) => new Promise((resolve, reject) => {
 
 const resolveSymbol = (symbol) => symbol.toUpperCase().trim();
 
+// During pre-market and after-hours the visible price is the freshest extended-
+// session trade, so its displayed daily move must use the official regular close
+// shown beside it. Yahoo's chartPreviousClose can refer to an older chart
+// baseline and would make the price and percentage describe different moves.
+const calculateExtendedSessionChangePct = (freshPrice, regularSessionPrice, fallbackPreviousClose) => {
+  const current = Number(freshPrice);
+  const regularClose = Number(regularSessionPrice);
+  const fallbackClose = Number(fallbackPreviousClose);
+  const reference = Number.isFinite(regularClose) && regularClose !== 0
+    ? regularClose
+    : fallbackClose;
+  if (!Number.isFinite(current) || !Number.isFinite(reference) || reference === 0) return 0;
+  return ((current - reference) / reference) * 100;
+};
+
 // Instant local check (no API call) - is it currently pre-market or after-hours
 // for US markets? Only in THOSE windows do we need the heavier intraday fetch;
 // during regular hours or fully-closed periods the light daily fetch is already correct.
@@ -91,8 +106,11 @@ const getQuote = async (symbol, opts = {}) => {
     }
 
     const regularSessionPrice = meta.regularMarketPrice;
-    const prevClose = meta.chartPreviousClose || meta.previousClose || regularSessionPrice;
-    const changePct = prevClose ? ((freshPrice - prevClose) / prevClose) * 100 : 0;
+    const changePct = calculateExtendedSessionChangePct(
+      freshPrice,
+      regularSessionPrice,
+      meta.chartPreviousClose || meta.previousClose,
+    );
 
     const nowSec = Math.floor(Date.now() / 1000);
     const ctp = meta.currentTradingPeriod || {};
@@ -404,4 +422,10 @@ const getProTechnicalScore = async (symbol) => {
   };
 };
 
-module.exports = { getProTechnicalScore, getQuote, getCandles, getCandlesForRange };
+module.exports = {
+  calculateExtendedSessionChangePct,
+  getProTechnicalScore,
+  getQuote,
+  getCandles,
+  getCandlesForRange,
+};
