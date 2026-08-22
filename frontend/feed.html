@@ -767,6 +767,40 @@
     return `<div class="popular-item" data-hot-symbol="${symbol}" onclick="openHotStockSymbol(this.dataset.hotSymbol)">${content}</div>`;
   }
 
+  let hotStocksPreviewData = null;
+  let hotStocksPreviewError = false;
+  let hotStocksFullData = null;
+  let hotStocksFullError = false;
+
+  function renderHotStocksPreview() {
+    const el = document.getElementById('popular-list');
+    const moreBtn = document.getElementById('hot-stocks-more');
+    if (!el) return;
+    if (hotStocksPreviewError) {
+      el.innerHTML = '<p style="color:var(--red);font-size:12px;text-align:center;padding:10px;">' + t('feed.hot_stocks_load_failed', 'Could not load Hot Stocks') + '</p>';
+      if (moreBtn) moreBtn.style.display = 'none';
+      return;
+    }
+    if (!hotStocksPreviewData) return;
+    el.innerHTML = hotStocksPreviewData.length
+      ? hotStocksPreviewData.map((item, index) => renderHotStock(item, index + 1, false)).join('')
+      : '<p style="color:var(--muted);font-size:12px;text-align:center;padding:10px;">' + t('feed.no_open_trades', 'No open trades yet') + '</p>';
+    if (moreBtn) moreBtn.style.display = hotStocksPreviewData.length ? 'flex' : 'none';
+  }
+
+  function renderHotStocksFull() {
+    const list = document.getElementById('hot-stocks-full-list');
+    if (!list) return;
+    if (hotStocksFullError) {
+      list.innerHTML = '<p style="color:var(--red);font-size:13px;text-align:center;padding:24px;">' + t('feed.hot_stocks_load_failed', 'Could not load Hot Stocks') + '</p>';
+      return;
+    }
+    if (!hotStocksFullData) return;
+    list.innerHTML = hotStocksFullData.length
+      ? hotStocksFullData.map((item, index) => renderHotStock(item, index + 1, true)).join('')
+      : '<p style="color:var(--muted);font-size:13px;text-align:center;padding:24px;">' + t('feed.no_open_trades', 'No open trades yet') + '</p>';
+  }
+
   window.openHotStockSymbol = function(symbol) {
     closeHotStocksList();
     openSymbolModal(symbol);
@@ -778,15 +812,15 @@
     if (!overlay || !list) return;
     overlay.classList.add('is-open');
     document.body.style.overflow = 'hidden';
+    hotStocksFullData = null;
+    hotStocksFullError = false;
     list.innerHTML = '<div class="spinner"></div>';
     try {
-      const data = await API.popular(true);
-      list.innerHTML = data.length
-        ? data.map((item, index) => renderHotStock(item, index + 1, true)).join('')
-        : '<p style="color:var(--muted);font-size:13px;text-align:center;padding:24px;">' + t('feed.no_open_trades', 'No open trades yet') + '</p>';
+      hotStocksFullData = await API.popular(true);
     } catch (_) {
-      list.innerHTML = '<p style="color:var(--red);font-size:13px;text-align:center;padding:24px;">' + t('feed.hot_stocks_load_failed', 'Could not load Hot Stocks') + '</p>';
+      hotStocksFullError = true;
     }
+    renderHotStocksFull();
   };
 
   window.closeHotStocksList = function() {
@@ -801,20 +835,26 @@
     }
   });
 
+  // The rows are generated in JavaScript, so data-i18n cannot update them.
+  // Re-render cached data immediately when the user switches EN/AR/HE.
+  window.addEventListener('sr:language_changed', function() {
+    renderHotStocksPreview();
+    if (document.getElementById('hot-stocks-overlay')?.classList.contains('is-open')) {
+      renderHotStocksFull();
+    }
+  });
+
   async function updatePopular() {
     const el = document.getElementById('popular-list');
     if (!el) return;
-    const moreBtn = document.getElementById('hot-stocks-more');
     try {
-      const data = await API.popular();
-      el.innerHTML = data.length
-        ? data.map((item, index) => renderHotStock(item, index + 1, false)).join('')
-        : '<p style="color:var(--muted);font-size:12px;text-align:center;padding:10px;">' + t('feed.no_open_trades', 'No open trades yet') + '</p>';
-      if (moreBtn) moreBtn.style.display = data.length ? 'flex' : 'none';
+      hotStocksPreviewData = await API.popular();
+      hotStocksPreviewError = false;
     } catch (_) {
-      el.innerHTML = '<p style="color:var(--red);font-size:12px;text-align:center;padding:10px;">' + t('feed.hot_stocks_load_failed', 'Could not load Hot Stocks') + '</p>';
-      if (moreBtn) moreBtn.style.display = 'none';
+      hotStocksPreviewData = null;
+      hotStocksPreviewError = true;
     }
+    renderHotStocksPreview();
   }
   updatePopular();
   setInterval(updatePopular, 60000);
