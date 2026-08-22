@@ -25,7 +25,7 @@ const API = {
   engineShare:         (b)       => API._req('/stocks/engine/share',  { method:'POST', body:JSON.stringify(b) }),
   feedAll:             (p)       => API._req('/recommendations/feed?page=' + (p||1)),
   feedFollowing:       ()        => API._req('/recommendations/following'),
-  popular:             ()        => API._req('/recommendations/popular'),
+  popular:             (all)     => API._req('/recommendations/popular' + (all ? '?all=true' : '')),
   symbolRecs:          (sym)     => API._req('/recommendations/symbol/' + encodeURIComponent(sym)),
   postRec:             (b)       => API._req('/recommendations',      { method:'POST', body:JSON.stringify(b) }),
   closeRec:            (id,b)    => API._req('/recommendations/' + id + '/close', { method:'POST', body:JSON.stringify(b || {}) }),

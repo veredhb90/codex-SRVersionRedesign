@@ -7,6 +7,7 @@ const { getQuote: getLiveMarketQuote } = require('../services/proEngine');
 const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert } = require('../services/emailService');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const { buildHotStocksPipeline } = require('../services/hotStocks');
 
 // Manual closes must use a server-side quote. For US equities, the Pro quote
 // keeps the freshest pre-market/after-hours price distinct from the regular close.
@@ -220,12 +221,8 @@ router.get('/following', protect, async (req, res) => {
 // GET /api/recommendations/popular
 router.get('/popular', protect, async (req, res) => {
   try {
-    const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
-    const popular = await Recommendation.aggregate([
-      { $match:{ isOpen:true, profileOnly:{ $ne:true } } },
-      { $group:{ _id:'$symbol', count:{$sum:1}, buys:{$sum:{$cond:[{$eq:['$direction','BUY']},1,0]}}, sells:{$sum:{$cond:[{$eq:['$direction','SELL']},1,0]}}, wins:{$sum:{$cond:[{$eq:['$outcome','WIN']},1,0]}} } },
-      { $sort:{ count:-1 } }, { $limit:8 },
-    ]);
+    const showAll = req.query.all === 'true' || req.query.all === '1';
+    const popular = await Recommendation.aggregate(buildHotStocksPipeline({ showAll }));
     res.json(popular);
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
