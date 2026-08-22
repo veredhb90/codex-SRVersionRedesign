@@ -1319,10 +1319,10 @@ window.runProEngineModal = async function() {
       : '';
 
     resultEl.innerHTML =
-      '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:20px;">' +
-      (window.srProResultSummaryHtml ? window.srProResultSummaryHtml(d) : '') +
-      (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d) : '') +
-      (window.srProSocialSentimentHtml ? window.srProSocialSentimentHtml(d) : '') +
+      '<div style="background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:14px;padding:20px;">' +
+      (window.srProResultSummaryHtml ? window.srProResultSummaryHtml(d, { theme: 'dark' }) : '') +
+      (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d, { theme: 'dark' }) : '') +
+      (window.srProSocialSentimentHtml ? window.srProSocialSentimentHtml(d, { theme: 'dark' }) : '') +
       (d.holdingPeriod ? '<div style="font-size:12px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period','Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
