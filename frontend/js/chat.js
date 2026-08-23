@@ -8,6 +8,7 @@
   var resuming         = false; // true while resumePendingChat is loading/polling after navigation
 
   var pendingStockData = null;
+  var pendingProSourceModal = null;
 
   function siteLang() {
     var l = (window.SRLang && window.SRLang.lang) || document.documentElement.lang || 'en';
@@ -117,9 +118,27 @@
     if (!button) return;
     button.addEventListener('click', function() {
       if (!prepareChatStockContext(stockData)) return;
+      pendingProSourceModal = container.closest
+        ? container.closest('#sr-eng-pro-popup, #sr-pro-engine-modal, #symbol-modal')
+        : null;
       showNewOrContinueChoice();
     });
   };
+
+  // Keep the Pro result visible while the user decides which chat to use. Once
+  // they make that choice, dismiss only the modal that launched the handoff so
+  // it cannot remain layered over the fullscreen chat. Inline Pro results stay
+  // untouched.
+  function dismissPendingProSourceModal() {
+    var modal = pendingProSourceModal;
+    pendingProSourceModal = null;
+    if (!modal || !modal.isConnected) return;
+    if (modal.id === 'symbol-modal' && typeof window.closeSymbolModal === 'function') {
+      window.closeSymbolModal();
+      return;
+    }
+    modal.remove();
+  }
 
   async function loadPendingStockIntoChat() {
     if (!pendingStockData) return;
@@ -1273,12 +1292,14 @@
     document.body.appendChild(overlay);
     document.getElementById('sr-choice-new').addEventListener('click', function() {
       overlay.remove();
+      dismissPendingProSourceModal();
       currentSessionId = 'NEW';
       openChat();
       loadPendingStockIntoChat();
     });
     document.getElementById('sr-choice-continue').addEventListener('click', async function() {
       overlay.remove();
+      dismissPendingProSourceModal();
       await openChat();
       loadPendingStockIntoChat();
     });

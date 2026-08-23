@@ -20,3 +20,10 @@ test('Pro results offer an explicit Explore deeper button instead of an automati
   }
 });
 
+test('Pro modal handoff dismisses its source before opening either chat choice', () => {
+  const chat = read('frontend/js/chat.js');
+  assert.match(chat, /closest\('#sr-eng-pro-popup, #sr-pro-engine-modal, #symbol-modal'\)/);
+  assert.match(chat, /function dismissPendingProSourceModal\(\)/);
+  assert.match(chat, /sr-choice-new[\s\S]*?dismissPendingProSourceModal\(\);[\s\S]*?openChat\(\)/);
+  assert.match(chat, /sr-choice-continue[\s\S]*?dismissPendingProSourceModal\(\);[\s\S]*?await openChat\(\)/);
+});
