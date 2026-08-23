@@ -54,6 +54,22 @@ test('distinct material event is shown once', () => {
   assert.equal((html.match(/Director or executive change/g) || []).length, 1);
 });
 
+test('old snapshots suppress a fiscal period that occurs after the earnings filing', () => {
+  const html = render('en', {}, {
+    latestEarningsReport: {
+      announcedDate: null,
+      reportedDate: null,
+      fiscalPeriod: '2026-06-30',
+      quarter: 1,
+      year: 2027,
+      earningsReleaseFiledDate: '2026-05-27',
+      earningsReleaseSecUrl: secUrl,
+    },
+  });
+  assert.doesNotMatch(html, /Jun 30, 2026/);
+  assert.match(html, /Fiscal period ended:<\/strong> Date unavailable/);
+});
+
 test('card uses translated Arabic and Hebrew headings', () => {
   const arabic = render('ar', { 'home.eng_company_reports_events': 'تقارير الشركة والأحداث' });
   const hebrew = render('he', { 'home.eng_company_reports_events': 'דוחות ואירועי חברה' });

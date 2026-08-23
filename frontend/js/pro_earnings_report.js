@@ -19,6 +19,11 @@
     return date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
+  function isoDate(value) {
+    var match = String(value || '').match(/^\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : null;
+  }
+
   function numberOrNull(value) {
     return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
   }
@@ -122,7 +127,15 @@
       var quarter = report.quarter != null ? 'Q' + report.quarter : '';
       var year = report.year != null ? 'FY' + report.year : '';
       var period = [quarter, year].filter(Boolean).join(' ');
-      var announced = report.announcedDate || report.reportedDate;
+      var announced = isoDate(report.announcedDate || report.reportedDate);
+      var fiscalPeriod = isoDate(report.fiscalPeriod);
+      var earningsFiled = isoDate(report.earningsReleaseFiledDate);
+      // Old immutable report snapshots may contain a Finnhub provider period
+      // that falls after the earnings release. Suppress that impossible date
+      // rather than continuing to display known-bad historical data.
+      if (fiscalPeriod && ((announced && announced < fiscalPeriod) || (earningsFiled && earningsFiled < fiscalPeriod))) {
+        fiscalPeriod = null;
+      }
       var epsComparison = comparison(report.epsActual, report.epsEstimate, report.epsSurprisePercent);
       var revenueComparison = comparison(report.revenueActual, report.revenueEstimate, report.revenueSurprisePercent);
       var metrics = '';
@@ -139,7 +152,7 @@
         '</div>' +
         '<div style="display:flex;gap:7px 16px;flex-wrap:wrap;color:' + labelColor + ';margin-bottom:8px;">' +
           '<span><strong style="color:' + textColor + ';">' + escapeHtml(t('home.eng_announced', 'Announced')) + ':</strong> ' + (announced ? escapeHtml(formatDate(announced)) : escapeHtml(t('home.eng_announcement_unavailable', 'Date unavailable'))) + (announced && report.announcementSession ? ' · ' + escapeHtml(sessionLabel(report.announcementSession)) : '') + '</span>' +
-          '<span><strong style="color:' + textColor + ';">' + escapeHtml(t('home.eng_fiscal_period_ended', 'Fiscal period ended')) + ':</strong> ' + escapeHtml(formatDate(report.fiscalPeriod)) + '</span>' +
+          '<span><strong style="color:' + textColor + ';">' + escapeHtml(t('home.eng_fiscal_period_ended', 'Fiscal period ended')) + ':</strong> ' + (fiscalPeriod ? escapeHtml(formatDate(fiscalPeriod)) : escapeHtml(t('home.eng_announcement_unavailable', 'Date unavailable'))) + '</span>' +
         '</div>';
 
       if (report.earningsReleaseFiledDate) {
