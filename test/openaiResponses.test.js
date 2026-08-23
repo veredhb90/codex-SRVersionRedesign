@@ -160,11 +160,14 @@ test('createOpenAIResponse supports an explicit quality-first model override', a
     await createOpenAIResponse({
       instructions: 'Analyze supplied evidence.',
       input: [{ role: 'user', content: 'Analyze' }],
+      tools: [{ type: 'web_search' }],
+      toolChoice: { type: 'web_search' },
       model: 'gpt-5.6-sol',
       reasoningEffort: 'high',
     });
     assert.equal(capturedBody.model, 'gpt-5.6-sol');
     assert.equal(capturedBody.reasoning.effort, 'high');
+    assert.deepEqual(capturedBody.tool_choice, { type: 'web_search' });
   } finally {
     https.request = originalRequest;
     if (oldKey === undefined) delete process.env.OPENAI_API_KEY;

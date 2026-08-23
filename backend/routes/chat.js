@@ -11,6 +11,27 @@ const { extractSymbols } = require('../services/symbolExtraction');
 const ChatSession = require('../models/ChatSession');
 const https      = require('https');
 
+const COMPANY_REPORT_WEB_FALLBACK_MARKER = '[[WEB_SEARCH_REQUIRED_FOR_COMPANY_REPORT_DATES]]';
+
+const companyReportDateIssues = data => {
+  const earnings = data?.latestEarningsReport;
+  const next = data?.nextEarnings || data?.upcomingEarnings?.[0];
+  if (!earnings) return ['latest reported-quarter data unavailable'];
+  const announced = earnings.announcedDate || earnings.reportedDate || null;
+  const fiscalPeriod = earnings.fiscalPeriod || null;
+  const issues = Array.isArray(earnings.dateIssues) ? [...earnings.dateIssues] : [];
+  if (!announced && !issues.includes('announcement date unavailable')) issues.push('announcement date unavailable');
+  if (!fiscalPeriod && !issues.includes('exact fiscal-period end unavailable')) issues.push('exact fiscal-period end unavailable');
+  if (announced && fiscalPeriod && announced < fiscalPeriod && !issues.includes('announcement date precedes fiscal-period end')) {
+    issues.push('announcement date precedes fiscal-period end');
+  }
+  if (earnings.earningsReleaseFiledDate && fiscalPeriod && earnings.earningsReleaseFiledDate < fiscalPeriod) {
+    issues.push('earnings-related SEC filing precedes the claimed fiscal-period end');
+  }
+  if (announced && next?.date && announced >= next.date) issues.push('reported date is not earlier than next scheduled earnings');
+  return [...new Set(issues)];
+};
+
 const formatCompanyReportsText = (data, symbol) => {
   const earnings = data?.latestEarningsReport;
   const filing = data?.latestSecFiling;
@@ -20,6 +41,9 @@ const formatCompanyReportsText = (data, symbol) => {
 
   if (earnings) {
     lines.push(`LATEST EARNINGS: announcement date ${earnings.announcedDate || earnings.reportedDate || 'not available'}${earnings.announcementSession ? ` (${earnings.announcementSession})` : ''}; ${earnings.quarter != null ? `Q${earnings.quarter}` : 'quarter not supplied'} FY${earnings.year || 'not supplied'}; fiscal period ended ${earnings.fiscalPeriod || 'not supplied'}. The fiscal-period end is NOT the announcement date.`);
+    if (!earnings.fiscalPeriod && earnings.providerFiscalPeriod) {
+      lines.push(`UNVERIFIED PROVIDER PERIOD: Finnhub returned ${earnings.providerFiscalPeriod}, but SEC evidence did not verify it as the company's exact fiscal-period end. Do not present that provider period as the quarter-end date.`);
+    }
     if (!earnings.announcedDate && earnings.earningsReleaseFiledDate) {
       lines.push(`EARNINGS-RELATED 8-K: filed ${earnings.earningsReleaseFiledDate}${earnings.earningsReleaseSecUrl ? `; official filing ${earnings.earningsReleaseSecUrl}` : ''}. This SEC filing date is evidence of the release but is not labeled as the announcement date.`);
     }
@@ -45,6 +69,10 @@ const formatCompanyReportsText = (data, symbol) => {
     ? `NEXT EARNINGS: ${next.date} (${next.hour || 'Time TBD'}; ${next.scheduleStatus || 'calendar timing status unavailable'}). This is a future calendar date, not a reported result.`
     : 'NEXT EARNINGS: no future date was returned by the earnings calendar.');
   lines.push(`Sources: ${data?.source || 'Finnhub earnings data + SEC EDGAR'}; retrieved ${data?.retrievedAt || 'time unavailable'}.`);
+  const dateIssues = companyReportDateIssues(data);
+  if (dateIssues.length) {
+    lines.push(`${COMPANY_REPORT_WEB_FALLBACK_MARKER}\nMANDATORY NEXT ACTION: Before answering any earnings/report-date claim, call web_search and verify the missing or conflicting dates from the company's investor-relations release or SEC filing. Cite the source and prefer explicit announcement and period-end statements. Problems found: ${dateIssues.join('; ')}.`);
+  }
   return lines.join('\n');
 };
 
@@ -132,7 +160,7 @@ const SWINGRUSH_FUNCTION_TOOLS = [
   },
   {
     name: 'get_company_reports',
-    description: 'Get structured reports and events for ONE US ticker without running the paid Pro analysis: latest quarterly earnings actual vs estimate, the actual announcement date/session, fiscal-period end shown separately, matching SEC 10-Q/10-K filing date and official link, latest important SEC filing, latest material 8-K event, and next earnings date/timing status. Use this for company-report, earnings, filing, 8-K, 10-Q, 10-K, and next-earnings questions. Never treat a fiscal-period end as an announcement or filing date.',
+    description: 'Get structured reports and events for ONE US ticker without running the paid Pro analysis: latest quarterly earnings actual vs estimate, the actual announcement date/session, fiscal-period end shown separately, matching SEC 10-Q/10-K filing date and official link, latest important SEC filing, latest material 8-K event, and next earnings date/timing status. Use this for company-report, earnings, filing, 8-K, 10-Q, 10-K, and next-earnings questions. Never treat a fiscal-period end as an announcement or filing date. If its output marks company-report dates as missing or conflicting and requires web search, you must call web_search before answering.',
     input_schema: {
       type: 'object',
       properties: { symbol: { type: 'string', description: 'US stock ticker, e.g. NVDA.' } },
@@ -681,12 +709,16 @@ const callOpenAI = async (messages, systemPrompt, userId) => {
   let toolRounds = 0;
   let continuations = 0;
   let accumulatedText = '';
+  let nextToolChoice = null;
 
   while (true) {
+    const toolChoice = nextToolChoice;
+    nextToolChoice = null;
     const parsed = await createOpenAIResponse({
       input: convo,
       instructions: systemPrompt,
       tools: toolRounds >= MAX_TOOL_ROUNDS ? [] : OPENAI_TOOLS,
+      toolChoice,
       maxOutputTokens: 16000,
       verbosity: 'medium',
     });
@@ -715,6 +747,13 @@ const callOpenAI = async (messages, systemPrompt, userId) => {
           output: String(resultText),
         };
       }));
+      if (toolResults.some(result => result.output.includes(COMPANY_REPORT_WEB_FALLBACK_MARKER))) {
+        // The Responses API normally uses automatic tool choice. Missing or
+        // contradictory company-report dates are the exception: force the next
+        // round to use the built-in web search instead of merely hoping the
+        // model chooses a second source.
+        nextToolChoice = { type: 'web_search' };
+      }
       convo.push(...toolResults);
       continue;
     }
@@ -983,14 +1022,14 @@ ACCURACY POLICY (non-negotiable):
 - For current news or public facts, use web_search and include source citations/links. Check publication date and event date; prefer primary sources and recent reporting.
 - For an exact current stock quote, prefer get_stock_quote over web results. For a full one-stock trade view, prefer get_stock_analysis. For market breadth, use the Scanner tools. For private user facts, use SwingRush database tools.
 - For an exact past session or any historical period—including "yesterday"—use get_stock_history. It supplies verified closes and precomputed daily/period gain-loss percentages. A current quote and its prior-close field are not enough.
-- For one company's earnings, reports, SEC filings, material events, or next earnings date, use get_company_reports. Keep announcement date, fiscal-period end, and SEC filing date explicitly separate; never substitute one for another.
+- For one company's earnings, reports, SEC filings, material events, or next earnings date, use get_company_reports. Keep announcement date, fiscal-period end, and SEC filing date explicitly separate; never substitute one for another. If that tool reports any missing or conflicting company-report date and marks web search as required, you MUST call web_search before answering, prefer the company's investor-relations release or official SEC filing, cite it, and use the verified dates to correct the incomplete structured result.
 - For market-wide questions about which important companies report next, today, or this week, use get_upcoming_earnings. Preserve calendar timing and TBD status exactly.
 - If get_stock_history returns no usable session, use web_search as a fallback and cite the historical-data source. If the user asks WHY the stock moved, use web_search for dated news/catalysts after obtaining the exact price move.
 - When two sources conflict for the same stock, do not blend the numbers. State the conflict and timestamp/source. For the SwingRush signal, Pro Engine is authoritative over Scanner.
 - Do not promise certainty or guaranteed outcomes. Give the strongest supportable conclusion and identify material uncertainty.
 
 Your tools:
-- web_search — for fresh news, current public/company facts, filings, macro developments and other time-sensitive information. Do not use it instead of a structured SwingRush tool when that tool directly answers the question.
+- web_search — for fresh news, current public/company facts, filings, macro developments and other time-sensitive information. Do not use it instead of a structured SwingRush tool when that tool directly answers the question. A structured company-report result with a missing or contradictory date has not directly answered the question, so web-search fallback is mandatory in that case.
 - calculate — a real calculator. Any time your answer involves arithmetic on numbers you already have in front of you (a percentage, a difference, a ratio, a sum of a few known values — anything), call this instead of computing it yourself, no matter how simple it looks, and state only the number it returns. Your own mental math is not reliable enough to trust for anything you tell the user. (If the math requires first counting or summing across a LIST of the user's own trades, use aggregate_my_trades instead — see below — since the risk there is miscounting the list, not just the final arithmetic.)
 - get_stock_quote — freshest structured quote for a simple exact price/change question, including market state and timestamp.
 - get_stock_history — verified Yahoo daily candles for any exact past date or historical period, with exact OHLCV plus server-calculated daily and start-to-end gain/loss percentages. Long-period returns use split/dividend-adjusted closes. Use it for "what did NVDA close at yesterday?" and "how much did NVDA gain from date A to date B?"; it does not run Pro news analysis or consume those credits. If Yahoo has no usable data, fall back to web_search with citations.

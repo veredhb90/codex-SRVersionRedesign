@@ -246,11 +246,56 @@ const decodeHtmlEntities = value => String(value || '')
   .replace(/&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/&apos;|&#39;/gi, "'")
   .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>');
 
+const filingPlainText = html => decodeHtmlEntities(String(html || '')
+  .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+  .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+  .replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+
+const MONTH_NUMBERS = {
+  january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
+  july: '07', august: '08', september: '09', october: '10', november: '11', december: '12',
+};
+const LONG_DATE_PATTERN = '(?:January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{1,2},\\s+\\d{4}';
+
+const longDateToIso = value => {
+  const match = String(value || '').trim().match(/^([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})$/);
+  const month = match ? MONTH_NUMBERS[match[1].toLowerCase()] : null;
+  if (!match || !month) return null;
+  return `${match[3]}-${month}-${String(Number(match[2])).padStart(2, '0')}`;
+};
+
+// An earnings-related Item 2.02 8-K normally states when the company issued
+// the release and which fiscal period the results cover. Parse only explicit
+// statements from the official filing; never promote the 8-K filing date to an
+// announcement date merely because the two dates are often the same.
+const extractEarningsEventFacts = html => {
+  const text = filingPlainText(html);
+  if (!text) return { announcedDate: null, fiscalPeriod: null };
+
+  const statementPatterns = [
+    new RegExp(`\\bOn\\s+(${LONG_DATE_PATTERN}),?.{0,650}?\\b(?:issued|announced|reported)\\b.{0,500}?\\b(?:financial|earnings)\\s+results\\b.{0,450}?\\.`, 'i'),
+    new RegExp(`\\((${LONG_DATE_PATTERN})\\)\\s*[-–—].{0,650}?\\b(?:today\\s+)?(?:reported|announced)\\b.{0,500}?\\b(?:financial|earnings)\\s+results\\b.{0,450}?\\.`, 'i'),
+  ];
+  let evidence = '';
+  let announcedDate = null;
+  for (const pattern of statementPatterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    announcedDate = longDateToIso(match[1]);
+    evidence = match[0];
+    break;
+  }
+
+  const fiscalPattern = new RegExp(`\\b(?:quarter|three\\s+months|fiscal\\s+year)[^.]{0,320}?\\bended\\s+(${LONG_DATE_PATTERN})`, 'i');
+  const fiscalMatch = (evidence || text).match(fiscalPattern) || (evidence ? text.match(fiscalPattern) : null);
+  return {
+    announcedDate,
+    fiscalPeriod: fiscalMatch ? longDateToIso(fiscalMatch[1]) : null,
+  };
+};
+
 const extractMaterialEventSummary = (html, items = []) => {
-  const text = decodeHtmlEntities(String(html || '')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+  const text = filingPlainText(html);
   if (!text) return null;
   const relevantItems = items.filter(item => item !== '9.01');
   let start = -1;
@@ -288,6 +333,18 @@ const fetchMaterialEventSummary = async filing => {
   }
 };
 
+const fetchEarningsEventFacts = async filing => {
+  if (!filing?.url || !/^https:\/\/www\.sec\.gov\/Archives\/edgar\//i.test(filing.url)) {
+    return { announcedDate: null, fiscalPeriod: null };
+  }
+  try {
+    const html = await requestText(filing.url, { 'User-Agent': SEC_USER_AGENT, Accept: 'text/html' });
+    return extractEarningsEventFacts(html);
+  } catch (_) {
+    return { announcedDate: null, fiscalPeriod: null };
+  }
+};
+
 const fetchSecFilings = async symbol => {
   const sym = String(symbol || '').toUpperCase().trim();
   const cached = fromCache(secSubmissionsCache, sym, REPORTS_TTL);
@@ -309,33 +366,86 @@ const fetchSecFilings = async symbol => {
   }
 };
 
-const enrichReports = (symbol, latestEarningsReport, upcomingEarnings, secData) => {
+const findMatchingPeriodicFiling = (filings, latestEarningsReport, earningsEvent, earningsEventFacts) => {
+  const periodic = (filings || []).filter(filing => PERIODIC_FORMS.has(baseForm(filing.form)) && filing.filedDate);
+  if (!periodic.length) return null;
+
+  const anchor = earningsEventFacts?.announcedDate || earningsEvent?.filedDate || latestEarningsReport?.reportedDate || null;
+  const anchorTime = anchor ? new Date(anchor + 'T12:00:00Z').getTime() : null;
+  const providerPeriod = latestEarningsReport?.fiscalPeriod || null;
+  const exact = providerPeriod
+    ? periodic.filter(filing => filing.reportDate === providerPeriod)
+    : [];
+  if (exact.length) {
+    if (!anchorTime) return exact[0];
+    const nearbyExact = exact
+      .map(filing => ({ filing, distance: Math.abs(new Date(filing.filedDate + 'T12:00:00Z').getTime() - anchorTime) }))
+      .filter(item => item.distance <= 75 * 86400000)
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (nearbyExact) return nearbyExact.filing;
+  }
+
+  if (!anchorTime) return null;
+  const nearby = periodic
+    .map(filing => {
+      const filedTime = new Date(filing.filedDate + 'T12:00:00Z').getTime();
+      const reportTime = filing.reportDate ? new Date(filing.reportDate + 'T12:00:00Z').getTime() : null;
+      return { filing, filedDistance: Math.abs(filedTime - anchorTime), reportTime };
+    })
+    .filter(item => item.filedDistance <= 45 * 86400000)
+    .filter(item => item.reportTime == null || (item.reportTime <= anchorTime + 7 * 86400000 && anchorTime - item.reportTime <= 200 * 86400000))
+    .sort((a, b) => a.filedDistance - b.filedDistance)[0];
+  return nearby?.filing || null;
+};
+
+const enrichReports = (symbol, latestEarningsReport, upcomingEarnings, secData, earningsEventFacts = null) => {
   const filings = Array.isArray(secData?.filings) ? secData.filings : [];
   const latestSecFiling = filings[0] || null;
   const latestMaterialEvent = filings.find(filing => baseForm(filing.form) === '8-K') || null;
   const latestEarningsEvent = filings.find(filing => baseForm(filing.form) === '8-K' && filing.items.includes('2.02')) || null;
-  let earningsSecFiling = null;
-  if (latestEarningsReport?.fiscalPeriod) {
-    earningsSecFiling = filings.find(filing => PERIODIC_FORMS.has(baseForm(filing.form)) && filing.reportDate === latestEarningsReport.fiscalPeriod) || null;
-  }
-  if (!earningsSecFiling && latestEarningsReport?.reportedDate) {
-    earningsSecFiling = filings.find(filing => PERIODIC_FORMS.has(baseForm(filing.form)) &&
-      Math.abs(new Date(filing.filedDate) - new Date(latestEarningsReport.reportedDate)) <= 45 * 86400000) || null;
-  }
+  const earningsSecFiling = findMatchingPeriodicFiling(filings, latestEarningsReport, latestEarningsEvent, earningsEventFacts);
 
-  const earnings = latestEarningsReport ? {
-    ...latestEarningsReport,
-    announcedDate: latestEarningsReport.reportedDate || null,
-    announcementSession: latestEarningsReport.hour || null,
-    announcementSource: latestEarningsReport.reportedDate ? 'Finnhub earnings calendar' : null,
-    earningsReleaseFiledDate: latestEarningsEvent?.filedDate || null,
-    earningsReleaseSecUrl: latestEarningsEvent?.url || null,
-    secForm: earningsSecFiling?.form || null,
-    secFiledDate: earningsSecFiling?.filedDate || null,
-    secAcceptedAt: earningsSecFiling?.acceptedAt || null,
-    secAccessionNumber: earningsSecFiling?.accessionNumber || null,
-    secUrl: earningsSecFiling?.url || null,
-  } : null;
+  let earnings = null;
+  if (latestEarningsReport || latestEarningsEvent || earningsSecFiling) {
+    const baseEarnings = latestEarningsReport || {};
+    const providerReportedDate = baseEarnings.reportedDate || null;
+    const providerFiscalPeriod = baseEarnings.fiscalPeriod || null;
+    const announcedDate = earningsEventFacts?.announcedDate || providerReportedDate;
+    // An SEC 10-Q/10-K report date or an explicit period-end statement in the
+    // earnings 8-K is authoritative. Finnhub earnings-history `period` is kept
+    // for audit/debugging but is not displayed as an exact company fiscal end.
+    const fiscalPeriod = earningsSecFiling?.reportDate || earningsEventFacts?.fiscalPeriod || null;
+    const dateIssues = [];
+    if (!announcedDate) dateIssues.push('announcement date unavailable');
+    if (!fiscalPeriod) dateIssues.push('exact fiscal-period end unavailable');
+    if (announcedDate && fiscalPeriod && announcedDate < fiscalPeriod) {
+      dateIssues.push('announcement date precedes fiscal-period end');
+    }
+    earnings = {
+      ...baseEarnings,
+      reportedDate: announcedDate || null,
+      fiscalPeriod,
+      providerReportedDate,
+      providerFiscalPeriod,
+      announcedDate: announcedDate || null,
+      announcementSession: providerReportedDate && providerReportedDate === announcedDate ? baseEarnings.hour || null : null,
+      announcementSource: earningsEventFacts?.announcedDate
+        ? 'SEC earnings-related 8-K text'
+        : providerReportedDate ? 'Finnhub earnings calendar' : null,
+      fiscalPeriodSource: earningsSecFiling?.reportDate
+        ? `SEC ${earningsSecFiling.form} report date`
+        : earningsEventFacts?.fiscalPeriod ? 'SEC earnings-related 8-K text' : null,
+      dateValidation: dateIssues.length ? 'incomplete_or_conflicting' : 'verified',
+      dateIssues,
+      earningsReleaseFiledDate: latestEarningsEvent?.filedDate || null,
+      earningsReleaseSecUrl: latestEarningsEvent?.url || null,
+      secForm: earningsSecFiling?.form || null,
+      secFiledDate: earningsSecFiling?.filedDate || null,
+      secAcceptedAt: earningsSecFiling?.acceptedAt || null,
+      secAccessionNumber: earningsSecFiling?.accessionNumber || null,
+      secUrl: earningsSecFiling?.url || null,
+    };
+  }
 
   const material = latestMaterialEvent ? {
     ...latestMaterialEvent,
@@ -368,7 +478,9 @@ const getCompanyReports = async symbol => {
     fetchSecFilings(sym),
   ]);
   const latestEarningsReport = buildLatestEarningsReport(calendar.latestReported, history);
-  const enriched = enrichReports(sym, latestEarningsReport, calendar.upcoming, secData);
+  const earningsEvent = (secData?.filings || []).find(filing => baseForm(filing.form) === '8-K' && filing.items.includes('2.02')) || null;
+  const earningsEventFacts = await fetchEarningsEventFacts(earningsEvent);
+  const enriched = enrichReports(sym, latestEarningsReport, calendar.upcoming, secData, earningsEventFacts);
   if (enriched.latestMaterialEvent && !enriched.latestMaterialEvent.duplicatesLatestEarnings) {
     enriched.latestMaterialEvent.summary = await fetchMaterialEventSummary(enriched.latestMaterialEvent);
   }
@@ -409,8 +521,10 @@ const getImportantUpcomingEarnings = async (fromDate, toDate, count = 15) => {
 module.exports = {
   buildLatestEarningsReport,
   enrichReports,
+  extractEarningsEventFacts,
   getCompanyReports,
   getImportantUpcomingEarnings,
   extractMaterialEventSummary,
+  findMatchingPeriodicFiling,
   normalizeSecFilings,
 };

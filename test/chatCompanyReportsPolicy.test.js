@@ -16,3 +16,9 @@ test('chat policy forbids mixing fiscal, announcement, and filing dates', () => 
   assert.match(source, /Keep announcement date, fiscal-period end, and SEC filing date explicitly separate/);
   assert.match(source, /Preserve BMO\/AMC\/TBD status/);
 });
+
+test('chat forces web search when structured company-report dates are incomplete or conflicting', () => {
+  assert.match(source, /WEB_SEARCH_REQUIRED_FOR_COMPANY_REPORT_DATES/);
+  assert.match(source, /nextToolChoice = \{ type: 'web_search' \}/);
+  assert.match(source, /web-search fallback is mandatory/);
+});

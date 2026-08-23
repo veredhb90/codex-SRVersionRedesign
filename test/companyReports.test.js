@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { enrichReports, extractMaterialEventSummary, normalizeSecFilings } = require('../backend/services/companyReports');
+const { enrichReports, extractEarningsEventFacts, extractMaterialEventSummary, normalizeSecFilings } = require('../backend/services/companyReports');
 
 const secPayload = {
   filings: {
@@ -46,6 +46,65 @@ test('earnings announcement, fiscal period, and SEC filing dates remain separate
   assert.equal(data.latestEarningsReport.secFiledDate, '2026-08-06');
   assert.equal(data.latestEarningsReport.secForm, '10-Q');
   assert.equal(data.latestMaterialEvent.duplicatesLatestEarnings, true);
+});
+
+test('earnings 8-K text and nearby 10-Q correct a conflicting provider period', () => {
+  const payload = {
+    filings: {
+      recent: {
+        form: ['8-K', '10-Q'],
+        filingDate: ['2026-05-27', '2026-05-28'],
+        acceptanceDateTime: ['20260527160607', '20260528160932'],
+        reportDate: ['2026-05-27', '2026-05-02'],
+        accessionNumber: ['0001835632-26-000014', '0001835632-26-000019'],
+        primaryDocument: ['mrvl-20260527.htm', 'mrvl-20260502.htm'],
+        items: ['2.02,9.01', ''],
+      },
+    },
+  };
+  const filings = normalizeSecFilings(payload, 1835632);
+  const facts = extractEarningsEventFacts('<p>On May 27, 2026, Marvell Technology, Inc. issued a press release reporting its financial results for the first quarter of fiscal year 2027 ended May 2, 2026.</p>');
+  const data = enrichReports('MRVL', {
+    reportedDate: null,
+    fiscalPeriod: '2026-06-30',
+    quarter: 1,
+    year: 2027,
+    epsActual: 0.8,
+    epsEstimate: 0.8076,
+  }, [], { companyName: 'Marvell Technology, Inc.', filings }, facts);
+
+  assert.deepEqual(facts, { announcedDate: '2026-05-27', fiscalPeriod: '2026-05-02' });
+  assert.equal(data.latestEarningsReport.announcedDate, '2026-05-27');
+  assert.equal(data.latestEarningsReport.fiscalPeriod, '2026-05-02');
+  assert.equal(data.latestEarningsReport.providerFiscalPeriod, '2026-06-30');
+  assert.equal(data.latestEarningsReport.secForm, '10-Q');
+  assert.equal(data.latestEarningsReport.secFiledDate, '2026-05-28');
+  assert.equal(data.latestEarningsReport.dateValidation, 'verified');
+});
+
+test('SEC evidence still supplies verified report dates when Finnhub returns no latest result', () => {
+  const filings = normalizeSecFilings({
+    filings: {
+      recent: {
+        form: ['8-K', '10-Q'],
+        filingDate: ['2026-05-27', '2026-05-28'],
+        acceptanceDateTime: ['20260527160607', '20260528160932'],
+        reportDate: ['2026-05-27', '2026-05-02'],
+        accessionNumber: ['0001835632-26-000014', '0001835632-26-000019'],
+        primaryDocument: ['mrvl-20260527.htm', 'mrvl-20260502.htm'],
+        items: ['2.02,9.01', ''],
+      },
+    },
+  }, 1835632);
+  const data = enrichReports('MRVL', null, [], { filings }, {
+    announcedDate: '2026-05-27',
+    fiscalPeriod: '2026-05-02',
+  });
+
+  assert.equal(data.latestEarningsReport.announcedDate, '2026-05-27');
+  assert.equal(data.latestEarningsReport.fiscalPeriod, '2026-05-02');
+  assert.equal(data.latestEarningsReport.secFiledDate, '2026-05-28');
+  assert.equal(data.latestEarningsReport.dateValidation, 'verified');
 });
 
 test('a newer non-earnings 8-K remains a distinct material event', () => {

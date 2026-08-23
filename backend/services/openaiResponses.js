@@ -43,6 +43,7 @@ const createOpenAIResponse = ({
   input,
   instructions,
   tools,
+  toolChoice,
   maxOutputTokens = 16000,
   model,
   reasoningEffort,
@@ -70,7 +71,7 @@ const createOpenAIResponse = ({
 
   if (Array.isArray(tools) && tools.length) {
     body.tools = tools;
-    body.tool_choice = 'auto';
+    body.tool_choice = toolChoice || 'auto';
   }
 
   const request = https.request({
