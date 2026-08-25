@@ -267,8 +267,10 @@
 <script src="/js/pro_result_summary.js?v=1787341002"></script>
 <script src="/js/pro_earnings_report.js?v=1787461705"></script>
 <script src="/js/pro_social_sentiment.js?v=1787240000"></script>
+<script src="/js/terms.js?v=1"></script>
 <script>
   if (!Auth.require()) {}
+  if (window.Terms) Terms.checkAndShow();
   const me = Auth.user();
   if (me) document.querySelectorAll('.nav-username').forEach(el => el.textContent = me.username ? '@'+me.username : me.fullName);
 

@@ -65,6 +65,7 @@ const combineProAnalysis = (symbol, technical, newsAnalysis, generatedAt = new D
     symbol: sym,
     name: technical.name || sym,
     price: technical.price,
+    marketCap: news.marketCap || null,
     regularSessionPrice: technical.regularSessionPrice || technical.price,
     changePct: technical.changePct,
     marketState: technical.marketState || 'Regular Session',

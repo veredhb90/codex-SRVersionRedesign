@@ -4,6 +4,7 @@ const jwt     = require('jsonwebtoken');
 const crypto  = require('crypto');
 const User    = require('../models/User');
 const { sendOTP, sendPassword, sendAdminNewUser } = require('../services/emailService');
+const { TERMS_VERSION } = require('../config/termsVersion');
 
 const genOTP      = () => Math.floor(100000 + Math.random() * 900000).toString();
 const genPassword = () => crypto.randomBytes(6).toString('base64url').slice(0, 10);
@@ -152,6 +153,32 @@ router.post('/onboarding', require('../middleware/authMiddleware').protect, asyn
     );
     res.json({ message: 'Profile saved!', traderProfile: user.traderProfile });
   } catch(err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/auth/accept-terms — records the mandatory no-advice/no-liability
+// disclaimer signature. Required before a user can use any part of the site
+// beyond the public landing page; enforced client-side by terms.js on every
+// authenticated page, re-triggered for anyone whose stored version doesn't
+// match TERMS_VERSION (including existing users who signed an older version,
+// or never signed at all).
+router.post('/accept-terms', require('../middleware/authMiddleware').protect, async (req, res) => {
+  try {
+    const signatureName = String(req.body.signatureName || '').trim();
+    const language = ['en', 'ar', 'he'].includes(req.body.language) ? req.body.language : 'en';
+    if (!signatureName) return res.status(400).json({ message: 'Full legal name is required to sign.' });
+    if (signatureName.length > 100) return res.status(400).json({ message: 'Name is too long.' });
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: {
+        'termsAccepted.version': TERMS_VERSION,
+        'termsAccepted.acceptedAt': new Date(),
+        'termsAccepted.signatureName': signatureName,
+        'termsAccepted.language': language,
+      } },
+      { new: true },
+    );
+    res.json({ message: 'Terms accepted', termsAccepted: user.termsAccepted });
+  } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 module.exports = router;

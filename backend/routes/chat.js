@@ -77,6 +77,15 @@ const formatCompanyReportsText = (data, symbol) => {
 };
 
 // ── Format a Pro Engine result into verified text for the AI ────────
+const formatMarketCap = (value) => {
+  const cap = Number(value);
+  if (!Number.isFinite(cap) || cap <= 0) return null;
+  if (cap >= 1e12) return '$' + (cap / 1e12).toFixed(2) + 'T';
+  if (cap >= 1e9) return '$' + (cap / 1e9).toFixed(2) + 'B';
+  if (cap >= 1e6) return '$' + (cap / 1e6).toFixed(2) + 'M';
+  return '$' + cap.toLocaleString('en-US');
+};
+
 const formatProEngineText = (e, sym) => {
   const breakdownText = (e.technicalBreakdown || []).map(b => `  ${b.indicator}: ${b.points > 0 ? '+' : ''}${b.points} (${b.note})`).join('\n');
   const catalystsText = (e.catalysts || []).length ? e.catalysts.map(c => `  \u2022 ${c}`).join('\n') : '  None identified';
@@ -97,6 +106,7 @@ const formatProEngineText = (e, sym) => {
   return `SWINGRUSH PRO ENGINE: ${sym}
 Report generated: ${e.generatedAt || 'not supplied'} | Report fresh-until marker: ${e.freshUntil || 'not supplied'}
 ${e.marketState === 'Pre-Market' || e.marketState === 'After-Hours' ? 'Regular Session Close: $' + e.regularSessionPrice + ' | Current ' + e.marketState + ' Price: $' + e.price + ' (freshest, use this for analysis)' : 'Price: $' + e.price} | Change: ${e.changePct >= 0 ? '+' : ''}${e.changePct}% | Quote time: ${e.quoteTime || 'not supplied'}
+Market Cap: ${formatMarketCap(e.marketCap) || 'not available'}
 SIGNAL: ${e.direction} | Combined Score: ${e.score > 0 ? '+' : ''}${e.score}/24 | ${e.confidence} Confidence
 ${e.takeProfit ? `Entry: $${e.price} | TP: $${e.takeProfit} | SL: $${e.stopLoss} | R:R 1:${e.riskReward}` : 'No trade setup \u2014 score below conviction threshold'}
 PRECOMPUTED FIGURES (real math, already calculated correctly \u2014 state these numbers as-is, do NOT recompute them yourself from the raw price history or from anything found via web_search):

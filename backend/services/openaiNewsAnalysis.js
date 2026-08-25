@@ -128,17 +128,39 @@ const fetchPriceTarget = (symbol) => new Promise((resolve) => {
   req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
+// ── Fetch real market cap from Finnhub's company profile — structured
+// number, not something the model has to guess or read off a search result.
+// Finnhub returns marketCapitalization in millions of USD; converted here to
+// a plain dollar figure so every consumer (UI, chat) gets the same unit.
+const fetchMarketCap = (symbol) => new Promise((resolve) => {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  const url = `https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${apiKey}`;
+  const req = require('https').get(url, { timeout: 15000 }, (res) => {
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
+    res.on('end', () => {
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const capMillions = Number(parsed && parsed.marketCapitalization);
+        resolve(Number.isFinite(capMillions) && capMillions > 0 ? capMillions * 1_000_000 : null);
+      } catch (e) { resolve(null); }
+    });
+  }).on('error', () => resolve(null));
+  req.on('timeout', () => req.destroy(new Error('timed out')));
+});
+
 const getOpenAINewsAnalysis = async (symbol, companyName) => {
   const cacheKey = 'news_' + symbol.toUpperCase();
   const cached = fromNewsCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
   try {
-    const [articles, ratings, companyReports, priceTarget] = await Promise.all([
+    const [articles, ratings, companyReports, priceTarget, marketCap] = await Promise.all([
       enqueueFinnhubCall(() => fetchFinnhubNews(symbol), { priority: true }),
       enqueueFinnhubCall(() => fetchAnalystRatings(symbol), { priority: true }),
       getCompanyReports(symbol),
       enqueueFinnhubCall(() => fetchPriceTarget(symbol), { priority: true }),
+      enqueueFinnhubCall(() => fetchMarketCap(symbol), { priority: true }),
     ]);
     const upcomingEarnings = companyReports.upcomingEarnings || [];
     const earningsHistory = companyReports.earningsHistory || [];
@@ -207,6 +229,7 @@ Respond with the JSON format specified.`;
       companyReportsRetrievedAt: companyReports.retrievedAt || null,
       analystSummary,
       priceTarget,
+      marketCap,
       analyzedAt: new Date().toISOString(),
       fromCache: false,
     };
@@ -219,7 +242,7 @@ Respond with the JSON format specified.`;
       score: 0, label: 'Unavailable',
       summary: 'AI news analysis temporarily unavailable — technical score only.',
       reasoning: '',
-      catalysts: [], risks: [], articleCount: 0, analystSummary: '', priceTarget: null,
+      catalysts: [], risks: [], articleCount: 0, analystSummary: '', priceTarget: null, marketCap: null,
       upcomingEarnings: [], earningsHistory: [], latestEarningsReport: null,
       latestSecFiling: null, latestMaterialEvent: null, companyReportsRetrievedAt: null,
       fromCache: false, error: true,

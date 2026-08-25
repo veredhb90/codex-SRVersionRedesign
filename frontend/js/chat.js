@@ -105,7 +105,7 @@
 
   window.srProAiExploreButtonHtml = function(stockData) {
     var direction = String((stockData && stockData.direction) || '').toUpperCase();
-    if (direction !== 'BUY' && direction !== 'SELL') return '';
+    if (direction !== 'BUY' && direction !== 'SELL' && direction !== 'NEUTRAL') return '';
     return '<button type="button" class="sr-pro-ai-explore" data-sr-pro-ai-explore>' +
       '<span aria-hidden="true">💬</span> ' +
       chatCopy('Explore deeper with AI chat', 'استكشف بشكل أعمق مع محادثة الذكاء الاصطناعي', 'העמיקו עם צ׳אט AI') +
@@ -148,12 +148,12 @@
     if (statusEl) statusEl.textContent = chatCopy3('Analyzing ', 'جار تحليل ', 'מנתח את ') + stockData.symbol;
     var suggestEl = document.getElementById('sr-chat-suggestions');
     if (suggestEl) {
-      var isBuy = stockData.direction === 'BUY';
-      var dir = stockData.direction;
+      var dir = ['BUY', 'SELL', 'NEUTRAL'].indexOf(stockData.direction) >= 0 ? stockData.direction : 'NEUTRAL';
+      var directionIcon = dir === 'BUY' ? '▲' : dir === 'SELL' ? '▼' : '●';
       var sym = stockData.symbol;
       var sc  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
       suggestEl.innerHTML =
-        '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' signal right now?\')">'+  (isBuy?'▲':'▼') + chatCopy3(' Why ' + dir + '?', ' لماذا ' + signalLabel(dir) + '؟', ' למה ' + signalLabel(dir) + '?') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' result right now?\')">' + directionIcon + chatCopy3(' Why ' + dir + '?', ' لماذا ' + signalLabel(dir) + '؟', ' למה ' + signalLabel(dir) + '?') + '</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Explain each indicator for ' + sym + ' and why score is ' + sc + '\')">📊 ' + chatCopy3('Explain score', 'اشرح النتيجة', 'הסבר את הציון') + '</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Show me the chart for ' + sym + '\')">📈 ' + chatCopy3('Show chart', 'اعرض الرسم البياني', 'הצג גרף') + '</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Show me latest news with links for ' + sym + '\')">📰 ' + chatCopy3('News links', 'روابط الأخبار', 'קישורי חדשות') + '</button>' +

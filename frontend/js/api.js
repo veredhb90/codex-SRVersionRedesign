@@ -19,6 +19,7 @@ const API = {
   forgotPassword:      (b)       => API._req('/auth/forgot-password', { method:'POST', body:JSON.stringify(b) }),
   changePassword:      (b)       => API._req('/auth/change-password', { method:'POST', body:JSON.stringify(b) }),
   onboarding:          (b)       => API._req('/auth/onboarding',      { method:'POST', body:JSON.stringify(b) }),
+  acceptTerms:         (b)       => API._req('/auth/accept-terms',    { method:'POST', body:JSON.stringify(b) }),
   checkUsername:       (u)       => API._req('/auth/check-username/'  + encodeURIComponent(u)),
   quote:               (sym)     => API._req('/stocks/quote/'         + encodeURIComponent(sym)),
   engine:              (sym)     => API._req('/stocks/engine/'        + encodeURIComponent(sym)),

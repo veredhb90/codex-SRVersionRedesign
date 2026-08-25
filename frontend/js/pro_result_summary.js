@@ -29,6 +29,15 @@
     });
   }
 
+  function marketCap(value) {
+    var number = finite(value);
+    if (number === null || number <= 0) return null;
+    if (number >= 1e12) return '$' + (number / 1e12).toFixed(2) + 'T';
+    if (number >= 1e9) return '$' + (number / 1e9).toFixed(2) + 'B';
+    if (number >= 1e6) return '$' + (number / 1e6).toFixed(2) + 'M';
+    return '$' + number.toLocaleString('en-US');
+  }
+
   function installStyles() {
     if (typeof document === 'undefined' || document.getElementById('sr-pro-summary-styles')) return;
     var style = document.createElement('style');
@@ -37,7 +46,7 @@
       '.sr-pro-summary{--srp-text:#0D2244;--srp-muted:#64748b;--srp-surface:#F7FAFE;--srp-inner:#fff;--srp-border:#D6E4F5;container-type:inline-size;margin:0 0 14px;padding:13px;border:1px solid var(--srp-border);border-radius:11px;background:var(--srp-surface);box-shadow:0 3px 14px rgba(13,34,68,.045)}' +
       '.sr-pro-summary.dark{--srp-text:var(--text,#F2F6FC);--srp-muted:var(--muted,#9CABBF);--srp-surface:var(--bg2,#17253B);--srp-inner:rgba(255,255,255,.025);--srp-border:var(--border,#2A3A54);box-shadow:none}' +
       '.sr-pro-summary-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}' +
-      '.sr-pro-quote{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}.sr-pro-symbol{font-size:19px;font-weight:850;color:var(--srp-text)}.sr-pro-price{font-size:14px;font-weight:750;color:var(--srp-text)}' +
+      '.sr-pro-quote{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}.sr-pro-symbol{font-size:19px;font-weight:850;color:var(--srp-text)}.sr-pro-price{font-size:14px;font-weight:750;color:var(--srp-text)}.sr-pro-mcap{font-size:11px;font-weight:700;color:var(--srp-muted)}' +
       '.sr-pro-today{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:850;white-space:nowrap}.sr-pro-today.up{color:#00893E;background:rgba(0,137,62,.10)}.sr-pro-today.down{color:#C62828;background:rgba(198,40,40,.10)}.sr-pro-today.flat{color:var(--srp-muted);background:rgba(100,116,139,.10)}' +
       '.sr-pro-session{font-size:10.5px;color:var(--srp-muted);width:100%;line-height:1.35}.sr-pro-session strong{color:var(--srp-text)}' +
       '.sr-pro-decision{display:grid;grid-template-columns:auto minmax(145px,.65fr) minmax(220px,1fr);gap:9px;align-items:stretch}' +
@@ -66,11 +75,13 @@
     var directionArrow = direction === 'BUY' ? '▲' : direction === 'SELL' ? '▼' : '•';
     var special = data.marketState && data.marketState !== 'Regular Session';
     var todayTitle = t('home.eng_today_move', 'Today') + ': ' + changeArrow + ' ' + (change === null ? '—' : signed(change, 2) + '%');
+    var mcap = marketCap(data.marketCap);
 
     return '<div class="sr-pro-summary ' + (options.theme === 'dark' ? 'dark ' : '') + directionClass + '">' +
       '<div class="sr-pro-summary-top"><div class="sr-pro-quote">' +
         '<strong class="sr-pro-symbol">' + escapeHtml(data.symbol || '') + '</strong>' +
         '<span class="sr-pro-price">' + escapeHtml(price(data.price)) + '</span>' +
+        (mcap ? '<span class="sr-pro-mcap">' + escapeHtml(t('home.eng_market_cap', 'Mkt Cap')) + ' ' + escapeHtml(mcap) + '</span>' : '') +
         '<span class="sr-pro-today ' + changeClass + '" title="Compared with the previous regular-session close">' + escapeHtml(todayTitle) + '</span>' +
         (special ? '<span class="sr-pro-session">' + escapeHtml(data.marketState) + ' · ' + escapeHtml(t('home.eng_regular_session_close', 'Regular Session Close')) + ': <strong>' + escapeHtml(price(data.regularSessionPrice)) + '</strong></span>' : '') +
       '</div></div>' +
