@@ -174,7 +174,7 @@
 
 <div class="layout">
   <aside class="sidebar-left">
-    <div class="sb-card">
+    <div class="sb-card" id="sidebar-scanner-card">
       <div class="sb-title" data-i18n="feed.scanner_title">MARKET SCANNER</div>
       <p style="font-size:12px;color:var(--muted);margin:0 0 8px;" data-i18n="feed.scanner_copy">Next automatic scan of the market:</p>
       <div id="scanner-countdown" style="font-family:var(--font-mono);font-weight:800;font-size:18px;color:var(--accent2);">—</div>
@@ -285,9 +285,9 @@
         <div class="u-email" id="sb-email"></div>
       </div>
     </div>
-    <div class="sb-card">
+    <div class="sb-card" id="sidebar-pro-engine-card">
       <div class="sb-title" data-i18n="feed.ai_engine">AI PRO ENGINE</div>
-      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;" data-i18n="feed.ai_engine_copy">Real OpenAI GPT-5.6 analysis on any stock — technical + news + catalysts.</p>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;" data-i18n="feed.ai_engine_copy">Real AI analysis on any stock — technical + news + catalysts.</p>
       <button onclick="openProEngineModal()" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;background:linear-gradient(135deg,#1a3a8f,#4f7dff);box-shadow:0 2px 16px rgba(79,125,255,0.3);" data-i18n="feed.open_ai">Open AI Pro Engine</button>
     </div>
     <div class="sb-card">
@@ -307,12 +307,13 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/api.js?v=1787381219"></script>
 <script src="/js/auth.js?v=1786563038"></script>
-<script src="/js/i18n.js?v=1787381219"></script>
-<script src="/js/pro_result_summary.js?v=1787341002"></script>
+<script src="/js/i18n.js?v=1787737400"></script>
+<script src="/js/pro_result_summary.js?v=1787737300"></script>
 <script src="/js/pro_earnings_report.js?v=1787461705"></script>
 <script src="/js/pro_social_sentiment.js?v=1787240000"></script>
 <script src="/js/ticker.js?v=1787248000"></script>
 <script src="/js/onboarding.js?v=1785528146"></script>
+<script src="/js/tour.js?v=1787737300"></script>
 <script src="/js/terms.js?v=1"></script>
 <script src="/js/feed_v2.js?v=1787386083"></script>
 <script>
@@ -380,6 +381,9 @@
 
   // ── Check onboarding
   if (window.Onboarding) Onboarding.checkAndShow();
+
+  // ── First-time feature tour (after Terms + Trader Profile onboarding resolve)
+  if (window.SiteTour) { SiteTour.init(); SiteTour.checkAndShow(); }
 
   // ── User init ────────────────────────────────────────────────
   const u = Auth.user();

@@ -40,11 +40,10 @@ const Terms = {
       scrollHint: 'Scroll to the end to continue',
       dateLabel: 'Date',
       signatureLabel: 'Full legal name (signature)',
-      signaturePlaceholder: 'Type your full name',
+      emailLabel: 'Email',
       checkboxLabel: 'I have read and fully understand the above, and I voluntarily agree to these terms.',
       agreeBtn: 'I Agree & Sign',
       savingBtn: 'Saving…',
-      errName: 'Please type your full name to sign.',
       errCheck: 'Please confirm you have read and agree to the terms.',
       errGeneric: 'Could not save your signature. Please try again.',
     },
@@ -81,11 +80,10 @@ const Terms = {
       scrollHint: 'مرر للأسفل حتى النهاية للمتابعة',
       dateLabel: 'التاريخ',
       signatureLabel: 'الاسم القانوني الكامل (التوقيع)',
-      signaturePlaceholder: 'اكتب اسمك الكامل',
+      emailLabel: 'البريد الإلكتروني',
       checkboxLabel: 'لقد قرأت ما ورد أعلاه وفهمته بالكامل، وأوافق طواعية على هذه الشروط.',
       agreeBtn: 'أوافق وأوقّع',
       savingBtn: 'جار الحفظ…',
-      errName: 'يرجى كتابة اسمك الكامل للتوقيع.',
       errCheck: 'يرجى تأكيد أنك قرأت الشروط ووافقت عليها.',
       errGeneric: 'تعذر حفظ توقيعك. حاول مرة أخرى.',
     },
@@ -122,11 +120,10 @@ const Terms = {
       scrollHint: 'גללו עד הסוף כדי להמשיך',
       dateLabel: 'תאריך',
       signatureLabel: 'שם מלא (חתימה)',
-      signaturePlaceholder: 'הקלידו את שמכם המלא',
+      emailLabel: 'אימייל',
       checkboxLabel: 'קראתי את האמור לעיל, הבנתי אותו במלואו, ואני מסכים/ה מרצוני החופשי לתנאים אלה.',
       agreeBtn: 'אני מסכים/ה וחותם/ת',
       savingBtn: 'שומר…',
-      errName: 'נא להקליד את שמכם המלא כדי לחתום.',
       errCheck: 'נא לאשר שקראתם את התנאים ומסכימים להם.',
       errGeneric: 'לא ניתן היה לשמור את החתימה. נסו שוב.',
     },
@@ -150,15 +147,11 @@ const Terms = {
   // intentionally — the user must actually read the new-language text.
   switchLang(lang) {
     if (!this.CONTENT[lang]) return;
-    var sigInput = document.getElementById('sr-terms-sig');
-    var carriedSig = sigInput ? sigInput.value : '';
     this.activeLang = lang;
     var modal = document.getElementById('sr-terms-gate');
     if (modal) modal.remove();
     document.body.style.overflow = '';
     this.show();
-    var newSigInput = document.getElementById('sr-terms-sig');
-    if (newSigInput && carriedSig) newSigInput.value = carriedSig;
   },
 
   scrolledToEnd: false,
@@ -209,8 +202,12 @@ const Terms = {
             '</div>' +
             '<div style="flex:2;">' +
               '<label style="font-size:11px;font-weight:700;color:var(--muted,#64748b);display:block;margin-bottom:4px;">' + this.escapeHtml(c.signatureLabel) + '</label>' +
-              '<input id="sr-terms-sig" type="text" maxlength="100" placeholder="' + this.escapeHtml(c.signaturePlaceholder) + '" style="width:100%;padding:10px 12px;border:1.5px solid var(--border,#D6E4F5);border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;color:var(--text,#0D2244);background:var(--surface,#fff);"/>' +
+              '<div style="padding:10px 12px;border:1.5px solid var(--border,#D6E4F5);border-radius:10px;font-size:13px;color:var(--text,#0D2244);background:var(--bg2,#F7FAFE);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + this.escapeHtml((window.Auth && Auth.user() && Auth.user().fullName) || '') + '</div>' +
             '</div>' +
+          '</div>' +
+          '<div style="margin-bottom:10px;">' +
+            '<label style="font-size:11px;font-weight:700;color:var(--muted,#64748b);display:block;margin-bottom:4px;">' + this.escapeHtml(c.emailLabel) + '</label>' +
+            '<div style="padding:10px 12px;border:1.5px solid var(--border,#D6E4F5);border-radius:10px;font-size:13px;color:var(--text,#0D2244);background:var(--bg2,#F7FAFE);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + this.escapeHtml((window.Auth && Auth.user() && Auth.user().email) || '') + '</div>' +
           '</div>' +
           '<label style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;line-height:1.5;color:var(--text2,#4a5568);cursor:pointer;margin-bottom:14px;">' +
             '<input id="sr-terms-check" type="checkbox" style="margin-top:2px;flex-shrink:0;width:16px;height:16px;"/>' +
@@ -247,16 +244,14 @@ const Terms = {
 
   async submit() {
     var c = this.CONTENT[this.lang()];
-    var sig = (document.getElementById('sr-terms-sig').value || '').trim();
     var checked = document.getElementById('sr-terms-check').checked;
-    if (!sig) { this.showErr(c.errName); return; }
     if (!checked) { this.showErr(c.errCheck); return; }
 
     var btn = document.getElementById('sr-terms-submit');
     btn.textContent = c.savingBtn;
     btn.disabled = true;
     try {
-      await API.acceptTerms({ signatureName: sig, language: this.lang() });
+      await API.acceptTerms({ language: this.lang() });
       document.body.style.overflow = '';
       var modal = document.getElementById('sr-terms-gate');
       if (modal) modal.remove();

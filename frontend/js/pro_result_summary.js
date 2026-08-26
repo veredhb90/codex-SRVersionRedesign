@@ -38,6 +38,15 @@
     return '$' + number.toLocaleString('en-US');
   }
 
+  function daysUntil(value) {
+    var match = String(value || '').match(/^\d{4}-\d{2}-\d{2}/);
+    if (!match) return null;
+    var today = new Date();
+    today = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var target = new Date(match[0] + 'T00:00:00');
+    return Math.round((target - today) / 86400000);
+  }
+
   function installStyles() {
     if (typeof document === 'undefined' || document.getElementById('sr-pro-summary-styles')) return;
     var style = document.createElement('style');
@@ -57,6 +66,8 @@
       '@keyframes srProSignalPulse{0%,72%,100%{box-shadow:0 0 0 0 transparent;filter:brightness(1)}86%{box-shadow:0 0 12px -3px currentColor;filter:brightness(1.05)}}' +
       '@keyframes srProNumberFlash{0%,76%,100%{text-shadow:none;opacity:1}88%{text-shadow:0 0 9px currentColor;opacity:.88}}' +
       '.sr-pro-signal.buy,.sr-pro-signal.sell{animation:srProSignalPulse 4.8s ease-in-out infinite}.sr-pro-summary.buy .sr-pro-score,.sr-pro-summary.sell .sr-pro-score{animation:srProNumberFlash 5.2s ease-in-out infinite}.sr-pro-today.up,.sr-pro-today.down{animation:srProNumberFlash 5.8s ease-in-out infinite}' +
+      '.sr-pro-earnings-alert{display:flex;align-items:center;gap:7px;margin:0 0 10px;padding:7px 10px;border-radius:8px;background:rgba(198,40,40,.10);border:1px solid rgba(198,40,40,.35);color:#C62828;font-size:11.5px;font-weight:850;letter-spacing:.15px}' +
+      '.sr-pro-summary.dark .sr-pro-earnings-alert{background:rgba(255,99,99,.10);border-color:rgba(255,99,99,.35);color:#FF8A80}' +
       '@container (max-width:480px){.sr-pro-decision{grid-template-columns:auto minmax(0,1fr)}.sr-pro-components{grid-column:1/-1}.sr-pro-signal{min-width:94px}.sr-pro-score{font-size:21px}}' +
       '@media(max-width:560px){.sr-pro-summary{padding:11px}.sr-pro-decision{grid-template-columns:auto minmax(0,1fr)}.sr-pro-components{grid-column:1/-1}.sr-pro-signal{min-width:94px}.sr-pro-score{font-size:21px}}' +
       '@media(prefers-reduced-motion:reduce){.sr-pro-signal,.sr-pro-score,.sr-pro-today{animation:none!important}}';
@@ -77,7 +88,18 @@
     var todayTitle = t('home.eng_today_move', 'Today') + ': ' + changeArrow + ' ' + (change === null ? '—' : signed(change, 2) + '%');
     var mcap = marketCap(data.marketCap);
 
+    var nextEarnings = (data.upcomingEarnings || [])[0];
+    var earningsDays = nextEarnings ? daysUntil(nextEarnings.date) : null;
+    var earningsSoon = earningsDays !== null && earningsDays >= 0 && earningsDays <= 7;
+    var earningsTiming = earningsDays === 0 ? t('feed.pe_today', 'TODAY')
+      : earningsDays === 1 ? t('feed.pe_tomorrow', 'TOMORROW')
+      : t('feed.pe_in_days', 'IN') + ' ' + earningsDays + ' ' + t('feed.pe_days', 'DAYS');
+    var earningsAlertHtml = earningsSoon
+      ? '<div class="sr-pro-earnings-alert"><span>⚠️</span><span>' + escapeHtml(t('home.eng_earnings_alert', 'EARNINGS')) + ' ' + escapeHtml(earningsTiming) + ' — ' + escapeHtml(t('home.eng_earnings_alert_note', 'expect elevated volatility')) + '</span></div>'
+      : '';
+
     return '<div class="sr-pro-summary ' + (options.theme === 'dark' ? 'dark ' : '') + directionClass + '">' +
+      earningsAlertHtml +
       '<div class="sr-pro-summary-top"><div class="sr-pro-quote">' +
         '<strong class="sr-pro-symbol">' + escapeHtml(data.symbol || '') + '</strong>' +
         '<span class="sr-pro-price">' + escapeHtml(price(data.price)) + '</span>' +

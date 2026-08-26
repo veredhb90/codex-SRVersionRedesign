@@ -155,24 +155,33 @@ router.post('/onboarding', require('../middleware/authMiddleware').protect, asyn
   } catch(err) { res.status(500).json({ message: err.message }); }
 });
 
+// POST /api/auth/tour-done — marks the first-time feature walkthrough as seen
+// (shown once on the feed after registration, skippable) so it never reappears.
+router.post('/tour-done', require('../middleware/authMiddleware').protect, async (req, res) => {
+  try {
+    await require('../models/User').findByIdAndUpdate(req.user._id, { $set: { tourDone: true } });
+    res.json({ message: 'Tour marked as done' });
+  } catch(err) { res.status(500).json({ message: err.message }); }
+});
+
 // POST /api/auth/accept-terms — records the mandatory no-advice/no-liability
 // disclaimer signature. Required before a user can use any part of the site
 // beyond the public landing page; enforced client-side by terms.js on every
 // authenticated page, re-triggered for anyone whose stored version doesn't
 // match TERMS_VERSION (including existing users who signed an older version,
-// or never signed at all).
+// or never signed at all). The signature name/email are taken from the
+// authenticated account itself, never from the request body — a signature
+// must always match exactly who's registered, not whatever a client sends.
 router.post('/accept-terms', require('../middleware/authMiddleware').protect, async (req, res) => {
   try {
-    const signatureName = String(req.body.signatureName || '').trim();
     const language = ['en', 'ar', 'he'].includes(req.body.language) ? req.body.language : 'en';
-    if (!signatureName) return res.status(400).json({ message: 'Full legal name is required to sign.' });
-    if (signatureName.length > 100) return res.status(400).json({ message: 'Name is too long.' });
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set: {
         'termsAccepted.version': TERMS_VERSION,
         'termsAccepted.acceptedAt': new Date(),
-        'termsAccepted.signatureName': signatureName,
+        'termsAccepted.signatureName': req.user.fullName,
+        'termsAccepted.email': req.user.email,
         'termsAccepted.language': language,
       } },
       { new: true },
