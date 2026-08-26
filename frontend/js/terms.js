@@ -44,6 +44,7 @@ const Terms = {
       checkboxLabel: 'I have read and fully understand the above, and I voluntarily agree to these terms.',
       agreeBtn: 'I Agree & Sign',
       savingBtn: 'Saving…',
+      logoutBtn: "Don't agree? Log out",
       errCheck: 'Please confirm you have read and agree to the terms.',
       errGeneric: 'Could not save your signature. Please try again.',
     },
@@ -84,6 +85,7 @@ const Terms = {
       checkboxLabel: 'لقد قرأت ما ورد أعلاه وفهمته بالكامل، وأوافق طواعية على هذه الشروط.',
       agreeBtn: 'أوافق وأوقّع',
       savingBtn: 'جار الحفظ…',
+      logoutBtn: 'لا توافق؟ تسجيل الخروج',
       errCheck: 'يرجى تأكيد أنك قرأت الشروط ووافقت عليها.',
       errGeneric: 'تعذر حفظ توقيعك. حاول مرة أخرى.',
     },
@@ -124,6 +126,7 @@ const Terms = {
       checkboxLabel: 'קראתי את האמור לעיל, הבנתי אותו במלואו, ואני מסכים/ה מרצוני החופשי לתנאים אלה.',
       agreeBtn: 'אני מסכים/ה וחותם/ת',
       savingBtn: 'שומר…',
+      logoutBtn: 'לא מסכימים? התנתקות',
       errCheck: 'נא לאשר שקראתם את התנאים ומסכימים להם.',
       errGeneric: 'לא ניתן היה לשמור את החתימה. נסו שוב.',
     },
@@ -216,6 +219,9 @@ const Terms = {
           '<button id="sr-terms-submit" onclick="Terms.submit()" style="width:100%;padding:14px;background:linear-gradient(135deg,#1565C0,#0D47A1);color:#fff;border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;">' +
             this.escapeHtml(c.agreeBtn) +
           '</button>' +
+          '<div style="text-align:center;margin-top:12px;">' +
+            '<button type="button" onclick="Auth.logout()" style="background:none;border:none;color:var(--muted,#64748b);font-size:12px;cursor:pointer;text-decoration:underline;">' + this.escapeHtml(c.logoutBtn) + '</button>' +
+          '</div>' +
         '</div>' +
       '</div>';
 
