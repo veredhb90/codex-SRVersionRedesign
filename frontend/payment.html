@@ -108,6 +108,12 @@
     let selectedCycle = 'monthly';
     let sdkLoaded = false;
     let me = null; // full /api/users/me user object, set in init()
+    // PayPal's Buttons SDK ties a rendered instance to its container internally —
+    // re-rendering into the same element after just clearing innerHTML (e.g. on a
+    // monthly/yearly toggle) makes the new .render() call's promise reject. The
+    // previous instance must be closed first.
+    let checkoutButtons = null;
+    let upgradeButtons = null;
 
     function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
     function fmtDate(d) {
@@ -166,41 +172,51 @@
       showMsg(message, true);
     }
 
-    function renderButtons() {
-      const container = document.getElementById('paypal-buttons');
-      container.innerHTML = '';
-      const planId = plans[selectedCycle].id;
+    async function renderButtons() {
       if (!window.paypal || typeof paypal.Buttons !== 'function') {
         showCheckoutFailure(t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.'));
         return;
       }
-      const rendered = paypal.Buttons({
+      if (checkoutButtons) {
+        try { await checkoutButtons.close(); } catch (e) { /* already gone */ }
+        checkoutButtons = null;
+      }
+      const container = document.getElementById('paypal-buttons');
+      container.innerHTML = '';
+      const planId = plans[selectedCycle].id;
+      checkoutButtons = paypal.Buttons({
         style: { shape: 'pill', color: 'blue', layout: 'vertical', label: 'subscribe' },
         createSubscription: (data, actions) => actions.subscription.create(subscriberPayload(planId)),
         onApprove: onSubscriptionApproved,
         onError: (err) => { console.error('PayPal error:', err); showCheckoutFailure(t('payment.pay_failed', 'Payment could not be completed. Please try again.')); },
-      }).render('#paypal-buttons');
+      });
+      const rendered = checkoutButtons.render('#paypal-buttons');
       if (rendered && typeof rendered.catch === 'function') {
-        rendered.catch(() => showCheckoutFailure(t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.')));
+        rendered.catch((err) => { console.error('PayPal render failed:', err); showCheckoutFailure(t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.')); });
       }
     }
 
-    function renderUpgradeButtons() {
-      const container = document.getElementById('upgrade-paypal-buttons');
-      container.innerHTML = '';
-      const planId = plans.yearly.id;
+    async function renderUpgradeButtons() {
       if (!window.paypal || typeof paypal.Buttons !== 'function') {
         showCheckoutFailure(t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.'));
         return;
       }
-      const rendered = paypal.Buttons({
+      if (upgradeButtons) {
+        try { await upgradeButtons.close(); } catch (e) { /* already gone */ }
+        upgradeButtons = null;
+      }
+      const container = document.getElementById('upgrade-paypal-buttons');
+      container.innerHTML = '';
+      const planId = plans.yearly.id;
+      upgradeButtons = paypal.Buttons({
         style: { shape: 'pill', color: 'gold', layout: 'vertical', label: 'subscribe' },
         createSubscription: (data, actions) => actions.subscription.create(subscriberPayload(planId)),
         onApprove: onSubscriptionApproved,
         onError: (err) => { console.error('PayPal error:', err); showCheckoutFailure(t('payment.pay_failed', 'Payment could not be completed. Please try again.')); },
-      }).render('#upgrade-paypal-buttons');
+      });
+      const rendered = upgradeButtons.render('#upgrade-paypal-buttons');
       if (rendered && typeof rendered.catch === 'function') {
-        rendered.catch(() => showCheckoutFailure(t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.')));
+        rendered.catch((err) => { console.error('PayPal render failed:', err); showCheckoutFailure(t('payment.sdk_failed', 'Could not load PayPal. Please refresh and try again.')); });
       }
     }
 
