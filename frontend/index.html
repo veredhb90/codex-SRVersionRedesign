@@ -361,6 +361,7 @@
     <span class="brand-dot"></span>
     <span class="brand-swing">SWING</span><span class="brand-rush">RUSH</span>
   </a>
+  <a href="/contact.html" class="navbar-contact" data-i18n="nav.contact">Contact</a>
   <div class="navbar-actions">
     <div id="nav-loggedout">
       <a href="/login.html" class="btn btn-outline btn-sm" data-i18n="nav.login">Log In</a>
@@ -603,7 +604,7 @@
     <div id="done-section" style="display:none;text-align:center;padding:24px 0;">
       <div style="font-size:64px;margin-bottom:16px;">🎉</div>
       <h3 style="font-family:var(--font-disp);font-size:28px;color:var(--green);letter-spacing:1px;margin-bottom:8px;" data-i18n="home.verified">VERIFIED!</h3>
-      <p style="color:var(--muted);margin-bottom:28px;font-size:14px;" data-i18n="home.password_sent">Your password has been sent to your email inbox. Use it to log in.</p>
+      <p id="password-sent-msg" style="color:var(--muted);margin-bottom:28px;font-size:14px;" data-i18n="home.password_sent">Your password has been sent to your email inbox. Use it to log in.</p>
       <a href="/login.html" class="btn btn-green btn-lg" style="width:100%;justify-content:center;" data-i18n="home.enter_feed">Enter the Feed</a>
     </div>
   </div>
@@ -850,9 +851,14 @@
     document.getElementById('e-otp').textContent = '';
     if (code.length !== 6) { document.getElementById('e-otp').textContent = t('home.err_otp', 'Enter the 6-digit code'); return; }
     try {
-      await API.verify({ email: regEmail, code });
+      const res = await API.verify({ email: regEmail, code });
       setStep(3);
-      toast(t('home.verified_toast', 'Account verified! Check email for your password.'),'success');
+      if (res.emailFailed) {
+        document.getElementById('password-sent-msg').textContent = t('home.password_send_failed', 'We could not email your password. Use "Forgot password" on the login page to get a new one.');
+        toast(res.message, 'error', 8000);
+      } else {
+        toast(t('home.verified_toast', 'Account verified! Check email for your password.'),'success');
+      }
     } catch(err) {
       document.getElementById('e-otp').textContent = err.message;
     }

@@ -141,6 +141,14 @@ body::before {
   50%      { box-shadow: 0 0 0 8px rgba(0,230,118,0); }
 }
 .navbar-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+.navbar-contact {
+  font-family: var(--font-body); font-weight: 700; font-size: 14px;
+  color: inherit; text-decoration: underline;
+  white-space: nowrap;
+  margin-left: 28px;
+}
+.navbar-contact:hover { color: var(--accent2); }
+@media (max-width: 640px) { .navbar-contact { display: none; } }
 
 /* ── Buttons ───────────────────────────────────────────────────── */
 .btn {

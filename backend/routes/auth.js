@@ -65,10 +65,17 @@ router.post('/verify', async (req, res) => {
     user.otpCode    = undefined;
     user.otpExpires = undefined;
     await user.save();
-    await sendPassword(email, password);
+    const emailSent = await sendPassword(email, password);
     // Notify admin of new registration
     sendAdminNewUser({ fullName: user.fullName, username: user.username, email: user.email, phone: `${user.countryCode || ''} ${user.phone}`.trim() }).catch(()=>{});
-    res.json({ message: 'Account verified! Check your email for your login password.' });
+    if (emailSent) {
+      res.json({ message: 'Account verified! Check your email for your login password.' });
+    } else {
+      res.json({
+        message: 'Account verified, but we could not email your password. Use "Forgot password" on the login page to get a new one.',
+        emailFailed: true,
+      });
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });

@@ -31,7 +31,8 @@ const sendPassword = async (to, password) => {
       <p style="color:#555;margin-top:24px;font-size:13px;">Login at <a href="${process.env.CLIENT_URL}/login.html" style="color:#00e676;">SwingRush</a></p>
     </div>`,
   });
-  if (error) console.error('❌ Password email error:', error);
+  if (error) { console.error('❌ Password email error:', error); return false; }
+  return true;
 };
 
 const sendFollowAlert = async (to, followerName, recSymbol, direction, takeProfit, recId) => {
