@@ -10,6 +10,39 @@ const genOTP      = () => Math.floor(100000 + Math.random() * 900000).toString()
 const genPassword = () => crypto.randomBytes(6).toString('base64url').slice(0, 10);
 const signToken   = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
+// Once a user has both filled in their trader profile AND signed the current
+// Terms version, have the official @admin ("SwingRush Admin") account follow
+// them automatically. Called from both /onboarding and /accept-terms since
+// either can complete last; idempotent (checks onboardingDone + termsAccepted
+// + not-already-following) so it only actually happens once per user.
+const maybeAutoFollowAdmin = async (app, userId) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) return;
+    const profileDone = !!user.traderProfile?.onboardingDone;
+    const termsSigned = user.termsAccepted?.version === TERMS_VERSION;
+    if (!profileDone || !termsSigned) return;
+
+    const admin = await User.findOne({ username: 'admin' });
+    if (!admin || String(admin._id) === String(user._id)) return;
+    const alreadyFollowing = admin.following.map(String).includes(String(user._id));
+    if (alreadyFollowing) return;
+
+    admin.following.push(user._id);
+    user.followers.push(admin._id);
+    await Promise.all([admin.save(), user.save()]);
+
+    const title = '👤 ' + (admin.username || admin.fullName) + ' started following you!';
+    const io = app.get('io');
+    io && io.notifyUser && io.notifyUser(String(user._id), 'notification', { type:'follow', title, body:'Visit their profile to follow back.', fromUser:String(admin._id), avatar:admin.avatar||null, time:new Date() });
+    if (user.email) {
+      const { sendNewFollowerAlert } = require('../services/emailService');
+      sendNewFollowerAlert(user.email, admin.fullName || admin.username, admin.username, String(admin._id))
+        .catch(e => console.log('New follower email failed:', e.message));
+    }
+  } catch (e) { console.log('Auto-follow-admin error:', e.message); }
+};
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
@@ -160,6 +193,7 @@ router.post('/onboarding', require('../middleware/authMiddleware').protect, asyn
       { $set: sets },
       { new: true }
     );
+    maybeAutoFollowAdmin(req.app, user._id).catch(()=>{});
     res.json({ message: 'Profile saved!', traderProfile: user.traderProfile });
   } catch(err) { res.status(500).json({ message: err.message }); }
 });
@@ -195,6 +229,7 @@ router.post('/accept-terms', require('../middleware/authMiddleware').protect, as
       } },
       { new: true },
     );
+    maybeAutoFollowAdmin(req.app, user._id).catch(()=>{});
     res.json({ message: 'Terms accepted', termsAccepted: user.termsAccepted });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
