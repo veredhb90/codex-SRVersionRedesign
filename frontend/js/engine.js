@@ -234,8 +234,8 @@
 
   // ── Pro Engine upsell popup (Pro users only) ──────────────────────
   // Shown after a Free Signal Engine BUY/SELL result. Offers a real Pro
-  // Engine deep-dive (Claude AI news + technicals). Runs on demand only —
-  // never auto-fires, so it doesn't burn the shared Finnhub/Claude quota.
+  // Engine deep-dive (OpenAI GPT-5.6 news + technicals). Runs on demand only —
+  // never auto-fires, so it doesn't burn the shared Finnhub/OpenAI quota.
   function showProEnginePopup(r) {
     var sym = r.symbol;
     var dir = r.direction;
@@ -256,7 +256,7 @@
           '<div style="text-align:center;">' +
             '<div style="font-size:30px;margin-bottom:10px;color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + (dir === 'BUY' ? '▲' : '▼') + '</div>' +
             '<div style="font-family:var(--font-disp,inherit);font-size:20px;letter-spacing:.5px;color:var(--text);margin-bottom:8px;">' + t('home.eng_more_accurate', 'More accurate analysis for') + ' $' + sym + '</div>' +
-            '<p style="color:var(--text2);font-size:13.5px;line-height:1.6;max-width:400px;margin:0 auto 20px;">' + t('home.eng_popup_pre', 'Your Free Signal Engine result is a') + ' <strong style="color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + dir + '</strong> ' + t('home.eng_popup_post', 'based on technicals only. Run the') + ' <strong>AI Pro Engine</strong> ' + t('home.eng_popup_post2', 'for real Claude AI news analysis, catalysts, risks and a combined score.') + '</p>' +
+            '<p style="color:var(--text2);font-size:13.5px;line-height:1.6;max-width:400px;margin:0 auto 20px;">' + t('home.eng_popup_pre', 'Your Free Signal Engine result is a') + ' <strong style="color:' + (dir === 'BUY' ? 'var(--green)' : 'var(--red)') + ';">' + dir + '</strong> ' + t('home.eng_popup_post', 'based on technicals only. Run the') + ' <strong>AI Pro Engine</strong> ' + t('home.eng_popup_post2', 'for real OpenAI GPT-5.6 news analysis, catalysts, risks and a combined score.') + '</p>' +
             '<button id="sr-eng-pro-run" style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:12px;padding:12px 26px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(79,125,255,0.35);">' + t('home.eng_analyze_with_pro', 'Analyze with Pro Engine') + ' 🧠</button>' +
           '</div>' +
         '</div>' +
@@ -288,15 +288,13 @@
         return;
       }
       body.innerHTML = renderProEngineResult(d);
+      if (window.srAttachProAiExplore) window.srAttachProAiExplore(body, d);
     } catch (err) {
       body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">' + t('home.eng_pro_failed', 'AI Pro Engine failed to load. Please try again.') + '</p>';
     }
   }
 
   function renderProEngineResult(d) {
-    var dirColor = d.direction === 'BUY' ? 'var(--green)' : d.direction === 'SELL' ? 'var(--red)' : 'var(--muted)';
-    var dirBg    = d.direction === 'BUY' ? 'var(--green-bg)' : d.direction === 'SELL' ? 'var(--red-bg)' : 'var(--bg3)';
-    var special  = d.marketState && d.marketState !== 'Regular Session';
     var breakdown = (d.technicalBreakdown || []).map(function(b) {
       var c = b.points > 0 ? 'var(--green)' : b.points < 0 ? 'var(--red)' : 'var(--muted)';
       return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--text2);">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
@@ -310,17 +308,10 @@
         d.risks.map(function(x) { return '<div style="font-size:13px;color:var(--text);padding:3px 0;">• ' + x + '</div>'; }).join('') + '</div>'
       : '';
     return '' +
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">' +
-        '<strong style="font-size:20px;color:var(--text);">' + d.symbol + '</strong>' +
-        '<span style="font-size:14px;color:var(--text2);">$' + d.price + '</span>' +
-        (special ? '<span style="font-size:10.5px;color:#F5D061;font-weight:700;background:rgba(245,208,97,0.12);padding:2px 8px;border-radius:6px;">' + d.marketState + '</span>' : '') +
-        '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
-      '</div>' +
-      (special ? '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">' + t('home.eng_regular_session_close', 'Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
-      '<div style="font-size:13px;color:var(--text2);margin-bottom:6px;">' + t('home.eng_combined_score', 'Combined Score') + ': <strong style="color:var(--text);">' + d.score + '</strong> · ' + d.confidence + ' ' + t('home.eng_confidence', 'Confidence') + '</div>' +
-      '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text2);margin-bottom:14px;padding:9px 12px;background:var(--bg2);border-radius:8px;"><span>' + t('home.eng_technical', 'Technical') + ': <strong style="color:var(--text);">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + t('home.eng_news_ai', 'News (AI)') + ': <strong style="color:var(--text);">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + t('home.eng_total', 'Total') + ': <strong style="color:var(--text);">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      (window.srProResultSummaryHtml ? window.srProResultSummaryHtml(d, { theme: 'dark' }) : '') +
+      (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d, { theme: 'dark' }) : '') +
+      (window.srProSocialSentimentHtml ? window.srProSocialSentimentHtml(d, { theme: 'dark' }) : '') +
       (d.holdingPeriod ? '<div style="font-size:12px;color:var(--text);font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period', 'Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
-      (d.upcomingEarnings && d.upcomingEarnings.length ? '<div style="font-size:12px;color:var(--text2);margin-bottom:10px;"><strong style="color:var(--text);">📅 ' + t('home.eng_next_earnings', 'Next earnings') + ':</strong> ' + d.upcomingEarnings.map(function(x) { return x.date; }).join(' · ') + '</div>' : '') +
       (d.takeProfit
         ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
             '<div style="background:var(--bg2);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--muted);">' + t('home.eng_entry_label', 'Entry') + '</div><div style="font-weight:700;font-size:14px;color:var(--text);">$' + d.price + '</div></div>' +
@@ -336,6 +327,7 @@
         (d.analystSummary ? '<p style="font-size:12px;color:var(--text2);margin-top:8px;">' + d.analystSummary + '</p>' : '') +
         catalysts + risks +
       '</div>' +
-      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by', 'Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed', 'articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached', 'cached') : '') + '</div>';
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by', 'Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed', 'articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached', 'cached') : '') + '</div>' +
+      (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '');
   }
 })();

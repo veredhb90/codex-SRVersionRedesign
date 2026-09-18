@@ -4,6 +4,7 @@ const jwt     = require('jsonwebtoken');
 const crypto  = require('crypto');
 const User    = require('../models/User');
 const { sendOTP, sendPassword, sendAdminNewUser } = require('../services/emailService');
+const { TERMS_VERSION } = require('../config/termsVersion');
 
 const genOTP      = () => Math.floor(100000 + Math.random() * 900000).toString();
 const genPassword = () => crypto.randomBytes(6).toString('base64url').slice(0, 10);
@@ -161,6 +162,41 @@ router.post('/onboarding', require('../middleware/authMiddleware').protect, asyn
     );
     res.json({ message: 'Profile saved!', traderProfile: user.traderProfile });
   } catch(err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/auth/tour-done — marks the first-time feature walkthrough as seen
+// (shown once on the feed after registration, skippable) so it never reappears.
+router.post('/tour-done', require('../middleware/authMiddleware').protect, async (req, res) => {
+  try {
+    await require('../models/User').findByIdAndUpdate(req.user._id, { $set: { tourDone: true } });
+    res.json({ message: 'Tour marked as done' });
+  } catch(err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/auth/accept-terms — records the mandatory no-advice/no-liability
+// disclaimer signature. Required before a user can use any part of the site
+// beyond the public landing page; enforced client-side by terms.js on every
+// authenticated page, re-triggered for anyone whose stored version doesn't
+// match TERMS_VERSION (including existing users who signed an older version,
+// or never signed at all). The signature name/email are taken from the
+// authenticated account itself, never from the request body — a signature
+// must always match exactly who's registered, not whatever a client sends.
+router.post('/accept-terms', require('../middleware/authMiddleware').protect, async (req, res) => {
+  try {
+    const language = ['en', 'ar', 'he'].includes(req.body.language) ? req.body.language : 'en';
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: {
+        'termsAccepted.version': TERMS_VERSION,
+        'termsAccepted.acceptedAt': new Date(),
+        'termsAccepted.signatureName': req.user.fullName,
+        'termsAccepted.email': req.user.email,
+        'termsAccepted.language': language,
+      } },
+      { new: true },
+    );
+    res.json({ message: 'Terms accepted', termsAccepted: user.termsAccepted });
+  } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
 module.exports = router;

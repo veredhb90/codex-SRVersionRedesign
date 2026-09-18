@@ -45,6 +45,21 @@ const fetchJSON = (url, retries = 3) => new Promise((resolve, reject) => {
 
 const resolveSymbol = (symbol) => symbol.toUpperCase().trim();
 
+// During pre-market and after-hours the visible price is the freshest extended-
+// session trade, so its displayed daily move must use the official regular close
+// shown beside it. Yahoo's chartPreviousClose can refer to an older chart
+// baseline and would make the price and percentage describe different moves.
+const calculateExtendedSessionChangePct = (freshPrice, regularSessionPrice, fallbackPreviousClose) => {
+  const current = Number(freshPrice);
+  const regularClose = Number(regularSessionPrice);
+  const fallbackClose = Number(fallbackPreviousClose);
+  const reference = Number.isFinite(regularClose) && regularClose !== 0
+    ? regularClose
+    : fallbackClose;
+  if (!Number.isFinite(current) || !Number.isFinite(reference) || reference === 0) return 0;
+  return ((current - reference) / reference) * 100;
+};
+
 // Instant local check (no API call) - is it currently pre-market or after-hours
 // for US markets? Only in THOSE windows do we need the heavier intraday fetch;
 // during regular hours or fully-closed periods the light daily fetch is already correct.
@@ -91,8 +106,11 @@ const getQuote = async (symbol, opts = {}) => {
     }
 
     const regularSessionPrice = meta.regularMarketPrice;
-    const prevClose = meta.chartPreviousClose || meta.previousClose || regularSessionPrice;
-    const changePct = prevClose ? ((freshPrice - prevClose) / prevClose) * 100 : 0;
+    const changePct = calculateExtendedSessionChangePct(
+      freshPrice,
+      regularSessionPrice,
+      meta.chartPreviousClose || meta.previousClose,
+    );
 
     const nowSec = Math.floor(Date.now() / 1000);
     const ctp = meta.currentTradingPeriod || {};
@@ -141,14 +159,16 @@ const getQuote = async (symbol, opts = {}) => {
   return quote;
 };
 
-const getCandles = async (symbol, days = 120, interval = '1d') => {
+const getCandlesForRange = async (symbol, period1, period2, interval = '1d') => {
   const resolved = resolveSymbol(symbol);
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - days * 86400;
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=${interval}&period1=${from}&period2=${now}`;
+  const from = Math.floor(Number(period1));
+  const to = Math.floor(Number(period2));
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) throw new Error('Invalid candle date range.');
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(resolved)}?interval=${interval}&period1=${from}&period2=${to}`;
   const json = await fetchJSON(url);
   const result = json.chart.result[0];
   const q = result.indicators.quote[0];
+  const adj = result.indicators.adjclose?.[0]?.adjclose || [];
   const ts = result.timestamp || [];
   // Filter to indices where close is valid, keeping all fields aligned to the same indices
   const validIdx = [];
@@ -157,9 +177,15 @@ const getCandles = async (symbol, days = 120, interval = '1d') => {
   const highs  = validIdx.map(i => q.high[i]);
   const lows   = validIdx.map(i => q.low[i]);
   const opens  = validIdx.map(i => q.open[i]);
+  const adjustedCloses = validIdx.map(i => adj[i] == null ? q.close[i] : adj[i]);
   const times  = validIdx.map(i => ts[i]);
   const vols   = validIdx.map(i => (q.volume || [])[i] || 0);
-  return { c: closes, h: highs, l: lows, v: vols, o: opens, t: times };
+  return { c: closes, h: highs, l: lows, v: vols, o: opens, a: adjustedCloses, t: times };
+};
+
+const getCandles = async (symbol, days = 120, interval = '1d') => {
+  const now = Math.floor(Date.now() / 1000);
+  return getCandlesForRange(symbol, now - days * 86400, now, interval);
 };
 
 // ── Technical indicator math (standard formulas) ────────────────────
@@ -232,7 +258,7 @@ const roc = (closes, period = 10) => {
 
 // ── Real % change over a trading-day period, computed from actual closes ──
 // (5 trading days ≈ 1 calendar week, 21 ≈ 1 calendar month). Returned to
-// Claude as a precomputed fact so he never has to derive this himself from
+// the AI as a precomputed fact so it never has to derive this itself from
 // the raw price history — real division, always correct.
 const changeOverPeriod = (closes, tradingDaysBack) => {
   if (closes.length <= tradingDaysBack) return null;
@@ -272,12 +298,12 @@ const adx = (highs, lows, closes, period = 14) => {
   return { adx: +dx.toFixed(1), plusDI: +plusDI.toFixed(1), minusDI: +minusDI.toFixed(1) };
 };
 
-// ── MAIN: Technical-only scoring (NO news — Claude handles that separately) ──
+// ── MAIN: Technical-only scoring (news AI runs separately) ──
 const getProTechnicalScore = async (symbol) => {
   // Quote and candles are independent Yahoo calls — fetch them in parallel
   // instead of sequentially (saves a full round-trip on every Pro Engine run).
   const [quote, candles] = await Promise.all([getQuote(symbol), getCandles(symbol, 120)]);
-  const { price, changePct, regularSessionPrice, marketState } = quote;
+  const { price, changePct, regularSessionPrice, marketState, priceTime } = quote;
 
   if (!candles || candles.c.length < 20) {
     return {
@@ -387,7 +413,7 @@ const getProTechnicalScore = async (symbol) => {
   }));
 
   return {
-    symbol: quote.symbol, name: quote.shortName, price, changePct, regularSessionPrice, marketState,
+    symbol: quote.symbol, name: quote.shortName, price, changePct, regularSessionPrice, marketState, priceTime,
     breakdown,
     score, signals, direction, realAtr,
     change1w: changeOverPeriod(closes, 5),
@@ -396,4 +422,10 @@ const getProTechnicalScore = async (symbol) => {
   };
 };
 
-module.exports = { getProTechnicalScore, getQuote, getCandles };
+module.exports = {
+  calculateExtendedSessionChangePct,
+  getProTechnicalScore,
+  getQuote,
+  getCandles,
+  getCandlesForRange,
+};

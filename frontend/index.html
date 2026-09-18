@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SwingRush — Financial Recommendation Network</title>
-  <meta name="description" content="AI-powered stock analysis and trading signals. Follow top traders, get Pro Engine picks, and track calls in real time."/>
+  <title>SwingRush — AI Stock Analysis &amp; Trader Sentiment</title>
+  <meta name="description" content="Analyze U.S. stocks with AI-powered signals, technical insights, market news, and real community sentiment."/>
   <meta property="og:type" content="website"/>
   <meta property="og:url" content="https://swing-rush.com/"/>
-  <meta property="og:title" content="SwingRush — AI-Powered Trading Signals"/>
-  <meta property="og:description" content="AI-powered stock analysis and trading signals. Follow top traders, get Pro Engine picks, and track calls in real time."/>
+  <meta property="og:title" content="SwingRush — AI Stock Analysis &amp; Trader Sentiment"/>
+  <meta property="og:description" content="Analyze U.S. stocks with AI-powered signals, technical insights, market news, and real community sentiment."/>
   <meta property="og:image" content="https://swing-rush.com/assets/og-image.png"/>
   <meta property="og:image:width" content="1200"/>
   <meta property="og:image:height" content="630"/>
   <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="SwingRush — AI-Powered Trading Signals"/>
-  <meta name="twitter:description" content="AI-powered stock analysis and trading signals. Follow top traders, get Pro Engine picks, and track calls in real time."/>
+  <meta name="twitter:title" content="SwingRush — AI Stock Analysis &amp; Trader Sentiment"/>
+  <meta name="twitter:description" content="Analyze U.S. stocks with AI-powered signals, technical insights, market news, and real community sentiment."/>
   <meta name="twitter:image" content="https://swing-rush.com/assets/og-image.png"/>
   <link rel="stylesheet" href="/css/main.css"/>
   <style>
@@ -351,7 +351,7 @@
       .feat-item { padding:24px 18px; }
     }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1786560030"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1787248000"/>
 </head>
 <body class="home-page">
 
@@ -375,7 +375,7 @@
 </nav>
 
 <!-- Ticker -->
-<div class="ticker-wrap">
+<div class="ticker-wrap is-loading">
   <div class="ticker-inner" id="ticker-inner">
     <span class="ticker-item"><span class="sym" data-i18n="home.loading_live_data">Loading live data…</span></span>
   </div>
@@ -408,7 +408,7 @@
         <a href="#engine" class="btn btn-lg" style="background:rgba(255,255,255,0.1);color:#fff;border:1.5px solid rgba(255,255,255,0.25);" data-i18n="home.cta_engine">Try Free Engine</a>
       </div>
       <div class="hero-stats">
-        <div class="hero-stat"><div class="hero-stat-val">2000</div><div class="hero-stat-lbl" data-i18n="home.stat_scanned">Stocks Scanned</div></div>
+        <div class="hero-stat"><div class="hero-stat-val">2,000</div><div class="hero-stat-lbl" data-i18n="home.stat_scanned">Stock Universe</div></div>
         <div class="hero-stat"><div class="hero-stat-val">$0</div><div class="hero-stat-lbl" data-i18n="home.stat_free">Free Forever</div></div>
         <div class="hero-stat"><div class="hero-stat-val">AI</div><div class="hero-stat-lbl" data-i18n="home.stat_ai">Powered Analysis</div></div>
       </div>
@@ -417,7 +417,6 @@
       <div class="terminal-topbar">
         <span class="live-dot-sm"></span>
         <span class="terminal-title" data-i18n="home.terminal_title">Live AI Intelligence Network</span>
-        <span class="terminal-status" data-i18n="home.terminal_status">AI ONLINE 24/7</span>
       </div>
       <div class="terminal-grid">
         <div class="market-map" aria-hidden="true">
@@ -436,7 +435,6 @@
       </div>
       <div class="ai-consult-panel">
         <div class="ai-consult-copy">
-          <span class="ai-consult-eyebrow"><span class="live-dot-sm"></span> <span data-i18n="home.ai_consult_eyebrow">REAL-TIME AI CONSULTATION</span></span>
           <strong data-i18n="home.ai_consult_title">Ask the analyst what matters now.</strong>
           <p data-i18n="home.ai_consult_copy">Your 24/7 AI copilot combines live pricing, technical signals, news catalysts and risk levels before you decide.</p>
         </div>
@@ -447,11 +445,6 @@
             <button type="button" class="ai-prompt" onclick="openAiConsult('What are the strongest real-time opportunities from the market scanner today?')" data-i18n="home.ai_prompt_opportunities">Find opportunities</button>
           </div>
         </div>
-      </div>
-      <div class="terminal-tape">
-        <div class="terminal-tile"><b>NVDA +14</b><span data-i18n="home.tile_nvda">AI signal: strong BUY setup</span></div>
-        <div class="terminal-tile"><b>SPY 0</b><span data-i18n="home.tile_spy">AI read: neutral market tape</span></div>
-        <div class="terminal-tile"><b>CL=F -8</b><span data-i18n="home.tile_cl">AI signal: tactical SELL</span></div>
       </div>
     </div>
   </div>
@@ -643,7 +636,7 @@
         <li data-i18n-html="home.free_li_3">✅ Scanner top signals view — all 500 stocks ranked each run</li>
         <li data-i18n-html="home.free_li_4">✅ 1 free Signal Engine analysis</li>
         <li data-i18n-html="home.free_li_5">✅ Win rate &amp; performance tracking</li>
-        <li style="color:#94a3b8;" data-i18n-html="home.free_li_6">❌ AI Pro Engine (technical + real Claude AI news analysis)</li>
+        <li style="color:#94a3b8;" data-i18n-html="home.free_li_6">❌ AI Pro Engine (technical + real OpenAI GPT-5.6 news analysis)</li>
         <li style="color:#94a3b8;" data-i18n-html="home.free_li_7">❌ AI Chat analyst</li>
       </ul>
       <a href="#register" class="btn btn-green" style="width:100%;justify-content:center;" data-i18n="home.join_free">Join Free</a>
@@ -654,7 +647,7 @@
       <div class="pr-name" data-i18n="home.pro">PRO</div>
       <div class="pr-price">$75 <span data-i18n="home.month">/ month</span></div>
       <ul class="pr-list">
-        <li data-i18n-html="home.pro_li_1">🧠 <strong>AI Pro Engine</strong> — unlimited real Claude AI analysis (technical + live news + catalysts + risks) on ANY stock, with live pre-market &amp; after-hours pricing</li>
+        <li data-i18n-html="home.pro_li_1">🧠 <strong>AI Pro Engine</strong> — unlimited real OpenAI GPT-5.6 analysis (technical + live news + catalysts + risks) on ANY stock, with live pre-market &amp; after-hours pricing</li>
         <li data-i18n-html="home.pro_li_2">💬 <strong>Unlimited AI Chat</strong> — real-time web search, live pre/after-market pricing, community sentiment, earnings calendar</li>
         <li data-i18n-html="home.pro_li_3">⚡ Unlimited Signal Engine analyses</li>
         <li data-i18n-html="home.pro_li_4">🏆 Full scanner access — all stocks ranked</li>
@@ -705,7 +698,7 @@
     <div class="feat-item reveal">
       <div class="feat-icon">🧠</div>
       <h3 data-i18n="home.feature_ai_title">AI Pro Engine</h3>
-      <p data-i18n="home.feature_ai_text">Real Claude AI analysis combining technical indicators with live news, catalysts, risks, earnings dates and live pre/after-market pricing on any stock.</p>
+      <p data-i18n="home.feature_ai_text">Real OpenAI GPT-5.6 analysis combining technical indicators with live news, catalysts, risks, earnings dates and live pre/after-market pricing on any stock.</p>
     </div>
     <div class="feat-item reveal">
       <div class="feat-icon">🔍</div>
@@ -739,8 +732,11 @@
 <script src="/js/api.js?v=1789711361"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/i18n.js?v=1789711361"></script>
-<script src="/js/ticker.js?v=1786002519"></script>
-<script src="/js/engine.js?v=1786627898"></script>
+<script src="/js/pro_result_summary.js?v=1787737300"></script>
+<script src="/js/pro_earnings_report.js?v=1787461705"></script>
+<script src="/js/pro_social_sentiment.js?v=1787240000"></script>
+<script src="/js/ticker.js?v=1787248000"></script>
+<script src="/js/engine.js?v=1787341000"></script>
 <script>
   function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fallback; }
 
@@ -887,8 +883,10 @@
   }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
   document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
 </script>
-<script src="/js/chat.js?v=1786714588"></script>
+<script src="/js/chat.js?v=1787460627"></script>
 <script src="/js/paywall.js?v=1786627898"></script>
 <script src="/js/onboarding.js?v=1785528146"></script>
+<script src="/js/terms.js?v=1"></script>
+<script>if (window.Terms) Terms.checkAndShow();</script>
 </body>
 </html>

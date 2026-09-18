@@ -78,7 +78,7 @@ const Paywall = {
           <div role="listitem"><span>NW</span><p>${t('paywall.pro_network', 'Follow traders, instruments, and live call outcomes')}</p></div>
           <div role="listitem"><span>RK</span><p>${t('paywall.pro_risk', 'Entry, target, and risk workflow in one place')}</p></div>
         </div>
-        <button type="button" class="sr-paywall-main sr-paywall-button" data-paywall-subscribe>${t('paywall.start_pro', 'Upgrade to Pro')}</button>
+        <button type="button" class="sr-paywall-main sr-paywall-button" data-paywall-subscribe>${t('home.continue_payment', 'Continue to Payment')}</button>
         <button type="button" class="sr-paywall-dismiss" data-paywall-close>${t('paywall.later', 'Continue exploring')}</button>
         <p class="sr-paywall-footnote">${t('paywall.contact_note', 'Pay securely with PayPal — instant activation, cancel anytime.')}</p>
       </section>`;

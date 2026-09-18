@@ -172,7 +172,7 @@
     }
     .rec-box-count { margin-left:auto; font-size:12px; color:var(--muted); font-family:var(--font-body); letter-spacing:0; }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1786560030"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1787248000"/>
 </head>
 <body class="profile-page">
 
@@ -469,8 +469,10 @@
 <script src="/js/api.js?v=1789711361"></script>
 <script src="/js/auth.js?v=1786563038"></script>
 <script src="/js/i18n.js?v=1789711361"></script>
+<script src="/js/terms.js?v=1"></script>
 <script src="/js/profile.js?v=1786627898"></script>
 <script>
+  if (window.Terms) Terms.checkAndShow();
   const me = Auth.user();
   if (me) document.querySelectorAll('.nav-username').forEach(el => el.textContent = me.username ? '@'+me.username : me.fullName);
 
@@ -649,9 +651,12 @@ setInterval(refreshProfilePrices, 30000);
 </script>
 
 
-<script src="/js/chat.js?v=1786714588"></script>
+<script src="/js/pro_earnings_report.js?v=1787461705"></script>
+<script src="/js/chat.js?v=1787460627"></script>
 <script src="/js/paywall.js?v=1786627898"></script>
 <script src="/js/onboarding.js?v=1785528146"></script>
+<script src="/js/tour.js?v=1787737300"></script>
+<script>if (window.SiteTour) SiteTour.init();</script>
 <script>
 // ── Display trader profile (compact chips inside the banner card) ──
 function displayTraderProfile(profile, isOwn) {

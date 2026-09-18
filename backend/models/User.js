@@ -22,6 +22,18 @@ const userSchema = new mongoose.Schema({
     onboardingDone:   { type: Boolean, default: false },
     hideAmount:       { type: Boolean, default: false },
   },
+  tourDone: { type: Boolean, default: false },
+  // Mandatory liability/no-advice disclaimer signature. `version` is compared
+  // against TERMS_VERSION (backend/config/termsVersion.js) on every protected
+  // page load — bumping that constant forces every user, including ones who
+  // already signed an older version, to re-sign.
+  termsAccepted: {
+    version:       { type: String, default: null },
+    acceptedAt:    { type: Date, default: null },
+    signatureName: { type: String, default: null },
+    email:         { type: String, default: null },
+    language:      { type: String, default: null },
+  },
   subscriptionEnd: { type: Date },
   paypalSubscriptionId: { type: String },
   billingCycle:    { type: String, enum: ['monthly', 'yearly'] },

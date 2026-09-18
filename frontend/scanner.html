@@ -123,7 +123,7 @@
       .scanner-title { font-size:24px; }
     }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1786560030"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1787248000"/>
 </head>
 <body class="scanner-page">
 
@@ -251,7 +251,7 @@
         </div>
         <div class="why-item">
           <div class="why-item-h"><span class="why-item-ic">🧠</span><span data-i18n="scanner.how_vs_pro_title">Scanner vs. Pro Engine</span></div>
-          <div class="why-item-p" data-i18n="scanner.how_vs_pro_copy">The Scanner is a broad market-wide sweep using technical + keyword-based news scoring — great for finding opportunities across hundreds of stocks. For the deepest single-stock analysis with real Claude AI reasoning on news, catalysts and risks, use Pro Engine.</div>
+          <div class="why-item-p" data-i18n="scanner.how_vs_pro_copy">The Scanner is a broad market-wide sweep using technical + keyword-based news scoring — great for finding opportunities across hundreds of stocks. For the deepest single-stock analysis with real OpenAI GPT-5.6 reasoning on news, catalysts and risks, use Pro Engine.</div>
         </div>
         <div class="why-item">
           <div class="why-item-h"><span class="why-item-ic">⏱️</span><span data-i18n="scanner.how_cadence_title">Runs automatically every 6 hours</span></div>
@@ -264,8 +264,13 @@
 <script src="/js/api.js?v=1789711361"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/i18n.js?v=1789711361"></script>
+<script src="/js/pro_result_summary.js?v=1787737300"></script>
+<script src="/js/pro_earnings_report.js?v=1787461705"></script>
+<script src="/js/pro_social_sentiment.js?v=1787240000"></script>
+<script src="/js/terms.js?v=1"></script>
 <script>
   if (!Auth.require()) {}
+  if (window.Terms) Terms.checkAndShow();
   const me = Auth.user();
   if (me) document.querySelectorAll('.nav-username').forEach(el => el.textContent = me.username ? '@'+me.username : me.fullName);
 
@@ -673,7 +678,7 @@
         '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:10px;padding:14px;color:#fff;text-align:center;">' +
         '<div style="font-size:24px;margin-bottom:6px;">🧠🔒</div>' +
         '<div style="font-weight:800;font-size:13px;margin-bottom:6px;">' + tt('scanner.pe_pro_only', 'Pro members only') + '</div>' +
-        '<div style="font-size:11.5px;opacity:0.85;margin-bottom:10px;">' + tt('scanner.pe_pro_only_sub', 'Real Claude AI news reasoning, catalysts & risks') + '</div>' +
+        '<div style="font-size:11.5px;opacity:0.85;margin-bottom:10px;">' + tt('scanner.pe_pro_only_sub', 'Real OpenAI GPT-5.6 news reasoning, catalysts & risks') + '</div>' +
         '<a href="/payment.html" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:7px 14px;border-radius:8px;text-decoration:none;font-size:12px;">' + tt('feed.pe_upgrade_to_pro', 'Upgrade to Pro') + '</a>' +
         '</div>';
       return;
@@ -684,7 +689,7 @@
       tt('feed.pe_step_1', 'Fetching latest news…'),
       tt('feed.pe_step_2', 'Checking analyst ratings…'),
       tt('feed.pe_step_3', 'Reading technical indicators…'),
-      tt('feed.pe_step_4', 'Reasoning with Claude AI…'),
+      tt('feed.pe_step_4', 'Reasoning with OpenAI GPT-5.6…'),
       tt('feed.pe_step_5', 'Finalizing score…'),
     ];
     container.innerHTML =
@@ -714,9 +719,6 @@
       if (!res.ok) { container.innerHTML = '<p style="color:#C62828;font-size:12px;text-align:center;">' + (d.message || tt('scanner.pe_analysis_failed', 'Analysis failed')) + '</p>'; return; }
       if (d.insufficientData) { container.innerHTML = '<p style="color:#94a3b8;font-size:12px;text-align:center;">' + tt('scanner.pe_insufficient', 'Not enough price history.') + '</p>'; return; }
 
-      var dirColor = d.direction === 'BUY' ? '#00893E' : d.direction === 'SELL' ? '#C62828' : '#64748b';
-      var dirBg = d.direction === 'BUY' ? '#E3F8EC' : d.direction === 'SELL' ? '#FFEBEE' : '#F1F5F9';
-
       var breakdownHtml = (d.technicalBreakdown || []).map(function(b) {
         var c = b.points > 0 ? '#00893E' : b.points < 0 ? '#C62828' : '#94a3b8';
         return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px dashed #E3EEFF;"><span style="color:#475569;">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
@@ -736,9 +738,10 @@
         '<div style="background:#F8FAFF;border:1.5px solid #D6E4F5;border-radius:10px;padding:14px;">' +
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
         '<span style="font-size:14px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:12.5px;">' + tt('feed.pe_title', 'AI Pro Analysis') + '</span>' +
-        '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:3px 10px;border-radius:8px;font-size:11.5px;margin-left:auto;">' + d.direction + '</span></div>' +
-        '<div style="font-size:12px;color:#475569;margin-bottom:6px;">' + tt('scanner.pe_score_label', 'Score') + ': <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' ' + tt('home.eng_confidence', 'Confidence') + '</div>' +
-        '<div style="display:flex;gap:10px;font-size:11px;color:#64748b;margin-bottom:10px;padding:7px 10px;background:#F8FAFF;border-radius:8px;"><span>' + tt('scanner.pe_tech_short', 'Tech') + ': <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + tt('scanner.pe_news_short', 'News') + ': <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + tt('home.eng_total', 'Total') + ': <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+        '<span style="margin-left:auto;font-size:9.5px;background:#F5D061;color:#4A3B10;padding:2px 8px;border-radius:7px;font-weight:800;">PRO</span></div>' +
+        (window.srProResultSummaryHtml ? window.srProResultSummaryHtml(d) : '') +
+        (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d) : '') +
+        (window.srProSocialSentimentHtml ? window.srProSocialSentimentHtml(d) : '') +
         (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">' +
           '<div style="background:#fff;border-radius:6px;padding:6px;text-align:center;"><div style="font-size:10px;color:#94a3b8;">' + tt('home.eng_entry_label', 'Entry') + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:12px;color:#0D2244;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:9px;color:#94a3b8;margin-top:2px;">' + tt('home.eng_regular_session_close', 'Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
           '<div style="background:#E3F8EC;border-radius:6px;padding:6px;text-align:center;"><div style="font-size:10px;color:#00893E;">' + tt('feed.tp_short', 'TP') + '</div><div style="font-weight:700;font-size:12px;color:#00893E;">$' + d.takeProfit + '</div></div>' +
@@ -751,12 +754,12 @@
         '<p style="font-size:12px;color:#1A2540;line-height:1.5;margin:0;">' + (d.newsSummary || '') + '</p>' +
         (d.analystSummary ? '<p style="font-size:11px;color:#64748b;margin-top:6px;">' + d.analystSummary + '</p>' : '') +
         (d.holdingPeriod ? '<p style="font-size:11px;color:#0D2244;font-weight:700;margin-top:6px;">⏳ ' + tt('scanner.pe_holding_period', 'Holding period') + ': ' + d.holdingPeriod + '</p>' : '') +
-        (d.upcomingEarnings && d.upcomingEarnings.length ? '<p style="font-size:11px;color:#64748b;margin-top:6px;"><strong style="color:#0D2244;">📅 ' + tt('home.eng_next_earnings', 'Next earnings') + ':</strong> ' + d.upcomingEarnings.map(function(x){return x.date;}).join(' · ') + '</p>' : '') +
         catalystsHtml + risksHtml +
         '</div>' +
-        '<div style="margin-top:10px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + tt('home.eng_powered_by', 'Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + tt('scanner.pe_articles', 'articles') + '</div>' +
+        '<div style="margin-top:10px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + tt('home.eng_powered_by', 'Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + tt('scanner.pe_articles', 'articles') + '</div>' +
+        (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '') +
         '</div>';
-      if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
+      if (window.srAttachProAiExplore) window.srAttachProAiExplore(container, d);
     } catch (err) {
       clearTimeout(_peAbortTimer);
       clearInterval(_peTicker);
@@ -768,7 +771,7 @@
   // The scanner is schedule-driven. This page only loads the latest saved result.
   runScan();
 </script>
-<script src="/js/chat.js?v=1786714588"></script>
+<script src="/js/chat.js?v=1787460627"></script>
 <script src="/js/paywall.js?v=1786627898"></script>
 </body>
 </html>

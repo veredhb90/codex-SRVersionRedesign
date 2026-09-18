@@ -1072,7 +1072,7 @@ window.openProUpgradeModal = function() {
   m.innerHTML = '<div style="background:#fff;border-radius:18px;padding:32px 28px;max-width:420px;width:100%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.3);">' +
     '<div style="font-size:40px;margin-bottom:8px;">��</div>' +
     '<h3 style="font-size:20px;color:#0D2244;margin-bottom:10px;">' + t('feed.pe_locked_title', 'AI Pro Analysis is a Pro feature') + '</h3>' +
-    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">' + t('feed.pe_locked_copy', 'Unlock real Claude AI news analysis, catalysts, and risk detection combined with technical scoring.') + '</p>' +
+    '<p style="color:#475569;font-size:14px;line-height:1.6;margin-bottom:18px;">' + t('feed.pe_locked_copy', 'Unlock real OpenAI GPT-5.6 news analysis, catalysts, and risk detection combined with technical scoring.') + '</p>' +
     '<a href="/payment.html" style="display:block;background:#0D2244;color:#fff;font-weight:700;padding:11px;border-radius:10px;text-decoration:none;margin-bottom:10px;font-size:14px;">' + t('home.continue_payment', 'Continue to Payment') + '</a>' +
     '<button onclick="document.getElementById(\'sr-pro-upgrade-modal\').remove()" style="width:100%;background:transparent;color:#475569;border:none;padding:8px;cursor:pointer;font-size:13px;">' + t('login.cancel', 'Cancel') + '</button>' +
     '</div>';
@@ -1093,7 +1093,7 @@ window.renderProEngineSection = function(containerId, afterElementId, symbol) {
       '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:14px;padding:18px 20px;color:#fff;display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="openProUpgradeModal()">' +
       '<div style="font-size:28px;">🧠🔒</div>' +
       '<div style="flex:1;"><div style="font-weight:800;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</div>' +
-      '<div style="font-size:12px;opacity:0.85;margin-top:2px;">' + t('feed.pe_locked_sub', 'Real Claude AI news reasoning, catalysts & risks — Pro members only') + '</div></div>' +
+      '<div style="font-size:12px;opacity:0.85;margin-top:2px;">' + t('feed.pe_locked_sub', 'Real OpenAI GPT-5.6 news reasoning, catalysts & risks — Pro members only') + '</div></div>' +
       '<div style="background:rgba(255,255,255,0.2);padding:6px 14px;border-radius:10px;font-size:12px;font-weight:700;">' + t('feed.pe_unlock', 'Unlock') + ' ⚡</div>' +
       '</div>';
     return;
@@ -1103,7 +1103,7 @@ window.renderProEngineSection = function(containerId, afterElementId, symbol) {
     '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:14px;">' +
     '<div style="font-size:28px;">🧠</div>' +
     '<div style="flex:1;"><div style="font-weight:800;color:#0D2244;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</div>' +
-    '<div style="font-size:12px;color:#64748b;margin-top:2px;">' + t('feed.pe_run_copy', 'Run real Claude AI reasoning on') + ' ' + symbol + ' — ' + t('feed.pe_run_copy2', 'news, catalysts, risks') + '</div></div>' +
+    '<div style="font-size:12px;color:#64748b;margin-top:2px;">' + t('feed.pe_run_copy', 'Run real OpenAI GPT-5.6 reasoning on') + ' ' + symbol + ' — ' + t('feed.pe_run_copy2', 'news, catalysts, risks') + '</div></div>' +
     '<button onclick="runProEngineAnalysis(\'' + containerId + '\', \'' + symbol + '\')" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">' + t('feed.pe_analyze_btn', 'Analyze') + ' 🧠</button>' +
     '</div>';
 };
@@ -1115,7 +1115,7 @@ function SR_PE_STEPS_LIST() {
     t('feed.pe_step_1', 'Fetching latest news…'),
     t('feed.pe_step_2', 'Checking analyst ratings…'),
     t('feed.pe_step_3', 'Reading technical indicators…'),
-    t('feed.pe_step_4', 'Reasoning with Claude AI…'),
+    t('feed.pe_step_4', 'Reasoning with OpenAI GPT-5.6…'),
     t('feed.pe_step_5', 'Finalizing score…'),
   ];
 }
@@ -1176,9 +1176,6 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       return;
     }
 
-    var dirColor = d.direction === 'BUY' ? '#00893E' : d.direction === 'SELL' ? '#C62828' : '#64748b';
-    var dirBg = d.direction === 'BUY' ? '#E3F8EC' : d.direction === 'SELL' ? '#FFEBEE' : '#F1F5F9';
-
     var breakdownHtml = (d.technicalBreakdown || []).map(function(b) {
       var c = b.points > 0 ? '#00893E' : b.points < 0 ? '#C62828' : '#94a3b8';
       return '<div style="display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0;border-bottom:1px dashed #F0F5FC;"><span style="color:#475569;">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
@@ -1199,13 +1196,10 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">' +
       '<span style="font-size:18px;">🧠</span><span style="font-weight:800;color:#0D2244;font-size:14px;">' + t('feed.pe_title', 'AI Pro Analysis') + '</span>' +
       '<span style="margin-left:auto;font-size:10px;background:#F5D061;color:#4A3B10;padding:2px 9px;border-radius:8px;font-weight:800;">PRO</span></div>' +
-
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">' +
-      '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;">' + d.direction + '</span>' +
-      '<span style="font-size:13px;color:#475569;">' + t('home.eng_combined_score','Combined Score') + ': <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' ' + t('home.eng_confidence','Confidence') + '</span></div>' +
-      '<div style="display:flex;gap:14px;font-size:12px;color:#64748b;margin-bottom:12px;padding:8px 10px;background:#F8FAFF;border-radius:8px;"><span>' + t('home.eng_technical','Technical') + ': <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + t('home.eng_news_ai','News (AI)') + ': <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + t('home.eng_total','Total') + ': <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      (window.srProResultSummaryHtml ? window.srProResultSummaryHtml(d) : '') +
+      (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d) : '') +
+      (window.srProSocialSentimentHtml ? window.srProSocialSentimentHtml(d) : '') +
       (d.holdingPeriod ? '<div style="font-size:11px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period','Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
-      (d.upcomingEarnings && d.upcomingEarnings.length ? (function(){ var ed=d.upcomingEarnings[0]&&d.upcomingEarnings[0].date; var days=ed?Math.round((new Date(ed+'T00:00:00')-new Date(new Date().toDateString()))/86400000):null; var imm=days!==null&&days>=0&&days<=3; var badge=imm?'<div style="display:inline-block;background:#DC2626;color:#fff;font-weight:800;font-size:10px;letter-spacing:.4px;padding:4px 10px;border-radius:6px;margin-bottom:8px;box-shadow:0 2px 8px rgba(220,38,38,.35);">⚠️ EARNINGS '+(days===0?t('feed.pe_today','TODAY'):days===1?t('feed.pe_tomorrow','TOMORROW'):t('feed.pe_in_days','IN')+' '+days+' '+t('feed.pe_days','DAYS'))+'</div><br>':''; return badge+'<div style="font-size:11px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 ' + t('home.eng_next_earnings','Next earnings') + ':</strong> '+d.upcomingEarnings.map(function(x){return x.date;}).join(' · ')+'</div>'; })() : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">' +
         '<div style="background:#F8FAFF;border-radius:8px;padding:8px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">' + t('home.eng_entry_label','Entry') + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:13px;color:#0D2244;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:9.5px;color:#94a3b8;margin-top:2px;">' + t('home.eng_regular_session_close','Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
@@ -1224,9 +1218,10 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       catalystsHtml + risksHtml +
       '</div>' +
 
-      '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '') +
       '</div>';
-    if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
+    if (window.srAttachProAiExplore) window.srAttachProAiExplore(container, d);
   } catch (err) {
     clearInterval(_peTimer);
     var msg = err.name === 'AbortError' ? t('feed.pe_timeout','Analysis timed out — please try again.') : t('feed.pe_failed','AI Pro Analysis failed to load.');
@@ -1284,7 +1279,7 @@ window.runProEngineModal = async function() {
       '<div style="background:linear-gradient(135deg,#0D2244,#1565C0);border-radius:14px;padding:20px;color:#fff;text-align:center;">' +
       '<div style="font-size:32px;margin-bottom:8px;">🧠🔒</div>' +
       '<div style="font-weight:800;font-size:15px;margin-bottom:6px;">' + t('feed.pe_engine_locked_title', 'AI Pro Engine is a Pro feature') + '</div>' +
-      '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">' + t('feed.pe_engine_locked_copy', 'Analyze any stock with real Claude AI reasoning on news, catalysts, and risks — combined with 8 technical indicators.') + '</div>' +
+      '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">' + t('feed.pe_engine_locked_copy', 'Analyze any stock with real OpenAI GPT-5.6 reasoning on news, catalysts, and risks — combined with 8 technical indicators.') + '</div>' +
       '<a href="/payment.html" style="display:inline-block;background:rgba(255,255,255,0.15);color:#fff;font-weight:700;padding:9px 18px;border-radius:10px;text-decoration:none;font-size:13px;">' + t('feed.pe_upgrade_to_pro', 'Upgrade to Pro') + '</a>' +
       '</div>';
     return;
@@ -1308,9 +1303,6 @@ window.runProEngineModal = async function() {
       return;
     }
 
-    var dirColor = d.direction === 'BUY' ? '#00893E' : d.direction === 'SELL' ? '#C62828' : '#64748b';
-    var dirBg = d.direction === 'BUY' ? '#E3F8EC' : d.direction === 'SELL' ? '#FFEBEE' : '#F1F5F9';
-
     var breakdownHtml = (d.technicalBreakdown || []).map(function(b) {
       var c = b.points > 0 ? '#00893E' : b.points < 0 ? '#C62828' : '#94a3b8';
       return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed #E3EEFF;"><span style="color:#475569;">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
@@ -1327,19 +1319,11 @@ window.runProEngineModal = async function() {
       : '';
 
     resultEl.innerHTML =
-      '<div style="background:#fff;border:1.5px solid #D6E4F5;border-radius:14px;padding:20px;">' +
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">' +
-      '<strong style="font-size:20px;color:#0D2244;">' + d.symbol + '</strong>' +
-      '<span style="font-size:14px;color:#475569;">$' + d.price + '</span>' +
-      (d.marketState && d.marketState !== 'Regular Session' ? '<span style="font-size:10.5px;color:#F59E0B;font-weight:700;background:#FEF3D7;padding:2px 8px;border-radius:6px;">' + d.marketState + '</span>' : '') +
-      '<span style="background:' + dirBg + ';color:' + dirColor + ';font-weight:800;padding:5px 14px;border-radius:10px;font-size:13px;margin-left:auto;">' + d.direction + '</span>' +
-      '</div>' +
-      (d.marketState && d.marketState !== 'Regular Session' ? '<div style="font-size:11.5px;color:#94a3b8;margin-bottom:10px;">' + t('home.eng_regular_session_close','Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '<div style="margin-bottom:10px;"></div>') +
-
-      '<div style="font-size:13px;color:#475569;margin-bottom:6px;">' + t('home.eng_combined_score','Combined Score') + ': <strong style="color:#0D2244;">' + d.score + '</strong> · ' + d.confidence + ' ' + t('home.eng_confidence','Confidence') + '</div>' +
-      '<div style="display:flex;gap:14px;font-size:12.5px;color:#64748b;margin-bottom:14px;padding:9px 12px;background:#F8FAFF;border-radius:8px;"><span>' + t('home.eng_technical','Technical') + ': <strong style="color:#0D2244;">' + (d.technicalScore > 0 ? '+' : '') + d.technicalScore + '</strong></span><span>+</span><span>' + t('home.eng_news_ai','News (AI)') + ': <strong style="color:#0D2244;">' + (d.newsScore > 0 ? '+' : '') + d.newsScore + '</strong></span><span>=</span><span>' + t('home.eng_total','Total') + ': <strong style="color:#0D2244;">' + (d.score > 0 ? '+' : '') + d.score + '</strong></span></div>' +
+      '<div style="background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:14px;padding:20px;">' +
+      (window.srProResultSummaryHtml ? window.srProResultSummaryHtml(d, { theme: 'dark' }) : '') +
+      (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d, { theme: 'dark' }) : '') +
+      (window.srProSocialSentimentHtml ? window.srProSocialSentimentHtml(d, { theme: 'dark' }) : '') +
       (d.holdingPeriod ? '<div style="font-size:12px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period','Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
-      (d.upcomingEarnings && d.upcomingEarnings.length ? (function(){ var ed=d.upcomingEarnings[0]&&d.upcomingEarnings[0].date; var days=ed?Math.round((new Date(ed+'T00:00:00')-new Date(new Date().toDateString()))/86400000):null; var imm=days!==null&&days>=0&&days<=3; var badge=imm?'<div style="display:inline-block;background:#DC2626;color:#fff;font-weight:800;font-size:10.5px;letter-spacing:.4px;padding:4px 10px;border-radius:6px;margin-bottom:8px;box-shadow:0 2px 8px rgba(220,38,38,.35);">⚠️ EARNINGS '+(days===0?t('feed.pe_today','TODAY'):days===1?t('feed.pe_tomorrow','TOMORROW'):t('feed.pe_in_days','IN')+' '+days+' '+t('feed.pe_days','DAYS'))+'</div><br>':''; return badge+'<div style="font-size:12px;color:#64748b;margin-bottom:10px;"><strong style="color:#0D2244;">📅 ' + t('home.eng_next_earnings','Next earnings') + ':</strong> '+d.upcomingEarnings.map(function(x){return x.date;}).join(' · ')+'</div>'; })() : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
         '<div style="background:#F8FAFF;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">' + t('home.eng_entry_label','Entry') + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:14px;color:#0D2244;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">' + t('home.eng_regular_session_close','Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
@@ -1358,9 +1342,10 @@ window.runProEngineModal = async function() {
       catalystsHtml + risksHtml +
       '</div>' +
 
-      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by Claude AI') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '') +
       '</div>';
-    if (window.setChatStockContext && d.direction !== 'NEUTRAL') { window.setChatStockContext(d); }
+    if (window.srAttachProAiExplore) window.srAttachProAiExplore(resultEl, d);
   } catch (err) {
     clearInterval(_peModalTimer);
     var modalMsg = err.name === 'AbortError' ? t('feed.pe_timeout','Analysis timed out — please try again.') : t('feed.pe_failed_generic','Analysis failed to load.');

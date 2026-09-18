@@ -8,6 +8,7 @@
   var resuming         = false; // true while resumePendingChat is loading/polling after navigation
 
   var pendingStockData = null;
+  var pendingProSourceModal = null;
 
   function siteLang() {
     var l = (window.SRLang && window.SRLang.lang) || document.documentElement.lang || 'en';
@@ -26,26 +27,17 @@
   // Per-message RTL detection — independent of the site's UI language setting,
   // so a Hebrew or Arabic reply renders right-to-left even if the site itself
   // is in English (e.g. the AI replying in the user's own language mid-chat).
-  var HEBREW_CHARS = /[\u0590-\u05FF]/;
   var RTL_CHARS = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
   function isRTLText(str) {
     return !!str && RTL_CHARS.test(str);
   }
 
-  // Client-only messages that fire before the user has typed anything this
-  // session (e.g. the Pro Engine handoff summary below) have no language
-  // signal to go on except the site's UI toggle or what the user chatted in
-  // last time. Remembered across sessions in localStorage, updated every
-  // time we see a real AI reply.
-  function rememberChatLang(text) {
-    if (!text) return;
-    var lang = HEBREW_CHARS.test(text) ? 'he' : isRTLText(text) ? 'ar' : 'en';
-    try { localStorage.setItem('sr_chat_lang', lang); } catch (e) {}
-  }
+  // Client-generated chat UI and Pro Engine handoff summaries must follow
+  // the language currently selected on the site. Reusing the language of an
+  // older conversation made an English Pro Engine SELL appear as Hebrew.
+  // Actual AI replies still follow the language of each user message.
   function lastChatLang() {
-    var sl = siteLang();
-    if (sl !== 'en') return sl; // explicit site toggle wins
-    try { return localStorage.getItem('sr_chat_lang') || 'en'; } catch (e) { return 'en'; }
+    return siteLang();
   }
   // Three-way version of chatCopy for the handful of strings that need real
   // Hebrew, not just an EN/AR fallback.
@@ -68,16 +60,85 @@
     return labels[direction] || labels.NEUTRAL;
   }
 
-  window.setChatStockContext = function(stockData) {
-    // Don't auto-open chat. Just prepare context and show a subtle prompt bubble.
+  function communitySentimentText(sentiment) {
+    if (!sentiment) {
+      return chatCopy3(
+        'Community data unavailable',
+        'بيانات المجتمع غير متاحة',
+        'נתוני הקהילה אינם זמינים'
+      );
+    }
+    var counts = sentiment.buyPct + '% ' + signalLabel('BUY') + ' / ' +
+      sentiment.sellPct + '% ' + signalLabel('SELL') + ' · ' +
+      sentiment.uniqueTraders + ' ' + chatCopy3('unique traders', 'متداولين فريدين', 'סוחרים ייחודיים');
+    if (sentiment.clear) {
+      return counts + ' — ' + chatCopy3('clear ', 'معنويات واضحة: ', 'סנטימנט ברור: ') + signalLabel(sentiment.direction);
+    }
+    if (!sentiment.reliableSample) {
+      return counts + ' — ' + chatCopy3('not enough data for a clear reading', 'لا توجد بيانات كافية لقراءة واضحة', 'אין מספיק נתונים לקריאה ברורה');
+    }
+    return counts + ' — ' + chatCopy3('no clear majority', 'لا توجد أغلبية واضحة', 'אין רוב ברור');
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function prepareChatStockContext(stockData) {
     var symbol = stockSymbol(stockData);
-    if (!symbol) return;
+    if (!symbol) return false;
     stockData = Object.assign({}, stockData, { symbol: symbol });
     pendingStockData = stockData;
     currentStock = null; // not yet loaded into chat until user opens it
     chatHistory  = [];
-    showAskAiPrompt(stockData);
+    return true;
+  }
+
+  // Preparing Pro context never opens or advertises the chat by itself. The
+  // user explicitly chooses the result-card button before seeing chat options.
+  window.setChatStockContext = prepareChatStockContext;
+
+  window.srProAiExploreButtonHtml = function(stockData) {
+    var direction = String((stockData && stockData.direction) || '').toUpperCase();
+    if (direction !== 'BUY' && direction !== 'SELL' && direction !== 'NEUTRAL') return '';
+    return '<button type="button" class="sr-pro-ai-explore" data-sr-pro-ai-explore>' +
+      '<span aria-hidden="true">💬</span> ' +
+      chatCopy('Explore deeper with AI chat', 'استكشف بشكل أعمق مع محادثة الذكاء الاصطناعي', 'העמיקו עם צ׳אט AI') +
+      '</button>';
   };
+
+  window.srAttachProAiExplore = function(container, stockData) {
+    if (!container || !stockData) return;
+    var button = container.querySelector('[data-sr-pro-ai-explore]');
+    if (!button) return;
+    button.addEventListener('click', function() {
+      if (!prepareChatStockContext(stockData)) return;
+      pendingProSourceModal = container.closest
+        ? container.closest('#sr-eng-pro-popup, #sr-pro-engine-modal, #symbol-modal')
+        : null;
+      showNewOrContinueChoice();
+    });
+  };
+
+  // Keep the Pro result visible while the user decides which chat to use. Once
+  // they make that choice, dismiss only the modal that launched the handoff so
+  // it cannot remain layered over the fullscreen chat. Inline Pro results stay
+  // untouched.
+  function dismissPendingProSourceModal() {
+    var modal = pendingProSourceModal;
+    pendingProSourceModal = null;
+    if (!modal || !modal.isConnected) return;
+    if (modal.id === 'symbol-modal' && typeof window.closeSymbolModal === 'function') {
+      window.closeSymbolModal();
+      return;
+    }
+    modal.remove();
+  }
 
   async function loadPendingStockIntoChat() {
     if (!pendingStockData) return;
@@ -87,12 +148,12 @@
     if (statusEl) statusEl.textContent = chatCopy3('Analyzing ', 'جار تحليل ', 'מנתח את ') + stockData.symbol;
     var suggestEl = document.getElementById('sr-chat-suggestions');
     if (suggestEl) {
-      var isBuy = stockData.direction === 'BUY';
-      var dir = stockData.direction;
+      var dir = ['BUY', 'SELL', 'NEUTRAL'].indexOf(stockData.direction) >= 0 ? stockData.direction : 'NEUTRAL';
+      var directionIcon = dir === 'BUY' ? '▲' : dir === 'SELL' ? '▼' : '●';
       var sym = stockData.symbol;
       var sc  = stockData.score > 0 ? '+' + stockData.score : String(stockData.score);
       suggestEl.innerHTML =
-        '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' signal right now?\')">'+  (isBuy?'▲':'▼') + chatCopy3(' Why ' + dir + '?', ' لماذا ' + signalLabel(dir) + '؟', ' למה ' + signalLabel(dir) + '?') + '</button>' +
+        '<button class="sr-sug" onclick="srSuggest(\'Why is ' + sym + ' a ' + dir + ' result right now?\')">' + directionIcon + chatCopy3(' Why ' + dir + '?', ' لماذا ' + signalLabel(dir) + '؟', ' למה ' + signalLabel(dir) + '?') + '</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Explain each indicator for ' + sym + ' and why score is ' + sc + '\')">📊 ' + chatCopy3('Explain score', 'اشرح النتيجة', 'הסבר את הציון') + '</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Show me the chart for ' + sym + '\')">📈 ' + chatCopy3('Show chart', 'اعرض الرسم البياني', 'הצג גרף') + '</button>' +
         '<button class="sr-sug" onclick="srSuggest(\'Show me latest news with links for ' + sym + '\')">📰 ' + chatCopy3('News links', 'روابط الأخبار', 'קישורי חדשות') + '</button>' +
@@ -129,6 +190,9 @@
 
     msg += '\n' + chatCopy3('Technical (', 'التحليل الفني (', 'טכני (') + stockData.technicalScore + chatCopy3(' pts):\n', ' نقطة):\n', ' נק\'):\n') + breakdownLines + '\n';
     msg += '\n' + chatCopy3('News/AI (', 'الأخبار والذكاء الاصطناعي (', 'חדשות/AI (') + (stockData.newsScore > 0 ? '+' : '') + stockData.newsScore + chatCopy3(' pts) — ', ' نقطة) — ', ' נק\') — ') + stockData.newsLabel + ':\n' + (stockData.newsSummary || '') + '\n';
+    msg += '\n👥 ' + chatCopy3('SwingRush social sentiment: ', 'معنويات مجتمع SwingRush: ', 'סנטימנט קהילת SwingRush: ') +
+      communitySentimentText(stockData.communitySentiment) + '\n' +
+      chatCopy3('(Context only — not included in the Pro score.)', '(للسياق فقط — غير مشمول في نتيجة Pro.)', '(להקשר בלבד — לא נכלל בציון ה־Pro.)') + '\n';
 
     if (catalystLines) msg += '\n' + chatCopy3('Catalysts:', 'المحفزات:', 'זרזים:') + '\n' + catalystLines + '\n';
     if (riskLines) msg += '\n' + chatCopy3('Risks:', 'المخاطر:', 'סיכונים:') + '\n' + riskLines + '\n';
@@ -138,47 +202,18 @@
     msg += '\n\n' + chatCopy3('Ask me anything about ', 'اسألني أي شيء عن ', 'שאל אותי כל דבר על ') + stockData.symbol + chatCopy3(' — I have the full analysis above!', ' — التحليل الكامل جاهز لدي.', ' — הניתוח המלא מוכן למעלה!');
 
     addMessage('ai', msg);
+    if (stockData.reportId) renderProReportCard(stockData);
     pendingStockData = null;
     // Persist this system-generated summary to the actual session in the DB,
     // so it's still there if the user reopens this chat later without typing anything.
     try {
-      var saveResult = await API.saveChatMessage({ sessionId: currentSessionId, content: msg });
+      var saveResult = await API.saveChatMessage({
+        sessionId: currentSessionId,
+        content: msg,
+        reportIds: stockData.reportId ? [stockData.reportId] : []
+      });
       if (saveResult && saveResult.sessionId) { currentSessionId = saveResult.sessionId; }
     } catch (e) { console.log('Failed to persist Pro Engine summary:', e.message); }
-  }
-
-  function showAskAiPrompt(stockData) {
-    var old = document.getElementById('sr-ask-prompt');
-    if (old) old.remove();
-    var overlay = document.createElement('div');
-    overlay.id = 'sr-ask-prompt';
-    overlay.className = 'sr-ask-overlay';
-    var score = Number(stockData.score || 0);
-    var direction = stockData.direction || 'NEUTRAL';
-    var scoreText = score > 0 ? '+' + score : String(score);
-    var signalIcon = direction === 'BUY' ? '▲' : direction === 'SELL' ? '▼' : '●';
-    overlay.innerHTML =
-      '<div class="sr-ask-card" role="dialog" aria-modal="true" aria-label="' + chatCopy('Ask AI about ', 'اسأل الذكاء الاصطناعي عن ', 'שאל את הבינה המלאכותית על ') + stockData.symbol + '">' +
-        '<button type="button" class="sr-ask-close" aria-label="' + chatCopy('Dismiss', 'إغلاق', 'סגור') + '">✕</button>' +
-        '<div class="sr-ask-kicker">' + chatCopy('PRO ANALYSIS READY', 'تحليل Pro جاهز', 'ניתוח Pro מוכן') + '</div>' +
-        '<div class="sr-ask-symbol">$' + stockData.symbol + '</div>' +
-        '<div class="sr-ask-signal ' + direction.toLowerCase() + '"><span>' + signalIcon + ' ' + signalLabel(direction) + '</span><strong>' + chatCopy('Score ', 'النتيجة ', 'ציון ') + scoreText + '/24</strong></div>' +
-        '<p>' + chatCopy('Open the AI analyst with this ticker, live signal context, and your full Pro Engine analysis ready to discuss.', 'افتح محلل الذكاء الاصطناعي لهذا الرمز مع سياق الإشارة المباشر وتحليل Pro الكامل الجاهز للنقاش.', 'פתח את האנליסט הבינה מלאכותית עם הטיקר הזה, הקשר האיתות החי, וניתוח ה-Pro Engine המלא המוכן לדיון.') + '</p>' +
-        '<button type="button" class="sr-ask-action">' + chatCopy('Ask AI about $', 'اسأل الذكاء الاصطناعي عن $', 'שאל את הבינה המלאכותית על $') + stockData.symbol + '</button>' +
-      '</div>';
-    overlay.querySelector('.sr-ask-action').addEventListener('click', function() {
-      overlay.remove();
-      showNewOrContinueChoice();
-    });
-    overlay.querySelector('.sr-ask-close').addEventListener('click', function() { overlay.remove(); });
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-    document.body.appendChild(overlay);
-    var badge = document.getElementById('sr-chat-badge');
-    if (badge) { badge.style.display = 'flex'; badge.textContent = '1'; }
-    setTimeout(function() {
-      var b = document.getElementById('sr-ask-prompt');
-      if (b) b.remove();
-    }, 15000);
   }
 
   var widget = document.createElement('div');
@@ -218,7 +253,7 @@
     '.sr-msg.ai { align-self:flex-start; align-items:flex-start; }' +
     '.sr-msg-row { display:flex; align-items:flex-end; gap:8px; }' +
     '.sr-av-sm { width:28px; height:28px; border-radius:50%; background:#1565C0; display:flex; align-items:center; justify-content:center; flex-shrink:0; }' +
-    '.sr-bubble { padding:12px 16px; font-size:13.5px; line-height:1.65; white-space:pre-wrap; word-break:break-word; }' +
+    '.sr-bubble { padding:12px 16px; font-size:13.5px; line-height:1.65; white-space:pre-wrap; word-break:break-word; -webkit-user-select:text; user-select:text; }' +
     '.sr-msg.user .sr-bubble { background:#1565C0; color:#fff; border-radius:14px 14px 4px 14px; }' +
     '.sr-msg.ai .sr-bubble { background:#fff; color:#1A2540; border-radius:4px 14px 14px 14px; box-shadow:0 2px 12px rgba(180,140,40,0.06); border:1px solid #F0E6D2; cursor:text; user-select:text; }' +
     '.sr-bubble.sr-md { white-space:normal; }' +
@@ -236,7 +271,23 @@
     '.sr-bubble.sr-md code { background:#EEF4FF; padding:1px 5px; border-radius:4px; font-size:12px; }' +
     '.sr-bubble.sr-md a { color:#1565C0; }' +
     '.sr-msg-time { font-size:10px; color:#94a3b8; padding:0 4px; }' +
-    '#sr-selection-popup { position:fixed; z-index:10000; background:#1565C0; color:#fff; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(13,71,161,0.4); display:none; align-items:center; gap:6px; border:none; }' +
+    '.sr-report-card-wrap { align-self:flex-start; width:min(92%,720px); max-width:720px; animation:srMsgIn .25s ease; }' +
+    '.sr-report-card { background:var(--surface2,#fff); color:var(--text,#1A2540); border:1px solid var(--border,#E3EEFF); border-radius:14px; padding:14px 16px; box-shadow:0 2px 12px rgba(0,0,0,.06); }' +
+    '.sr-report-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:9px; }' +
+    '.sr-report-title { font-size:11px; font-weight:800; letter-spacing:.8px; color:var(--muted,#64748b); }' +
+    '.sr-report-symbol { font-size:20px; font-weight:900; color:var(--text,#0D2244); }' +
+    '.sr-report-signal { padding:5px 10px; border-radius:999px; font-size:12px; font-weight:800; white-space:nowrap; }' +
+    '.sr-report-signal.buy { background:rgba(38,166,154,.16); color:var(--green2,#14866f); }' +
+    '.sr-report-signal.sell { background:rgba(239,83,80,.14); color:var(--red,#c62828); }' +
+    '.sr-report-signal.neutral { background:rgba(148,163,184,.16); color:var(--muted,#64748b); }' +
+    '.sr-report-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px 12px; font-size:12px; }' +
+    '.sr-report-cell { background:var(--bg3,#F8FAFF); border-radius:8px; padding:7px 9px; }' +
+    '.sr-report-cell span { display:block; color:var(--muted,#64748b); font-size:10px; margin-bottom:2px; }' +
+    '.sr-report-cell strong { color:var(--text,#1A2540); font-size:12.5px; }' +
+    '.sr-report-meta { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:9px; padding-top:8px; border-top:1px solid var(--border,#E3EEFF); color:var(--muted,#64748b); font-size:10px; }' +
+    '.sr-report-fresh { color:var(--green2,#14866f); font-weight:800; }' +
+    '.sr-report-stale { color:var(--orange,#c77800); font-weight:800; }' +
+    '#sr-selection-popup { position:fixed; z-index:10000; max-width:calc(100vw - 16px); white-space:nowrap; background:#1565C0; color:#fff; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; box-shadow:0 4px 16px rgba(13,71,161,0.4); display:none; align-items:center; gap:6px; border:none; }' +
     '.sr-typing-wrap { display:flex; flex-direction:column; gap:5px; }' +
     '.sr-typing { display:flex; gap:5px; padding:14px 16px; background:#fff; border-radius:4px 18px 18px 18px; width:fit-content; box-shadow:0 2px 12px rgba(180,140,40,0.06); border:1px solid #F0E6D2; }' +
     '.sr-dot { width:8px; height:8px; border-radius:50%; background:#1565C0; animation:srBounce 1.4s ease infinite; opacity:.7; }' +
@@ -269,7 +320,6 @@
     '#sr-chat-btn{width:60px;height:60px;bottom:calc(16px + env(safe-area-inset-bottom));right:16px;}' +
     '#sr-chat-btn svg{width:44px;height:41px;}' +
     '#sr-chat-badge{top:-2px;right:-2px;min-width:19px;height:19px;font-size:10px;}' +
-    '#sr-ask-prompt{bottom:calc(84px + env(safe-area-inset-bottom)) !important;right:12px !important;left:12px;max-width:none;font-size:12px;padding:9px 14px;}' +
     '#sr-chat-box.normal{width:100vw;height:100vh;height:100dvh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
     '#sr-chat-box.fullscreen{width:100vw;height:100vh;height:100dvh;right:0;bottom:0;left:0;top:0;border-radius:0;}' +
     '#sr-chat-header{padding:calc(10px + env(safe-area-inset-top)) 12px 10px;gap:8px;}' +
@@ -435,6 +485,9 @@
         lastDateLabel = dateLabel;
       }
       addMessage(m.role === 'user' ? 'user' : 'ai', m.content, m.time);
+      if (m.role === 'ai' && Array.isArray(m.reports)) {
+        m.reports.forEach(function(report) { renderProReportCard(report); });
+      }
     });
   }
 
@@ -489,6 +542,9 @@
         clearInterval(pollTimer); pollTimer = null;
         removeTyping(typingEl);
         addMessage('ai', lastNow.content, lastNow.time);
+        if (Array.isArray(lastNow.reports)) {
+          lastNow.reports.forEach(function(report) { renderProReportCard(report); });
+        }
         isTyping = false; sendBtn.disabled = false;
         clearPending();
       } else if (polls >= RESUME_MAX_POLLS) {
@@ -696,17 +752,51 @@
   // gesture itself), so we also listen for touchend + selectionchange —
   // the latter is what actually fires reliably once a mobile user lifts
   // their finger after long-press-and-drag selecting text.
+  var MAX_QUOTED_TEXT_LENGTH = 4000;
+
+  function selectedMessageBubble(node) {
+    var el = node && node.nodeType === 1 ? node : node && node.parentElement;
+    return el && el.closest ? el.closest('.sr-bubble') : null;
+  }
+
   function updateSelectionPopup() {
     var sel  = window.getSelection();
     var text = sel && sel.rangeCount ? sel.toString().trim() : '';
-    if (text.length > 3 && text.length < 300 && messages.contains(sel.anchorNode)) {
+    if (text && sel.rangeCount) {
       var range = sel.getRangeAt(0);
+      var startBubble = selectedMessageBubble(range.startContainer);
+      var endBubble = selectedMessageBubble(range.endContainer);
+      if (!startBubble || !endBubble || !messages.contains(startBubble) || !messages.contains(endBubble)) {
+        selPopup.style.display = 'none';
+        return;
+      }
       var rect  = range.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return; // selection not settled yet
+      if (rect.width === 0 && rect.height === 0) {
+        selPopup.style.display = 'none';
+        return; // selection not settled yet
+      }
+
       selPopup.style.display = 'flex';
-      selPopup.style.left = Math.min(Math.max(rect.left, 8), window.innerWidth - 220) + 'px';
-      selPopup.style.top  = Math.max(rect.top - 42 + window.scrollY, 8) + 'px';
-      selPopup.dataset.text = text;
+      var visual = window.visualViewport;
+      var viewportLeft = visual ? visual.offsetLeft : 0;
+      var viewportTop = visual ? visual.offsetTop : 0;
+      var viewportWidth = visual ? visual.width : window.innerWidth;
+      var viewportHeight = visual ? visual.height : window.innerHeight;
+      var popupWidth = selPopup.offsetWidth || 160;
+      var popupHeight = selPopup.offsetHeight || 32;
+      var desiredLeft = rect.left + (rect.width / 2) - (popupWidth / 2);
+      var maxLeft = viewportLeft + viewportWidth - popupWidth - 8;
+      var desiredTop = rect.top - popupHeight - 8;
+      if (desiredTop < viewportTop + 8) desiredTop = rect.bottom + 8;
+      var maxTop = viewportTop + viewportHeight - popupHeight - 8;
+
+      // Both the Range rectangle and a position:fixed popup use viewport
+      // coordinates. Adding window.scrollY here pushed the button off-screen
+      // whenever the underlying page was scrolled.
+      selPopup.style.left = Math.max(viewportLeft + 8, Math.min(desiredLeft, maxLeft)) + 'px';
+      selPopup.style.top = Math.max(viewportTop + 8, Math.min(desiredTop, maxTop)) + 'px';
+      selPopup.dataset.text = text.slice(0, MAX_QUOTED_TEXT_LENGTH);
+      selPopup.dataset.truncated = text.length > MAX_QUOTED_TEXT_LENGTH ? 'true' : 'false';
     } else {
       selPopup.style.display = 'none';
     }
@@ -723,10 +813,11 @@
 
   selPopup.addEventListener('click', function() {
     var text = selPopup.dataset.text;
+    var wasTruncated = selPopup.dataset.truncated === 'true';
     selPopup.style.display = 'none';
     window.getSelection().removeAllRanges();
     if (text) {
-      quotedText = text;
+      quotedText = text + (wasTruncated ? '\n[The selected passage continues in the previous answer.]' : '');
       // Show quote preview above input
       var quotePreview = document.getElementById('sr-quote-preview');
       if (!quotePreview) {
@@ -737,7 +828,7 @@
         inputRow.parentNode.insertBefore(quotePreview, inputRow);
       }
       var shortText = text.length > 80 ? text.substring(0, 80) + '...' : text;
-      quotePreview.innerHTML = '<span style="flex:1;font-style:italic;">"' + shortText.replace(/</g,'&lt;') + '"</span><button onclick="srCancelQuote()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;flex-shrink:0;">✕</button>';
+      quotePreview.innerHTML = '<span style="flex:1;font-style:italic;">"' + escapeHtml(shortText) + '"</span><button onclick="srCancelQuote()" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;flex-shrink:0;">✕</button>';
       quotePreview.style.display = 'flex';
       if (!isOpen) openChat();
       input.focus();
@@ -757,6 +848,8 @@
   }
   document.addEventListener('mousedown', dismissSelectionPopupIfOutside);
   document.addEventListener('touchstart', dismissSelectionPopupIfOutside);
+  messages.addEventListener('scroll', function() { selPopup.style.display = 'none'; });
+  window.addEventListener('resize', function() { selPopup.style.display = 'none'; });
 
   // ── Register prompt — close chat and scroll to register ─────────
   function handleRegisterClick() {
@@ -853,9 +946,9 @@
       if (!result.ok) {
         if (result.data.requireSubscription) {
           addMessage('ai', chatCopy(
-            'AI Chat is a SwingRush Pro feature.\n\nUpgrade to Pro for unlimited access to the AI analyst \u2014 real Claude AI reasoning combined with technical analysis on every stock.',
-            '\u0645\u062d\u0627\u062f\u062b\u0629 \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a \u0645\u064a\u0632\u0629 \u062d\u0635\u0631\u064a\u0629 \u0644\u0640 SwingRush Pro.\n\n\u062a\u0631\u0642\u064e\u0651 \u0625\u0644\u0649 Pro \u0644\u0644\u0648\u0635\u0648\u0644 \u063a\u064a\u0631 \u0627\u0644\u0645\u062d\u062f\u0648\u062f \u0625\u0644\u0649 \u0627\u0644\u0645\u062d\u0644\u0644 \u0627\u0644\u0630\u0643\u064a \u2014 \u062a\u0641\u0643\u064a\u0631 Claude AI \u062d\u0642\u064a\u0642\u064a \u0645\u062f\u0645\u062c \u0645\u0639 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0641\u0646\u064a \u0639\u0644\u0649 \u0643\u0644 \u0633\u0647\u0645.',
-            '\u05e6\u05f3\u05d0\u05d8 \u05d1\u05d9\u05e0\u05d4 \u05de\u05dc\u05d0\u05db\u05d5\u05ea\u05d9\u05ea \u05d4\u05d5\u05d0 \u05ea\u05db\u05d5\u05e0\u05d4 \u05e9\u05dc SwingRush Pro.\n\n\u05e9\u05d3\u05e8\u05d2 \u05dc-Pro \u05dc\u05d2\u05d9\u05e9\u05d4 \u05dc\u05dc\u05d0 \u05d4\u05d2\u05d1\u05dc\u05d4 \u05dc\u05d0\u05e0\u05dc\u05d9\u05e1\u05d8 \u05d4-AI \u2014 \u05d7\u05e9\u05d9\u05d1\u05d4 \u05d0\u05de\u05d9\u05ea\u05d9\u05ea \u05e9\u05dc Claude AI \u05d1\u05e9\u05d9\u05dc\u05d5\u05d1 \u05e2\u05dd \u05e0\u05d9\u05ea\u05d5\u05d7 \u05d8\u05db\u05e0\u05d9 \u05e2\u05dc \u05db\u05dc \u05de\u05e0\u05d9\u05d4.'
+            'AI Chat is a SwingRush Pro feature.\n\nUpgrade to Pro for unlimited access to the AI analyst \u2014 real OpenAI GPT-5.6 reasoning combined with technical analysis on every stock.',
+            '\u0645\u062d\u0627\u062f\u062b\u0629 \u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064a \u0645\u064a\u0632\u0629 \u062d\u0635\u0631\u064a\u0629 \u0644\u0640 SwingRush Pro.\n\n\u062a\u0631\u0642\u064e\u0651 \u0625\u0644\u0649 Pro \u0644\u0644\u0648\u0635\u0648\u0644 \u063a\u064a\u0631 \u0627\u0644\u0645\u062d\u062f\u0648\u062f \u0625\u0644\u0649 \u0627\u0644\u0645\u062d\u0644\u0644 \u0627\u0644\u0630\u0643\u064a \u2014 \u062a\u0641\u0643\u064a\u0631 OpenAI GPT-5.6 \u062d\u0642\u064a\u0642\u064a \u0645\u062f\u0645\u062c \u0645\u0639 \u0627\u0644\u062a\u062d\u0644\u064a\u0644 \u0627\u0644\u0641\u0646\u064a \u0639\u0644\u0649 \u0643\u0644 \u0633\u0647\u0645.',
+            '\u05e6\u05f3\u05d0\u05d8 \u05d1\u05d9\u05e0\u05d4 \u05de\u05dc\u05d0\u05db\u05d5\u05ea\u05d9\u05ea \u05d4\u05d5\u05d0 \u05ea\u05db\u05d5\u05e0\u05d4 \u05e9\u05dc SwingRush Pro.\n\n\u05e9\u05d3\u05e8\u05d2 \u05dc-Pro \u05dc\u05d2\u05d9\u05e9\u05d4 \u05dc\u05dc\u05d0 \u05d4\u05d2\u05d1\u05dc\u05d4 \u05dc\u05d0\u05e0\u05dc\u05d9\u05e1\u05d8 \u05d4-AI \u2014 \u05d7\u05e9\u05d9\u05d1\u05d4 \u05d0\u05de\u05d9\u05ea\u05d9\u05ea \u05e9\u05dc OpenAI GPT-5.6 \u05d1\u05e9\u05d9\u05dc\u05d5\u05d1 \u05e2\u05dd \u05e0\u05d9\u05ea\u05d5\u05d7 \u05d8\u05db\u05e0\u05d9 \u05e2\u05dc \u05db\u05dc \u05de\u05e0\u05d9\u05d4.'
           ));
           setTimeout(function() { if (window.Paywall) Paywall.showSubscribePaywall('chat'); }, 500);
           return;
@@ -863,6 +956,9 @@
         throw new Error(result.data.message);
       }
       addMessage('ai', result.data.response);
+      if (result.data.latestReports && result.data.latestReports.length > 0) {
+        result.data.latestReports.forEach(function(report) { renderProReportCard(report); });
+      }
       if (result.data.stockDataList && result.data.stockDataList.length > 0) {
         result.data.stockDataList.forEach(function(sd) { renderStockChart(sd); });
       } else if (result.data.stockData) {
@@ -895,7 +991,6 @@
   }
 
   function addMessage(role, text, realTime) {
-    if (role === 'user') rememberChatLang(text);
     var timeLocale = lastChatLang() === 'he' ? 'he' : lastChatLang() === 'ar' ? 'ar' : 'en-US';
     var now = realTime
       ? new Date(realTime).toLocaleTimeString(timeLocale, { hour: '2-digit', minute: '2-digit' })
@@ -1027,6 +1122,75 @@
     div.remove();
   }
 
+  // Structured evidence card. The model remains free to answer naturally;
+  // this card independently shows the exact saved Pro Engine snapshot and its
+  // timestamp, so the user never has to rely on a paraphrased score or price.
+  function renderProReportCard(report) {
+    if (!report || !stockSymbol(report) || report.score == null) return;
+    var symbol = stockSymbol(report);
+    var direction = ['BUY', 'SELL', 'NEUTRAL'].indexOf(report.direction) >= 0 ? report.direction : 'NEUTRAL';
+    var directionClass = direction.toLowerCase();
+    var score = Number(report.score);
+    var scoreText = (score > 0 ? '+' : '') + (Number.isFinite(score) ? score : '—');
+    var generatedAt = report.generatedAt ? new Date(report.generatedAt) : null;
+    var generatedMs = generatedAt && !isNaN(generatedAt.getTime()) ? generatedAt.getTime() : 0;
+    var freshUntilMs = report.freshUntil ? new Date(report.freshUntil).getTime() : 0;
+    var isStale = Boolean(report.isStale) || !freshUntilMs || freshUntilMs < Date.now();
+    var locale = lastChatLang() === 'he' ? 'he' : lastChatLang() === 'ar' ? 'ar' : 'en-US';
+    var generatedLabel = generatedMs
+      ? generatedAt.toLocaleString(locale, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+      : chatCopy3('time unavailable', 'الوقت غير متاح', 'הזמן אינו זמין');
+    var numberText = function(value) {
+      var n = Number(value);
+      return Number.isFinite(n) ? n.toFixed(2) : '—';
+    };
+    var signedText = function(value) {
+      var n = Number(value);
+      return Number.isFinite(n) ? (n > 0 ? '+' : '') + n : '—';
+    };
+    var confidenceMap = {
+      'Very High': chatCopy3('Very High', 'عالية جداً', 'גבוהה מאוד'),
+      'High': chatCopy3('High', 'عالية', 'גבוהה'),
+      'Medium': chatCopy3('Medium', 'متوسطة', 'בינונית'),
+      'Low': chatCopy3('Low', 'منخفضة', 'נמוכה'),
+      'Insufficient': chatCopy3('Insufficient', 'غير كافية', 'לא מספקת')
+    };
+    var freshnessText = isStale
+      ? chatCopy3('Saved report — refresh when current data matters', 'تقرير محفوظ — حدّثه عندما تكون البيانات الحالية مهمة', 'דוח שמור — יש לרענן כשנדרשים נתונים עדכניים')
+      : chatCopy3('Latest report snapshot', 'أحدث لقطة من التقرير', 'תמונת מצב מהדוח האחרון');
+
+    var container = document.createElement('div');
+    container.className = 'sr-report-card-wrap';
+    if (lastChatLang() !== 'en') container.setAttribute('dir', 'rtl');
+    container.innerHTML =
+      '<div class="sr-report-card">' +
+        '<div class="sr-report-head">' +
+          '<div><div class="sr-report-title">' + escapeHtml(chatCopy3('LATEST PRO ENGINE REPORT', 'أحدث تقرير PRO ENGINE', 'דוח PRO ENGINE אחרון')) + '</div>' +
+          '<div class="sr-report-symbol">$' + escapeHtml(symbol) + '</div></div>' +
+          '<div class="sr-report-signal ' + directionClass + '">' + escapeHtml(signalLabel(direction)) + ' · ' + escapeHtml(scoreText) + '/24</div>' +
+        '</div>' +
+        '<div class="sr-report-grid">' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Price / session', 'السعر / الجلسة', 'מחיר / מסחר')) + '</span><strong>$' + escapeHtml(numberText(report.price)) + ' · ' + escapeHtml(report.marketState || '—') + '</strong></div>' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Confidence', 'الثقة', 'ביטחון')) + '</span><strong>' + escapeHtml(confidenceMap[report.confidence] || report.confidence || '—') + '</strong></div>' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Technical score', 'النتيجة الفنية', 'ציון טכני')) + '</span><strong>' + escapeHtml(signedText(report.technicalScore)) + '/14</strong></div>' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('AI news score', 'نتيجة أخبار AI', 'ציון חדשות AI')) + '</span><strong>' + escapeHtml(signedText(report.newsScore)) + '/10</strong></div>' +
+          '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Community sentiment (not scored)', 'معنويات المجتمع (غير محسوبة)', 'סנטימנט קהילתי (ללא ציון)')) + '</span><strong>' + escapeHtml(communitySentimentText(report.communitySentiment)) + '</strong></div>' +
+          (report.takeProfit != null && report.stopLoss != null
+            ? '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Take profit', 'هدف الربح', 'יעד רווח')) + '</span><strong>$' + escapeHtml(numberText(report.takeProfit)) + '</strong></div>' +
+              '<div class="sr-report-cell"><span>' + escapeHtml(chatCopy3('Stop loss', 'وقف الخسارة', 'סטופ לוס')) + '</span><strong>$' + escapeHtml(numberText(report.stopLoss)) + '</strong></div>'
+            : '') +
+        '</div>' +
+        (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(report) : '') +
+        '<div class="sr-report-meta"><span>' + escapeHtml(chatCopy3('Generated: ', 'تم الإنشاء: ', 'נוצר: ')) + escapeHtml(generatedLabel) + '</span>' +
+        '<span class="' + (isStale ? 'sr-report-stale' : 'sr-report-fresh') + '">' + escapeHtml(freshnessText) + '</span></div>' +
+      '</div>';
+
+    var wasNearBottom = isNearBottom();
+    messages.appendChild(container);
+    if (wasNearBottom) messages.scrollTop = messages.scrollHeight;
+    return container;
+  }
+
   // ── Stock Chart Rendering ───────────────────────────────────────
   function loadChartLib(cb) {
     if (window.LightweightCharts) return cb();
@@ -1128,12 +1292,14 @@
     document.body.appendChild(overlay);
     document.getElementById('sr-choice-new').addEventListener('click', function() {
       overlay.remove();
+      dismissPendingProSourceModal();
       currentSessionId = 'NEW';
       openChat();
       loadPendingStockIntoChat();
     });
     document.getElementById('sr-choice-continue').addEventListener('click', async function() {
       overlay.remove();
+      dismissPendingProSourceModal();
       await openChat();
       loadPendingStockIntoChat();
     });
