@@ -494,8 +494,88 @@
       </div>
       <div class="form-group">
         <label class="form-label" data-i18n="home.phone">Phone (digits only, max 10)</label>
-        <input id="r-phone" type="tel" class="form-input" placeholder="5551234567"
-               maxlength="10" inputmode="numeric" pattern="\d{1,10}" required/>
+        <div style="display:flex;gap:8px;">
+          <select id="r-country-code" class="form-input" style="flex:0 0 128px;width:128px;" required>
+            <option value="+93">🇦🇫 Afghanistan (+93)</option>
+            <option value="+213">🇩🇿 Algeria (+213)</option>
+            <option value="+54">🇦🇷 Argentina (+54)</option>
+            <option value="+61">🇦🇺 Australia (+61)</option>
+            <option value="+43">🇦🇹 Austria (+43)</option>
+            <option value="+973">🇧🇭 Bahrain (+973)</option>
+            <option value="+880">🇧🇩 Bangladesh (+880)</option>
+            <option value="+32">🇧🇪 Belgium (+32)</option>
+            <option value="+55">🇧🇷 Brazil (+55)</option>
+            <option value="+1">🇨🇦 Canada (+1)</option>
+            <option value="+56">🇨🇱 Chile (+56)</option>
+            <option value="+86">🇨🇳 China (+86)</option>
+            <option value="+57">🇨🇴 Colombia (+57)</option>
+            <option value="+385">🇭🇷 Croatia (+385)</option>
+            <option value="+357">🇨🇾 Cyprus (+357)</option>
+            <option value="+420">🇨🇿 Czech Republic (+420)</option>
+            <option value="+45">🇩🇰 Denmark (+45)</option>
+            <option value="+20">🇪🇬 Egypt (+20)</option>
+            <option value="+372">🇪🇪 Estonia (+372)</option>
+            <option value="+358">🇫🇮 Finland (+358)</option>
+            <option value="+33">🇫🇷 France (+33)</option>
+            <option value="+995">🇬🇪 Georgia (+995)</option>
+            <option value="+49">🇩🇪 Germany (+49)</option>
+            <option value="+233">🇬🇭 Ghana (+233)</option>
+            <option value="+30">🇬🇷 Greece (+30)</option>
+            <option value="+852">🇭🇰 Hong Kong (+852)</option>
+            <option value="+36">🇭🇺 Hungary (+36)</option>
+            <option value="+354">🇮🇸 Iceland (+354)</option>
+            <option value="+91">🇮🇳 India (+91)</option>
+            <option value="+62">🇮🇩 Indonesia (+62)</option>
+            <option value="+964">🇮🇶 Iraq (+964)</option>
+            <option value="+353">🇮🇪 Ireland (+353)</option>
+            <option value="+972" selected>🇮🇱 Israel (+972)</option>
+            <option value="+39">🇮🇹 Italy (+39)</option>
+            <option value="+81">🇯🇵 Japan (+81)</option>
+            <option value="+962">🇯🇴 Jordan (+962)</option>
+            <option value="+7">🇰🇿 Kazakhstan (+7)</option>
+            <option value="+254">🇰🇪 Kenya (+254)</option>
+            <option value="+965">🇰🇼 Kuwait (+965)</option>
+            <option value="+371">🇱🇻 Latvia (+371)</option>
+            <option value="+961">🇱🇧 Lebanon (+961)</option>
+            <option value="+218">🇱🇾 Libya (+218)</option>
+            <option value="+370">🇱🇹 Lithuania (+370)</option>
+            <option value="+60">🇲🇾 Malaysia (+60)</option>
+            <option value="+52">🇲🇽 Mexico (+52)</option>
+            <option value="+212">🇲🇦 Morocco (+212)</option>
+            <option value="+31">🇳🇱 Netherlands (+31)</option>
+            <option value="+64">🇳🇿 New Zealand (+64)</option>
+            <option value="+234">🇳🇬 Nigeria (+234)</option>
+            <option value="+47">🇳🇴 Norway (+47)</option>
+            <option value="+968">🇴🇲 Oman (+968)</option>
+            <option value="+92">🇵🇰 Pakistan (+92)</option>
+            <option value="+63">🇵🇭 Philippines (+63)</option>
+            <option value="+48">🇵🇱 Poland (+48)</option>
+            <option value="+351">🇵🇹 Portugal (+351)</option>
+            <option value="+974">🇶🇦 Qatar (+974)</option>
+            <option value="+40">🇷🇴 Romania (+40)</option>
+            <option value="+966">🇸🇦 Saudi Arabia (+966)</option>
+            <option value="+65">🇸🇬 Singapore (+65)</option>
+            <option value="+421">🇸🇰 Slovakia (+421)</option>
+            <option value="+27">🇿🇦 South Africa (+27)</option>
+            <option value="+82">🇰🇷 South Korea (+82)</option>
+            <option value="+34">🇪🇸 Spain (+34)</option>
+            <option value="+46">🇸🇪 Sweden (+46)</option>
+            <option value="+41">🇨🇭 Switzerland (+41)</option>
+            <option value="+963">🇸🇾 Syria (+963)</option>
+            <option value="+886">🇹🇼 Taiwan (+886)</option>
+            <option value="+66">🇹🇭 Thailand (+66)</option>
+            <option value="+216">🇹🇳 Tunisia (+216)</option>
+            <option value="+90">🇹🇷 Turkey (+90)</option>
+            <option value="+971">🇦🇪 UAE (+971)</option>
+            <option value="+380">🇺🇦 Ukraine (+380)</option>
+            <option value="+44">🇬🇧 United Kingdom (+44)</option>
+            <option value="+1">🇺🇸 United States (+1)</option>
+            <option value="+84">🇻🇳 Vietnam (+84)</option>
+            <option value="+967">🇾🇪 Yemen (+967)</option>
+          </select>
+          <input id="r-phone" type="tel" class="form-input" placeholder="5551234567"
+                 style="flex:1;" maxlength="10" inputmode="numeric" pattern="\d{1,10}" required/>
+        </div>
         <div class="form-error" id="e-phone"></div>
       </div>
       <button type="submit" id="reg-btn" class="btn btn-primary" style="width:100%;justify-content:center;">
@@ -647,6 +727,7 @@
 
 <footer>
   &copy; 2025 <span class="brand"><span class="brand-swing">SWING</span><span class="brand-rush">RUSH</span></span>
+  · <a href="/contact.html" style="color:inherit;text-decoration:underline;" data-i18n="nav.contact">Contact</a>
 </footer>
 <div style="background:#05070d;border-top:1px solid var(--border);padding:16px 24px;text-align:center;">
   <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.55);line-height:1.6;max-width:900px;margin-left:auto;margin-right:auto;">
@@ -654,9 +735,9 @@
   </p>
 </div>
 
-<script src="/js/api.js?v=1786600856"></script>
+<script src="/js/api.js?v=1789711361"></script>
 <script src="/js/auth.js"></script>
-<script src="/js/i18n.js?v=1786713974"></script>
+<script src="/js/i18n.js?v=1789711361"></script>
 <script src="/js/ticker.js?v=1786002519"></script>
 <script src="/js/engine.js?v=1786627898"></script>
 <script>
@@ -736,10 +817,11 @@
     const btn = document.getElementById('reg-btn');
     btn.disabled = true; btn.textContent = t('home.sending', 'Sending…');
 
-    const fullName = document.getElementById('r-name').value.trim();
-    const username = document.getElementById('r-username').value.trim();
-    const email    = document.getElementById('r-email').value.trim();
-    const phone    = document.getElementById('r-phone').value.trim();
+    const fullName    = document.getElementById('r-name').value.trim();
+    const username    = document.getElementById('r-username').value.trim();
+    const email       = document.getElementById('r-email').value.trim();
+    const countryCode = document.getElementById('r-country-code').value;
+    const phone       = document.getElementById('r-phone').value.trim();
 
     let ok = true;
     if (fullName.length < 2)                     { document.getElementById('e-name').textContent     = t('home.err_full_name', 'Enter your full name'); ok=false; }
@@ -749,7 +831,7 @@
     if (!ok) { btn.disabled=false; btn.textContent=t('home.send_code', 'Send Verification Code'); return; }
 
     try {
-      await API.register({ fullName, username, email, phone });
+      await API.register({ fullName, username, email, countryCode, phone });
       regEmail = email;
       document.getElementById('otp-email').textContent = email;
       setStep(2);
@@ -779,10 +861,11 @@
   // ── Resend OTP ────────────────────────────────────────────────
   document.getElementById('resend-btn').addEventListener('click', async () => {
     try {
-      const name     = document.getElementById('r-name').value.trim();
-      const username = document.getElementById('r-username').value.trim();
-      const phone    = document.getElementById('r-phone').value.trim();
-      await API.register({ fullName: name, username, email: regEmail, phone });
+      const name        = document.getElementById('r-name').value.trim();
+      const username    = document.getElementById('r-username').value.trim();
+      const countryCode = document.getElementById('r-country-code').value;
+      const phone       = document.getElementById('r-phone').value.trim();
+      await API.register({ fullName: name, username, email: regEmail, countryCode, phone });
       toast(t('home.new_code_toast', 'New code sent!'),'success');
     } catch(err) { toast(err.message,'error'); }
   });

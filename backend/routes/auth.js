@@ -12,14 +12,16 @@ const signToken   = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { fullName, username, email, phone } = req.body;
+    const { fullName, username, email, phone, countryCode } = req.body;
 
-    if (!fullName?.trim() || !email?.trim() || !phone?.trim() || !username?.trim())
+    if (!fullName?.trim() || !email?.trim() || !phone?.trim() || !username?.trim() || !countryCode?.trim())
       return res.status(400).json({ message: 'All fields are required' });
     if (!/^\S+@\S+\.\S+$/.test(email))
       return res.status(400).json({ message: 'Invalid email format' });
     if (!/^\d{1,10}$/.test(phone))
       return res.status(400).json({ message: 'Phone must be digits only, max 10' });
+    if (!/^\+\d{1,4}$/.test(countryCode))
+      return res.status(400).json({ message: 'Invalid country code' });
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username))
       return res.status(400).json({ message: 'Username: 3-20 chars, letters/numbers/underscore only' });
 
@@ -36,9 +38,9 @@ router.post('/register', async (req, res) => {
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     if (user) {
-      Object.assign(user, { fullName, username: username.toLowerCase(), phone, otpCode: otp, otpExpires });
+      Object.assign(user, { fullName, username: username.toLowerCase(), phone, countryCode, otpCode: otp, otpExpires });
     } else {
-      user = new User({ fullName, username: username.toLowerCase(), email, phone, otpCode: otp, otpExpires });
+      user = new User({ fullName, username: username.toLowerCase(), email, phone, countryCode, otpCode: otp, otpExpires });
     }
     await user.save();
     await sendOTP(email, otp);
@@ -65,7 +67,7 @@ router.post('/verify', async (req, res) => {
     await user.save();
     await sendPassword(email, password);
     // Notify admin of new registration
-    sendAdminNewUser({ fullName: user.fullName, username: user.username, email: user.email, phone: user.phone }).catch(()=>{});
+    sendAdminNewUser({ fullName: user.fullName, username: user.username, email: user.email, phone: `${user.countryCode || ''} ${user.phone}`.trim() }).catch(()=>{});
     res.json({ message: 'Account verified! Check your email for your login password.' });
   } catch (err) {
     console.error(err);

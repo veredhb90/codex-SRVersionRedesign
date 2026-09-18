@@ -33,6 +33,7 @@ app.use('/api/chat',             require('./routes/chat'));
 app.use('/api/admin',            require('./routes/admin'));
 app.use('/api/pro-engine',       require('./routes/proEngine'));
 app.use('/api/payments',         require('./routes/payments'));
+app.use('/api/contact',          authLimiter, require('./routes/contact'));
 app.get('/api/health', (_, res) => res.json({ status:'ok', time:new Date() }));
 app.get('/api/online-users', (_, res) => res.json(Array.from(onlineUsersMap.values())));
 

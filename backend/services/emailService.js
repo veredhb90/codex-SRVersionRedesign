@@ -161,6 +161,31 @@ const sendAdminNewUser = async (user) => {
   }).catch(e => console.error('Admin notification error:', e));
 };
 
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+const sendContactMessage = async ({ name, email, message }) => {
+  const adminEmail = 'swingrush.admin@gmail.com';
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: adminEmail,
+    replyTo: email,
+    subject: `📩 New contact message from ${name}`,
+    html: `<div style="${baseStyle}">${logo}
+      <div style="background:#111;border:2px solid #4f7dff;border-radius:12px;padding:20px;">
+        <div style="font-size:20px;font-weight:900;color:#4f7dff;margin-bottom:16px;">New Contact Message</div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Name</td><td style="color:#fff;font-weight:700;font-size:14px;">${escapeHtml(name)}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Email</td><td style="color:#fff;font-size:14px;">${escapeHtml(email)}</td></tr>
+          <tr><td style="color:#aaa;padding:6px 0;font-size:14px;">Sent</td><td style="color:#fff;font-size:14px;">${new Date().toLocaleString()}</td></tr>
+        </table>
+        <div style="color:#aaa;font-size:14px;margin-bottom:6px;">Message</div>
+        <div style="color:#fff;font-size:14px;white-space:pre-wrap;background:#0a0f1e;border-radius:8px;padding:14px;">${escapeHtml(message)}</div>
+      </div>
+    </div>`,
+  });
+  if (error) { console.error('❌ Contact message error:', error); throw new Error(error.message); }
+};
+
 const sendNewFollowerAlert = async (to, followerName, followerUsername, followerId) => {
   const { error } = await resend.emails.send({
     from: FROM, to,
@@ -219,4 +244,4 @@ const sendReceiptEmail = async (to, fullName, payment) => {
   if (error) console.error('❌ Receipt email error:', error);
 };
 
-module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser, sendNewFollowerAlert, sendRenewalReminder, sendReceiptEmail };
+module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser, sendNewFollowerAlert, sendRenewalReminder, sendReceiptEmail, sendContactMessage };

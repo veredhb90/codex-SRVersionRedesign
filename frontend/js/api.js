@@ -14,6 +14,7 @@ const API = {
     return data;
   },
   register:            (b)       => API._req('/auth/register',        { method:'POST', body:JSON.stringify(b) }),
+  sendContact:         (b)       => API._req('/contact',              { method:'POST', body:JSON.stringify(b) }),
   verify:              (b)       => API._req('/auth/verify',          { method:'POST', body:JSON.stringify(b) }),
   login:               (b)       => API._req('/auth/login',           { method:'POST', body:JSON.stringify(b) }),
   forgotPassword:      (b)       => API._req('/auth/forgot-password', { method:'POST', body:JSON.stringify(b) }),
