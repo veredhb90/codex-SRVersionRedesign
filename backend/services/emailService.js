@@ -141,6 +141,23 @@ const sendFollowerLossAlert = async (to, traderName, symbol, returnPct, recId) =
   }).catch(e => console.error('Follower loss alert error:', e));
 };
 
+const sendCommentAlert = async (to, commenterName, symbol, commentText, recId, isReply) => {
+  const label = isReply ? 'replied on' : 'commented on';
+  const { error } = await resend.emails.send({
+    from: FROM, to,
+    subject: `💬 ${commenterName} ${label} your $${symbol} trade`,
+    html: `<div style="${baseStyle}">${logo}
+      <div style="background:#111;border:2px solid #4f7dff;border-radius:12px;padding:20px;">
+        <div style="font-size:20px;font-weight:900;color:#fff;margin-bottom:8px;">$${symbol}</div>
+        <div style="color:#aaa;font-size:13px;margin-bottom:10px;"><strong style="color:#fff;">${commenterName}</strong> ${label} your trade:</div>
+        <div style="color:#fff;font-size:14px;background:#0a0f1e;border-radius:8px;padding:12px;white-space:pre-wrap;">${escapeHtml(commentText)}</div>
+      </div>
+      <a href="${process.env.CLIENT_URL || 'https://swing-rush.com'}/feed.html${recId ? '?rec=' + recId : ''}" style="display:block;margin-top:24px;padding:14px;background:#4f7dff;color:#fff;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View Trade →</a>
+    </div>`,
+  });
+  if (error) console.error('❌ Comment alert error:', error);
+};
+
 const sendAdminNewUser = async (user) => {
   const adminEmail = 'swingrush.admin@gmail.com';
   await resend.emails.send({
@@ -245,4 +262,4 @@ const sendReceiptEmail = async (to, fullName, payment) => {
   if (error) console.error('❌ Receipt email error:', error);
 };
 
-module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser, sendNewFollowerAlert, sendRenewalReminder, sendReceiptEmail, sendContactMessage };
+module.exports = { sendOTP, sendPassword, sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendAdminNewUser, sendNewFollowerAlert, sendRenewalReminder, sendReceiptEmail, sendContactMessage, sendCommentAlert };

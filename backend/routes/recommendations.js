@@ -4,7 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const Recommendation = require('../models/Recommendation');
 const yf   = require('../services/yahooFinance');
 const { getQuote: getLiveMarketQuote } = require('../services/proEngine');
-const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert } = require('../services/emailService');
+const { sendFollowAlert, sendInstrumentAlert, sendWinAlert, sendLossAlert, sendFollowerWinAlert, sendFollowerLossAlert, sendCommentAlert } = require('../services/emailService');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const { buildHotStocksPipeline } = require('../services/hotStocks');
@@ -528,7 +528,7 @@ router.post('/:id/comment', protect, async (req, res) => {
   try {
     const { text, parentCommentId } = req.body;
     if (!text?.trim()) return res.status(400).json({ message:'Comment cannot be empty' });
-    const rec = await Recommendation.findById(req.params.id).populate('user','_id fullName');
+    const rec = await Recommendation.findById(req.params.id).populate('user','_id fullName email');
     if (!rec) return res.status(404).json({ message:'Not found' });
     if (parentCommentId && !rec.comments.id(parentCommentId)) {
       return res.status(400).json({ message:'Reply target was not found' });
@@ -541,10 +541,15 @@ router.post('/:id/comment', protect, async (req, res) => {
     io.emit('recommendation:comment', { recId:rec._id, comment:newComment });
     // Notify rec owner
     if (String(rec.user._id) !== String(req.user._id)) {
+      const isReply = Boolean(parentCommentId);
       io.notifyUser && io.notifyUser(String(rec.user._id), 'notification', {
         type:'comment', title:`💬 @${req.user.username||req.user.fullName} commented on your $${rec.symbol} trade`,
         body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
       });
+      if (rec.user.email) {
+        sendCommentAlert(rec.user.email, '@' + (req.user.username || req.user.fullName), rec.symbol, text.trim(), rec._id, isReply)
+          .catch(e => console.log('Comment alert email failed for', rec.user.email, ':', e.message));
+      }
     }
     // Notify mentioned users (@username replies)
     try {
