@@ -11,10 +11,14 @@ const genPassword = () => crypto.randomBytes(6).toString('base64url').slice(0, 1
 const signToken   = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
 // Once a user has both filled in their trader profile AND signed the current
-// Terms version, have the official @admin ("SwingRush Admin") account follow
-// them automatically. Called from both /onboarding and /accept-terms since
-// either can complete last; idempotent (checks onboardingDone + termsAccepted
-// + not-already-following) so it only actually happens once per user.
+// Terms version, mutually connect them with the official @admin ("SwingRush
+// Admin") account — admin follows them AND they follow admin back. Called
+// from both /onboarding and /accept-terms since either can complete last;
+// idempotent (checks onboardingDone + termsAccepted + not-already-following)
+// so it only actually happens once per user. Only the user side gets a
+// notification/email — admin already gets a "new user registered" email on
+// every signup (sendAdminNewUser), so a second alert per user here would be
+// noise on Ward's own inbox.
 const maybeAutoFollowAdmin = async (app, userId) => {
   try {
     const user = await User.findById(userId);
@@ -30,6 +34,8 @@ const maybeAutoFollowAdmin = async (app, userId) => {
 
     admin.following.push(user._id);
     user.followers.push(admin._id);
+    user.following.push(admin._id);
+    admin.followers.push(user._id);
     await Promise.all([admin.save(), user.save()]);
 
     const title = '👤 ' + (admin.username || admin.fullName) + ' started following you!';
