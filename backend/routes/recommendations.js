@@ -9,6 +9,18 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const { buildHotStocksPipeline } = require('../services/hotStocks');
 
+// Resend's default limit is 10 req/sec per team (shared across the whole
+// app, not per-route) and its SDK resolves rather than throws on a 429 --
+// emailService now logs that error, but firing a whole follower list at
+// once still silently drops roughly half of them under load. Batch instead.
+const delay = (ms) => new Promise(r => setTimeout(r, ms));
+const sendEmailsThrottled = async (items, sendFn, batchSize = 3, gapMs = 500) => {
+  for (let i = 0; i < items.length; i += batchSize) {
+    await Promise.allSettled(items.slice(i, i + batchSize).map(sendFn));
+    if (i + batchSize < items.length) await delay(gapMs);
+  }
+};
+
 // Manual closes must use a server-side quote. For US equities, the Pro quote
 // keeps the freshest pre-market/after-hours price distinct from the regular close.
 // The main quote service remains a fallback for non-equity symbols it supports.
@@ -85,12 +97,11 @@ const checkOutcome = async (rec, io) => {
             type:'win', title:`🏆 @${author?.username||author?.fullName}'s $${rec.symbol} hit Take Profit!`,
             body:`+${rec.returnPct}% return`, recId:rec._id, fromUser:ownerId(rec.user), avatar:author?.avatar||null, time:new Date(),
           });
-          if (f.email) {
-            sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct, rec._id)
-              .catch(e => console.log('Follower win email failed for', f.email, ':', e.message));
-          }
         } catch (e) { console.log('Follower win notification failed for', f._id, ':', e.message); }
       });
+      await sendEmailsThrottled(followers.filter(f => f.email), f =>
+        sendFollowerWinAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct, rec._id)
+      ).catch(e => console.log('Follower win email batch error:', e.message));
 
       // ── Notify instrument watchers ────────────────────────────────
       const winWatchers = await User.find({ watchlist: rec.symbol }).select('_id');
@@ -130,12 +141,11 @@ const checkOutcome = async (rec, io) => {
             type:'loss', title:`💸 @${author?.username||author?.fullName}'s $${rec.symbol} hit Stop Loss`,
             body:`${rec.returnPct}%`, recId:rec._id, fromUser:ownerId(rec.user), avatar:author?.avatar||null, time:new Date(),
           });
-          if (f.email) {
-            sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct, rec._id)
-              .catch(e => console.log('Follower loss email failed for', f.email, ':', e.message));
-          }
         } catch (e) { console.log('Follower loss notification failed for', f._id, ':', e.message); }
       });
+      await sendEmailsThrottled(followers.filter(f => f.email), f =>
+        sendFollowerLossAlert(f.email, '@' + (author?.username || author?.fullName || 'trader'), rec.symbol, rec.returnPct, rec._id)
+      ).catch(e => console.log('Follower loss email batch error:', e.message));
 
     } else { await rec.save(); }
   } catch (e) { console.log('checkOutcome error:', e.message); }
@@ -338,28 +348,28 @@ router.post('/', protect, async (req, res) => {
         type:'new_rec', title:`📡 @${req.user.username||req.user.fullName} posted ${direction} on $${sym}`,
         body:`TP: $${tp} · Entry: $${entry.toFixed(2)}`, recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
       });
-      sendFollowAlert(f.email, '@' + (req.user.username || req.user.fullName), sym, direction, tp, rec._id).catch(()=>{});
     });
+    sendEmailsThrottled(followers, f =>
+      sendFollowAlert(f.email, '@' + (req.user.username || req.user.fullName), sym, direction, tp, rec._id)
+    ).catch(e => console.log('Follower email batch error:', e.message));
 
     // Notify instrument subscribers from DB watchlist
     const subscribers = await User.find({
       watchlist: sym,
       _id: { $ne: req.user._id }
     }).select('_id email');
-    subscribers.forEach(sub => {
-      const subId = String(sub._id);
-      if (!notified.has(subId)) {
-        // Socket notification
-        io.notifyUser && io.notifyUser(subId, 'notification', {
-          type:'instrument',
-          title:`🔔 New ${direction} on $${sym}`,
-          body:`By @${req.user.username||req.user.fullName} · TP: $${tp}`,
-          recId: rec._id, fromUser: String(req.user._id), avatar: req.user.avatar||null, time: new Date(),
-        });
-        // Email notification
-        sendInstrumentAlert(sub.email, sym, direction, '@' + (req.user.username || req.user.fullName), tp, rec._id).catch(()=>{});
-      }
+    const newSubscribers = subscribers.filter(sub => !notified.has(String(sub._id)));
+    newSubscribers.forEach(sub => {
+      io.notifyUser && io.notifyUser(String(sub._id), 'notification', {
+        type:'instrument',
+        title:`🔔 New ${direction} on $${sym}`,
+        body:`By @${req.user.username||req.user.fullName} · TP: $${tp}`,
+        recId: rec._id, fromUser: String(req.user._id), avatar: req.user.avatar||null, time: new Date(),
+      });
     });
+    sendEmailsThrottled(newSubscribers, sub =>
+      sendInstrumentAlert(sub.email, sym, direction, '@' + (req.user.username || req.user.fullName), tp, rec._id)
+    ).catch(e => console.log('Instrument alert batch error:', e.message));
 
     res.status(201).json(rec);
   } catch (err) { console.error(err); res.status(500).json({ message:err.message }); }

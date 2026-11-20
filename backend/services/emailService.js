@@ -51,7 +51,8 @@ const sendFollowAlert = async (to, followerName, recSymbol, direction, takeProfi
       </div>
       <a href="${process.env.CLIENT_URL}/feed.html${recId ? '?rec=' + recId : ''}" style="display:block;margin-top:24px;padding:14px;background:${color};color:#000;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View in Feed →</a>
     </div>`,
-  }).catch(e => console.error('Follow alert error:', e));
+  }).then(({ error }) => { if (error) console.error('Follow alert error:', to, error); })
+    .catch(e => console.error('Follow alert error:', to, e));
 };
 
 const sendInstrumentAlert = async (to, symbol, direction, username, tp, recId) => {
@@ -70,7 +71,8 @@ const sendInstrumentAlert = async (to, symbol, direction, username, tp, recId) =
       </div>
       <a href="${process.env.CLIENT_URL}/feed.html${recId ? '?rec=' + recId : ''}" style="display:block;margin-top:24px;padding:14px;background:${color};color:#000;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View in Feed →</a>
     </div>`,
-  }).catch(e => console.error('Instrument alert error:', e));
+  }).then(({ error }) => { if (error) console.error('Instrument alert error:', to, error); })
+    .catch(e => console.error('Instrument alert error:', to, e));
 };
 
 const sendWinAlert = async (to, username, symbol, returnPct, recId) => {
@@ -104,7 +106,8 @@ const sendFollowerWinAlert = async (to, traderName, symbol, returnPct, recId) =>
       </div>
       <a href="${process.env.CLIENT_URL}/feed.html${recId ? '?rec=' + recId : ''}" style="display:block;margin-top:24px;padding:14px;background:#00e676;color:#000;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View in Feed \u2192</a>
     </div>`,
-  }).catch(e => console.error('Follower win alert error:', e));
+  }).then(({ error }) => { if (error) console.error('Follower win alert error:', to, error); })
+    .catch(e => console.error('Follower win alert error:', to, e));
 };
 
 const sendLossAlert = async (to, username, symbol, returnPct, recId) => {
@@ -138,7 +141,8 @@ const sendFollowerLossAlert = async (to, traderName, symbol, returnPct, recId) =
       </div>
       <a href="${process.env.CLIENT_URL}/feed.html${recId ? '?rec=' + recId : ''}" style="display:block;margin-top:24px;padding:14px;background:#ff1744;color:#fff;text-align:center;border-radius:8px;font-weight:900;text-decoration:none;font-size:16px;">View in Feed \u2192</a>
     </div>`,
-  }).catch(e => console.error('Follower loss alert error:', e));
+  }).then(({ error }) => { if (error) console.error('Follower loss alert error:', to, error); })
+    .catch(e => console.error('Follower loss alert error:', to, e));
 };
 
 const sendCommentAlert = async (to, commenterName, symbol, commentText, recId, isReply) => {
