@@ -73,6 +73,31 @@ router.post('/scanner/run', protect, adminOnly, async (req, res) => {
   res.json({ message: 'Scan started' });
 });
 
+// ── POST /api/admin/backfill-admin-follow — one-time migration ─────
+// Links every existing user with the official @admin ("SwingRush Admin")
+// account mutually, matching the auto-follow behavior new users get on
+// onboarding completion (see maybeAutoFollowAdmin in routes/auth.js).
+// Deliberately silent: no notifications/emails, since this touches every
+// user at once and shouldn't blast the whole user base. Idempotent via
+// $addToSet — safe to call more than once, only links users not already
+// linked. Safe to remove once run against production.
+router.post('/backfill-admin-follow', protect, adminOnly, async (req, res) => {
+  try {
+    const col = mongoose.connection.db.collection('users');
+    const admin = await col.findOne({ username: 'admin' });
+    if (!admin) return res.status(404).json({ message: 'SwingRush Admin account (username: admin) not found' });
+
+    const others = await col.find({ _id: { $ne: admin._id } }).project({ _id: 1 }).toArray();
+    const otherIds = others.map(u => u._id);
+    if (!otherIds.length) return res.json({ message: 'No other users found', usersLinked: 0 });
+
+    await col.updateOne({ _id: admin._id }, { $addToSet: { following: { $each: otherIds }, followers: { $each: otherIds } } });
+    await col.updateMany({ _id: { $in: otherIds } }, { $addToSet: { following: admin._id, followers: admin._id } });
+
+    res.json({ message: 'Backfill complete', usersLinked: otherIds.length });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // ── GET /api/admin/users?search= ───────────────────────────────────
 router.get('/users', protect, adminOnly, async (req, res) => {
   try {
