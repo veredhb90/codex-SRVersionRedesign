@@ -654,6 +654,9 @@ router.delete('/:id/engine-save', protect, async (req, res) => {
 });
 
 // DELETE /api/recommendations/:id/comment/:commentId
+// Cascades: deleting a comment also removes any replies chained to it via
+// parentCommentId (and their replies, and so on), so a thread never ends up
+// with orphaned replies pointing at a parent that no longer exists.
 router.delete('/:id/comment/:commentId', protect, async (req, res) => {
   try {
     const rec = await Recommendation.findById(req.params.id);
@@ -661,8 +664,23 @@ router.delete('/:id/comment/:commentId', protect, async (req, res) => {
     const comment = rec.comments.id(req.params.commentId);
     if (!comment) return res.status(404).json({ message:'Comment not found' });
     if (comment.user.toString()!==req.user._id.toString()) return res.status(403).json({ message:'Not your comment' });
-    comment.deleteOne(); await rec.save();
-    res.json({ message:'Deleted' });
+
+    const toDelete = new Set([String(comment._id)]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const c of rec.comments) {
+        const pid = c.parentCommentId ? String(c.parentCommentId) : null;
+        const cid = String(c._id);
+        if (pid && toDelete.has(pid) && !toDelete.has(cid)) { toDelete.add(cid); grew = true; }
+      }
+    }
+    rec.comments = rec.comments.filter(c => !toDelete.has(String(c._id)));
+    await rec.save();
+    const deletedIds = [...toDelete];
+    // Live-remove it from everyone else currently viewing this trade's feed card.
+    req.app.get('io')?.emit('recommendation:comment-deleted', { recId: rec._id, commentIds: deletedIds });
+    res.json({ message:'Deleted', deletedIds });
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
 

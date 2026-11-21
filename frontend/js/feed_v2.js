@@ -45,6 +45,27 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     if (attachBtn) attachBtn.classList.remove('has-image');
   }
 
+  // Animates a comment/reply (and, on cascade delete, its whole reply
+  // subtree) out of the DOM and decrements the card's count by however many
+  // comments were actually removed. Safe to call twice for the same ids --
+  // from the deleter's own success handler AND the socket echo that comes
+  // back to them for the same deletion -- since removing an ancestor also
+  // removes its nested replies from the DOM, so later lookups just no-op.
+  function removeCommentNodes(recId, commentIds) {
+    let removed = 0;
+    (commentIds || []).forEach(id => {
+      const el = document.getElementById('comment-' + id);
+      if (!el) return;
+      removed++;
+      el.classList.add('is-removing');
+      setTimeout(() => el.remove(), 240);
+    });
+    if (removed) {
+      const count = document.querySelector(`[data-recid="${recId}"] .comment-count`);
+      if (count) count.textContent = Math.max(0, parseInt(count.textContent || 0, 10) - removed);
+    }
+  }
+
   // ── Socket.io ──────────────────────────────────────────────
   const socket = io();
 
@@ -92,6 +113,9 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
   socket.on('recommendation:comment', ({ recId, comment }) => {
     const section = document.getElementById('comments-' + recId);
     if (section) appendComment(section, comment, recId);
+  });
+  socket.on('recommendation:comment-deleted', ({ recId, commentIds }) => {
+    removeCommentNodes(recId, commentIds);
   });
 
   // ── Tabs ───────────────────────────────────────────────────
@@ -194,6 +218,30 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
           input.focus();
           input.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }, 120);
+      }
+      return;
+    }
+
+    // Delete your own comment or reply (cascades to its own replies, if any)
+    const deleteBtn = e.target.closest('.comment-delete-btn');
+    if (deleteBtn) {
+      if (deleteBtn.disabled) return;
+      const rid = deleteBtn.dataset.rec;
+      const cid = deleteBtn.dataset.commentId;
+      const node = document.getElementById('comment-' + cid);
+      const replyCount = node ? node.querySelectorAll(':scope > .comment-children .comment-item').length : 0;
+      const confirmMsg = replyCount
+        ? t('feed.confirm_delete_comment_with_replies', 'Delete this comment and its {n} {label}? This can\'t be undone.')
+            .replace('{n}', replyCount).replace('{label}', replyCount === 1 ? t('feed.reply_singular','reply') : t('feed.reply_plural','replies'))
+        : t('feed.confirm_delete_comment', 'Delete this comment? This can\'t be undone.');
+      if (!confirm(confirmMsg)) return;
+      deleteBtn.disabled = true;
+      try {
+        const res = await API.deleteComment(rid, cid);
+        removeCommentNodes(rid, res?.deletedIds || [cid]);
+      } catch (err) {
+        toast(err.message, 'error');
+        deleteBtn.disabled = false;
       }
       return;
     }
@@ -595,13 +643,21 @@ function closeSymbolModal() {
   document.body.style.overflow = '';
 }
 
-// ── Comment helpers ────────────────────────────────────────────────
-function threadComments(comments) {
+// ── Comment threading ────────────────────────────────────────────────
+// Builds a REAL tree (not a flattened, indent-simulated list): each node
+// knows its actual children. A reply is threaded either via an explicit
+// parentCommentId (set when posted through the Reply button) or, as a
+// fallback for a raw "@username ..." comment typed without using Reply,
+// by matching the most recent prior comment from that username.
+const MAX_COMMENT_THREAD_DEPTH = 3; // caps indent growth on narrow screens
+
+function buildCommentTree(comments) {
   const items = (comments || []).map(c => {
     const m = String(c.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
-    return { c: c, id: String(c._id || ''), parentId: String(c.parentCommentId || ''), mention: m ? m[1].toLowerCase() : null, children: [], depth: 0 };
+    return { c, id: String(c._id || ''), parentId: String(c.parentCommentId || ''), mention: m ? m[1].toLowerCase() : null, mentionBody: m ? m[2] : null, children: [], replyToName: null, displayText: String(c.text || '') };
   });
   const authorOf = it => String(it.c.user?.username || it.c.user?.fullName || '').toLowerCase();
+  const nameOf = it => it.c.user?.username ? '@' + it.c.user.username : (it.c.user?.fullName || 'Trader');
   const byId = new Map(items.filter(it => it.id).map(it => [it.id, it]));
   const roots = [];
   items.forEach((it, idx) => {
@@ -611,53 +667,68 @@ function threadComments(comments) {
         if (authorOf(items[j]) === it.mention) { parent = items[j]; break; }
       }
     }
-    if (parent) { parent.children.push(it); it.depth = Math.min(parent.depth + 1, 4); }
-    else roots.push(it);
+    if (parent && parent !== it) {
+      parent.children.push(it);
+      it.replyToName = nameOf(parent);
+      // Only strip the leading "@username" text if it actually resolved to
+      // a real parent in this thread -- otherwise it's just text the user
+      // typed (e.g. mentioning someone who hasn't commented) and should
+      // show as-is, not silently have a chunk of it hidden.
+      if (it.mention) it.displayText = it.mentionBody || '';
+    } else {
+      roots.push(it);
+    }
   });
-  const out = [];
-  const walk = it => { out.push(it); it.children.forEach(walk); };
-  roots.forEach(walk);
-  return out;
+  return roots;
 }
 
-function renderCommentHtml(c, recId, depth) {
+function renderCommentNode(item, recId, depth) {
+  const c = item.c;
   const uname  = c.user?.username ? '@' + c.user.username : (c.user?.fullName || 'Trader');
   const dataU  = c.user?.username || c.user?.fullName || 'Trader';
-  const text   = String(c.text || '');
-  const m      = text.match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
-  const ind    = 22 * Math.min(Math.max(depth || (m ? 1 : 0), m ? 1 : 0), 2);
   const commentId = String(c._id || '');
-  const replyBtn = `<button class="comment-reply-btn" data-username="${dataU}" data-rec="${recId}" data-comment-id="${commentId}" style="background:none;border:none;color:var(--accent2);font-size:11px;cursor:pointer;margin-left:8px;font-weight:700;">↩ Reply</button>`;
-  const avatarSpan = `<span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;vertical-align:middle;margin-right:6px;">${window.avatarHtml ? window.avatarHtml(c.user) : (dataU||'?').charAt(0).toUpperCase()}</span>`;
+  const isReply = depth > 0;
+  const viewerId = (window.Auth && Auth.userId && Auth.userId()) || '';
+  const isOwnComment = viewerId && String(c.user?._id || '') === String(viewerId);
+
+  const replyBtn = `<button class="comment-reply-btn" data-username="${dataU}" data-rec="${recId}" data-comment-id="${commentId}" title="${t('feed.reply_action','Reply')}">↩ ${t('feed.reply_action','Reply')}</button>`;
+  const deleteBtn = isOwnComment
+    ? `<button class="comment-delete-btn" data-rec="${recId}" data-comment-id="${commentId}" title="${t('feed.delete_comment','Delete')}" aria-label="${t('feed.delete_comment','Delete')}"><svg class="sr-ic sr-ic-trash" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7m3 0-.8 13.1a2 2 0 0 1-2 1.9H8.8a2 2 0 0 1-2-1.9L6 7"/></svg> ${t('feed.delete_comment','Delete')}</button>`
+    : '';
+  const avatarSpan = `<span class="comment-avatar">${window.avatarHtml ? window.avatarHtml(c.user) : (dataU||'?').charAt(0).toUpperCase()}</span>`;
   const userLink = c.user?._id
-    ? `<a href="/profile.html?id=${c.user._id}" style="color:var(--accent2);font-weight:700;font-size:13px;text-decoration:none;">${uname}</a>`
-    : `<strong style="color:var(--accent2);font-size:13px;">${uname}</strong>`;
+    ? `<a href="/profile.html?id=${c.user._id}" class="comment-author">${uname}</a>`
+    : `<strong class="comment-author">${uname}</strong>`;
   const imageHtml = c.image
-    ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" style="display:block;max-width:220px;max-height:220px;border-radius:8px;margin-top:6px;"/></a>`
+    ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" class="comment-photo"/></a>`
     : '';
-  if (m) {
-    const replyBody = m[2]
-      ? `<span style="font-size:13px;color:var(--text2);margin-left:8px;">${m[2]}</span>`
-      : '';
-    return `<div id="comment-${commentId}" class="comment-item comment-reply" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin-left:${ind}px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;margin-top:4px;">
-      <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">↩ Reply to <span style="color:var(--accent2);font-weight:700;">@${m[1]}</span></div>
-      ${avatarSpan}${userLink}
-      ${replyBody}
-      <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
-      ${replyBtn}
-      ${imageHtml}
-    </div>`;
-  }
-  const textBody = text
-    ? `<span style="font-size:13px;color:var(--text2);margin-left:8px;">${text}</span>`
+  const replyChip = (isReply && item.replyToName)
+    ? `<div class="comment-reply-chip">↩ ${t('feed.replying_to','Replying to')} <b>${item.replyToName}</b></div>`
     : '';
-  return `<div id="comment-${commentId}" class="comment-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}">
-      ${avatarSpan}${userLink}
+  const textBody = item.displayText ? `<div class="comment-text">${item.displayText}</div>` : '';
+
+  const childCount = item.children.length;
+  const childrenHtml = childCount
+    ? `<div class="comment-children">${item.children.map(ch => renderCommentNode(ch, recId, Math.min(depth + 1, MAX_COMMENT_THREAD_DEPTH))).join('')}</div>`
+    : '<div class="comment-children"></div>';
+
+  return `<div id="comment-${commentId}" class="comment-item${isReply ? ' is-reply' : ''}" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" data-depth="${depth}">
+    <div class="comment-bubble">
+      ${replyChip}
+      <div class="comment-head">
+        ${avatarSpan}${userLink}
+        <span class="comment-time">${timeAgo(c.createdAt||new Date())}</span>
+      </div>
       ${textBody}
-      <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
-      ${replyBtn}
       ${imageHtml}
-    </div>`;
+      <div class="comment-actions">${replyBtn}${deleteBtn}</div>
+    </div>
+    ${childrenHtml}
+  </div>`;
+}
+
+function renderCommentList(comments, recId) {
+  return buildCommentTree(comments).map(item => renderCommentNode(item, recId, 0)).join('');
 }
 
 function appendComment(section, comment, recId) {
@@ -665,19 +736,30 @@ function appendComment(section, comment, recId) {
   if (!list) return;
   const commentId = String(comment._id || '');
   if (commentId && document.getElementById('comment-' + commentId)) return;
-  const wrap = document.createElement('div');
-  wrap.innerHTML = renderCommentHtml(comment, recId);
-  const div = wrap.firstElementChild;
   const parentId = String(comment.parentCommentId || '');
-  const mm = String(comment.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s/);
-  let placed = false;
-  const parent = parentId && document.getElementById('comment-' + parentId);
-  if (parent) { parent.insertAdjacentElement('afterend', div); placed = true; }
-  else if (mm) {
+  const mm = String(comment.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
+  let parentNode = parentId && document.getElementById('comment-' + parentId);
+  if (!parentNode && mm) {
     const kin = list.querySelectorAll('[data-author="' + mm[1].toLowerCase() + '"]');
-    if (kin.length) { kin[kin.length - 1].insertAdjacentElement('afterend', div); placed = true; }
+    if (kin.length) parentNode = kin[kin.length - 1];
   }
-  if (!placed) list.appendChild(div);
+  const item = { c: comment, children: [], replyToName: null, displayText: String(comment.text || '') };
+  let depth = 0;
+  if (parentNode) {
+    depth = Math.min(Number(parentNode.dataset.depth || 0) + 1, MAX_COMMENT_THREAD_DEPTH);
+    const parentAuthorEl = parentNode.querySelector(':scope > .comment-bubble > .comment-head .comment-author');
+    item.replyToName = parentAuthorEl ? parentAuthorEl.textContent : null;
+    if (mm) item.displayText = mm[2] || '';
+  }
+  const wrap = document.createElement('div');
+  wrap.innerHTML = renderCommentNode(item, recId, depth);
+  const div = wrap.firstElementChild;
+  if (parentNode) {
+    const childrenSlot = parentNode.querySelector(':scope > .comment-children');
+    (childrenSlot || parentNode).appendChild(div);
+  } else {
+    list.appendChild(div);
+  }
   list.scrollTop = list.scrollHeight;
 }
 
@@ -862,7 +944,7 @@ function buildCard(r) {
   const viewerId = String(viewer?._id || viewer?.id || '');
   const likedByViewer = (r.likes || []).some(like => String(like?._id || like) === viewerId);
 
-  const commentsHtml = threadComments(r.comments||[]).map(t => renderCommentHtml(t.c, r._id, t.depth)).join('');
+  const commentsHtml = renderCommentList(r.comments||[], r._id);
 
   return `
   <div id="rec-${r._id}" class="rec-card ${isBuy?'buy':'sell'} ${isClosed?'closed':''} ${isWin?'win-flash':''}"

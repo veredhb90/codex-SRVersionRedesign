@@ -46,6 +46,28 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     if (attachBtn) attachBtn.classList.remove('has-image');
   }
 
+  // Removes a comment/reply (and, on cascade delete, its whole reply
+  // subtree) from the DOM and decrements the card's count by however many
+  // were actually removed. See the matching feed_v2.js helper for why this
+  // guards against double-counting.
+  function removeProfileCommentNodes(recId, commentIds) {
+    let removed = 0;
+    (commentIds || []).forEach(id => {
+      const el = document.getElementById('profile-comment-' + id);
+      if (!el) return;
+      removed++;
+      el.classList.add('is-removing');
+      setTimeout(() => el.remove(), 240);
+    });
+    if (!removed) return;
+    const tb = document.querySelector(`[data-action="toggle-comments"][data-recid="${recId}"]`);
+    if (tb) {
+      const n = Math.max(0, (tb.dataset.count|0) - removed);
+      tb.dataset.count = n;
+      tb.innerHTML = `<svg class="sr-ic sr-ic-comment" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.9 7.1L3 20l1.4-4.6A8.4 8.4 0 1 1 21 11.5z"/></svg> ${n} ${n!==1 ? t('profile.comments_label','Comments') : t('profile.comment_label','Comment')}`;
+    }
+  }
+
   document.querySelectorAll('.nav-username').forEach(el => el.textContent = me?.username ? '@'+me.username : (me?.fullName||''));
 
   async function loadProfile() {
@@ -265,12 +287,15 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
   }
 
   // ── Reply-aware comment renderer ───────────────────────────────
-  window.threadProfileComments = function(comments) {
+  const PC_MAX_THREAD_DEPTH = 3; // caps indent growth on narrow screens
+
+  window.buildProfileCommentTree = function(comments) {
     const items = (comments || []).map(c => {
       const m = String(c.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
-      return { c: c, id: String(c._id || ''), parentId: String(c.parentCommentId || ''), mention: m ? m[1].toLowerCase() : null, children: [], depth: 0 };
+      return { c, id: String(c._id || ''), parentId: String(c.parentCommentId || ''), mention: m ? m[1].toLowerCase() : null, mentionBody: m ? m[2] : null, children: [], replyToName: null, displayText: String(c.text || '') };
     });
     const authorOf = it => String(it.c.user?.username || it.c.user?.fullName || '').toLowerCase();
+    const nameOf = it => it.c.user?.username ? '@' + it.c.user.username : (it.c.user?.fullName || 'trader');
     const byId = new Map(items.filter(it => it.id).map(it => [it.id, it]));
     const roots = [];
     items.forEach((it, idx) => {
@@ -280,41 +305,58 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
           if (authorOf(items[j]) === it.mention) { parent = items[j]; break; }
         }
       }
-      if (parent) { parent.children.push(it); it.depth = Math.min(parent.depth + 1, 4); }
-      else roots.push(it);
+      if (parent && parent !== it) {
+        parent.children.push(it);
+        it.replyToName = nameOf(parent);
+        if (it.mention) it.displayText = it.mentionBody || '';
+      } else {
+        roots.push(it);
+      }
     });
-    const out = [];
-    const walk = it => { out.push(it); it.children.forEach(walk); };
-    roots.forEach(walk);
-    return out;
+    return roots;
   };
 
-  window.renderProfileComment = function(c, recId, depth) {
+  window.renderProfileComment = function(item, recId, depth) {
+    const c = item.c;
     const uname = c.user?.username ? '@' + c.user.username : (c.user?.fullName || 'trader');
     const dataU = c.user?.username || c.user?.fullName || 'trader';
-    const text  = String(c.text || '');
-    const m     = text.match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
-    const ind   = 20 * Math.min(Math.max(depth || (m ? 1 : 0), m ? 1 : 0), 2);
     const avatarInner = window.avatarHtml ? window.avatarHtml(c.user) : (dataU || '?').charAt(0).toUpperCase();
-    const isReply  = !!m;
-    const bodyText = m ? m[2] : text;
+    const isReply = depth > 0;
     const commentId = String(c._id || '');
-    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" data-comment-id="${commentId}" style="margin-left:auto;background:none;border:none;color:var(--accent2);font-size:10.5px;cursor:pointer;font-weight:700;padding:3px 6px;flex-shrink:0;">↩ Reply</button>`;
+    const replyBtn = `<button class="pc-reply-btn" data-username="${dataU}" data-recid="${recId}" data-comment-id="${commentId}" style="margin-left:auto;background:none;border:none;color:var(--accent2);font-size:10.5px;cursor:pointer;font-weight:700;padding:3px 6px;flex-shrink:0;">↩ ${t('feed.reply_action','Reply')}</button>`;
+    const viewerId = (window.Auth && Auth.userId && Auth.userId()) || '';
+    const isOwnComment = viewerId && String(c.user?._id || '') === String(viewerId);
+    const deleteBtn = isOwnComment
+      ? `<button class="pc-delete-btn" data-recid="${recId}" data-comment-id="${commentId}" title="${t('feed.delete_comment','Delete')}" aria-label="${t('feed.delete_comment','Delete')}" style="flex-shrink:0;"><svg class="sr-ic sr-ic-trash" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7m3 0-.8 13.1a2 2 0 0 1-2 1.9H8.8a2 2 0 0 1-2-1.9L6 7"/></svg> ${t('feed.delete_comment','Delete')}</button>`
+      : '';
     const nameLink = c.user?._id
       ? `<a href="/profile.html?id=${c.user._id}" style="text-decoration:none;color:var(--accent2);font-weight:800;font-size:12.5px;">${uname}</a>`
       : `<strong style="color:var(--accent2);font-size:12.5px;">${uname}</strong>`;
-    const replyChip = isReply ? `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);background:rgba(21,101,192,0.12);border-radius:8px;padding:2px 8px;margin-bottom:5px;">↩ Reply to <b style="color:var(--accent2);">@${m[1]}</b></div>` : '';
-    return `<div id="profile-comment-${commentId}" class="pc-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin:6px 0 6px ${ind}px;${isReply?'border-left:2.5px solid var(--accent2);':''}padding:9px 11px;background:${isReply?'rgba(21,101,192,0.08)':'var(--bg2)'};border-radius:${isReply?'0 12px 12px 12px':'12px'};">
-      ${replyChip}
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${avatarInner}</span>
-        ${nameLink}
-        <span class="pc-time" style="font-size:10.5px;">${timeAgo(c.createdAt||new Date())}</span>
-        ${replyBtn}
+    const replyChip = (isReply && item.replyToName)
+      ? `<div style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);background:rgba(79,125,255,0.14);border-radius:8px;padding:2px 8px;margin-bottom:5px;">↩ ${t('feed.replying_to','Replying to')} <b style="color:var(--accent2);">${item.replyToName}</b></div>`
+      : '';
+    const childrenHtml = item.children.length
+      ? `<div class="pc-children">${item.children.map(ch => renderProfileComment(ch, recId, Math.min(depth + 1, PC_MAX_THREAD_DEPTH))).join('')}</div>`
+      : '<div class="pc-children"></div>';
+    return `<div id="profile-comment-${commentId}" class="pc-item${isReply ? ' is-reply' : ''}" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" data-depth="${depth}">
+      <div class="pc-bubble">
+        ${replyChip}
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:26px;height:26px;border-radius:50%;background:#1565C0;color:#fff;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">${avatarInner}</span>
+          ${nameLink}
+          <span class="pc-time" style="font-size:10.5px;">${timeAgo(c.createdAt||new Date())}</span>
+          ${replyBtn}
+          ${deleteBtn}
+        </div>
+        ${item.displayText ? `<div class="pc-text" style="margin:6px 0 0 34px;">${item.displayText}</div>` : ''}
+        ${c.image ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" style="display:block;margin:6px 0 0 34px;max-width:200px;max-height:200px;border-radius:8px;"/></a>` : ''}
       </div>
-      ${bodyText ? `<div class="pc-text" style="margin:6px 0 0 34px;">${bodyText}</div>` : ''}
-      ${c.image ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" style="display:block;margin:6px 0 0 34px;max-width:200px;max-height:200px;border-radius:8px;"/></a>` : ''}
+      ${childrenHtml}
     </div>`;
+  };
+
+  window.renderProfileCommentList = function(comments, recId) {
+    return buildProfileCommentTree(comments).map(item => renderProfileComment(item, recId, 0)).join('');
   };
 
   // ── Event delegation for comments ──────────────────────────────
@@ -418,18 +460,30 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
         if (list) {
           const commentId = String(comment._id || '');
           if (commentId && document.getElementById('profile-comment-' + commentId)) return;
-          const wrap = document.createElement('div');
-          wrap.innerHTML = renderProfileComment(comment, recId);
-          const el2 = wrap.firstElementChild;
-          const parent = comment.parentCommentId && document.getElementById('profile-comment-' + comment.parentCommentId);
-          const mm = String(comment.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s/);
-          let placed = false;
-          if (parent) { parent.insertAdjacentElement('afterend', el2); placed = true; }
-          else if (mm) {
+          const parentId = String(comment.parentCommentId || '');
+          const mm = String(comment.text || '').match(/^@([a-zA-Z0-9_.\-]+)\s+([\s\S]*)$/);
+          let parentNode = parentId && document.getElementById('profile-comment-' + parentId);
+          if (!parentNode && mm) {
             const kin = list.querySelectorAll('[data-author="' + mm[1].toLowerCase() + '"]');
-            if (kin.length) { kin[kin.length - 1].insertAdjacentElement('afterend', el2); placed = true; }
+            if (kin.length) parentNode = kin[kin.length - 1];
           }
-          if (!placed) list.appendChild(el2);
+          const item = { c: comment, children: [], replyToName: null, displayText: String(comment.text || '') };
+          let depth = 0;
+          if (parentNode) {
+            depth = Math.min(Number(parentNode.dataset.depth || 0) + 1, 3);
+            const parentNameEl = parentNode.querySelector(':scope > .pc-bubble a, :scope > .pc-bubble strong');
+            item.replyToName = parentNameEl ? parentNameEl.textContent : null;
+            if (mm) item.displayText = mm[2] || '';
+          }
+          const wrap = document.createElement('div');
+          wrap.innerHTML = renderProfileComment(item, recId, depth);
+          const el2 = wrap.firstElementChild;
+          if (parentNode) {
+            const childrenSlot = parentNode.querySelector(':scope > .pc-children');
+            (childrenSlot || parentNode).appendChild(el2);
+          } else {
+            list.appendChild(el2);
+          }
         }
         delete inp.dataset.replyTo;
         inp.placeholder = t('profile.comment_placeholder', 'Add a comment… (Enter to post)');
@@ -465,6 +519,30 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
           realInput.focus();
           realInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }, 120);
+      }
+      return;
+    }
+
+    // Delete your own comment or reply (cascades to its own replies, if any)
+    const pcDelete = e.target.closest('.pc-delete-btn');
+    if (pcDelete) {
+      if (pcDelete.disabled) return;
+      const rid = pcDelete.dataset.recid;
+      const cid = pcDelete.dataset.commentId;
+      const node = document.getElementById('profile-comment-' + cid);
+      const replyCount = node ? node.querySelectorAll(':scope > .pc-children .pc-item').length : 0;
+      const confirmMsg = replyCount
+        ? t('feed.confirm_delete_comment_with_replies', 'Delete this comment and its {n} {label}? This can\'t be undone.')
+            .replace('{n}', replyCount).replace('{label}', replyCount === 1 ? t('feed.reply_singular','reply') : t('feed.reply_plural','replies'))
+        : t('feed.confirm_delete_comment', 'Delete this comment? This can\'t be undone.');
+      if (!confirm(confirmMsg)) return;
+      pcDelete.disabled = true;
+      try {
+        const res = await API.deleteComment(rid, cid);
+        removeProfileCommentNodes(rid, res?.deletedIds || [cid]);
+      } catch (err) {
+        toast(err.message, 'error');
+        pcDelete.disabled = false;
       }
       return;
     }
@@ -831,7 +909,7 @@ function buildProfileCard(r, isOwn) {
        </div>`
     : '';
 
-  const commentsHtml = threadProfileComments(r.comments||[]).map(ct => renderProfileComment(ct.c, r._id, ct.depth)).join('');
+  const commentsHtml = renderProfileCommentList(r.comments||[], r._id);
 
   const commentCount = r.comments?.length || 0;
 

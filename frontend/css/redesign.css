@@ -1151,13 +1151,18 @@ textarea:focus {
 .modal-stat,
 .price-block,
 .sl-box,
-.eng-level,
-.comment-item,
-.pc-item {
+.eng-level {
   background: var(--bg2) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-sm) !important;
 }
+/* .comment-item / .pc-item used to get this card treatment directly, back
+   when they were flat single-bubble elements. Now each one is a wrapper
+   around a .comment-bubble/.pc-bubble (the real visual card) plus a nested
+   .comment-children/.pc-children slot for replies -- forcing this same
+   background/border onto the outer wrapper double-boxes the bubble inside
+   it with a mismatched border-radius. See the COMMENT THREADING block
+   further down for their actual styling. */
 
 .tab-bar {
   background: var(--bg2) !important;
@@ -2465,4 +2470,122 @@ body.rtl .why-close { right: auto; left: 16px; }
 .comment-item a:has(img):hover img, .pc-item a:has(img):hover img {
   transform: scale(1.015);
   box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   DELETE OWN COMMENT / REPLY — icon button + confirm step + smooth removal
+   ══════════════════════════════════════════════════════════════════════ */
+.comment-delete-btn, .pc-delete-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 11px; font-weight: 700;
+  padding: 2px 4px; margin-left: 6px; border-radius: 6px;
+  transition: color .15s ease, background .15s ease;
+}
+.comment-delete-btn:hover, .pc-delete-btn:hover { color: var(--red); background: rgba(255,77,109,0.1); }
+.comment-delete-btn:disabled, .pc-delete-btn:disabled { opacity: .5; cursor: default; pointer-events: none; }
+.comment-delete-btn .sr-ic-trash, .pc-delete-btn .sr-ic-trash { width: 13px; height: 13px; vertical-align: -2px; }
+
+@keyframes commentRemoveFade {
+  from { opacity: 1; max-height: 240px; transform: scaleY(1); margin-top: 0; margin-bottom: 0; }
+  to   { opacity: 0; max-height: 0;     transform: scaleY(0.85); margin-top: 0; margin-bottom: 0; }
+}
+.comment-item.is-removing, .pc-item.is-removing {
+  animation: commentRemoveFade .22s ease forwards;
+  overflow: hidden; pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .comment-item.is-removing, .pc-item.is-removing { animation: none; display: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   COMMENT THREADING — real nested replies with a connecting rail, so it's
+   immediately clear at a glance who commented vs. who replied to whom.
+   Overrides the old flat/indent-only .comment-item styling in main.css.
+   ══════════════════════════════════════════════════════════════════════ */
+.comment-list {
+  max-height: 340px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;
+  padding-right: 2px; /* room for the scrollbar so content doesn't hug it */
+}
+.comment-item {
+  background: none; border-radius: 0; padding: 0; /* reset main.css's flat card look */
+  animation: cardEntrance 0.25s ease;
+}
+.comment-bubble {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 9px 12px 8px;
+}
+.comment-item.is-reply > .comment-bubble {
+  background: rgba(79,125,255,0.07); border-color: rgba(79,125,255,0.22);
+}
+.comment-reply-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; color: var(--accent2);
+  background: rgba(79,125,255,0.14); border-radius: 8px;
+  padding: 2px 8px; margin-bottom: 6px;
+}
+.comment-reply-chip b { color: var(--accent2); font-weight: 800; }
+.comment-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.comment-avatar {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  background: #1565C0; color: #fff; font-size: 11px; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.comment-author { color: var(--accent2); font-weight: 800; font-size: 13px; text-decoration: none; }
+a.comment-author:hover { text-decoration: underline; }
+.comment-time { font-size: 10.5px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+.comment-text { font-size: 13px; color: var(--text2); line-height: 1.45; margin-top: 5px; margin-left: 33px; word-break: break-word; }
+.comment-photo { display: block; max-width: 220px; max-height: 220px; border-radius: 8px; margin-top: 6px; margin-left: 33px; }
+.comment-actions {
+  display: flex; align-items: center; gap: 2px;
+  margin-top: 6px; margin-left: 33px;
+}
+.comment-reply-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--accent2); font-size: 11px; font-weight: 700;
+  padding: 2px 6px; margin-left: -6px; border-radius: 6px;
+  transition: background .15s ease;
+}
+.comment-reply-btn:hover { background: rgba(79,125,255,0.12); }
+
+/* The thread "rail" -- a connecting line that visually groups every reply
+   underneath the comment it belongs to, the way Reddit/Slack-style threads
+   read at a glance. Nesting depth is capped (MAX_COMMENT_THREAD_DEPTH) so
+   indentation never eats the whole width on a phone. */
+.comment-children {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.comment-children:not(:empty) {
+  margin: 8px 0 0 13px; padding-left: 15px;
+  border-left: 2px solid var(--border2);
+}
+
+@media (max-width: 480px) {
+  .comment-list { max-height: 300px; }
+  .comment-children:not(:empty) { margin-left: 8px; padding-left: 10px; }
+  .comment-text, .comment-photo, .comment-actions { margin-left: 0; }
+  .comment-avatar { width: 24px; height: 24px; }
+}
+
+/* ── Profile page: same thread language, scoped to pc-* class names ── */
+.pc-item { background: none; padding: 0; border-radius: 0; font-size: inherit; }
+.pc-item.is-reply { border-left: none !important; background: none !important; padding: 0 !important; margin: 0 0 0 0 !important; border-radius: 0 !important; }
+.pc-item > div:first-child.pc-bubble,
+.pc-bubble {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 9px 11px 8px;
+}
+.pc-item.is-reply > .pc-bubble {
+  background: rgba(79,125,255,0.07); border-color: rgba(79,125,255,0.22);
+}
+.pc-children {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.pc-children:not(:empty) {
+  margin: 8px 0 0 13px; padding-left: 15px;
+  border-left: 2px solid var(--border2);
+}
+@media (max-width: 480px) {
+  .pc-children:not(:empty) { margin-left: 8px; padding-left: 10px; }
 }
