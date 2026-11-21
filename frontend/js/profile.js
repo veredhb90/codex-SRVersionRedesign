@@ -348,8 +348,8 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
           ${replyBtn}
           ${deleteBtn}
         </div>
-        ${item.displayText ? `<div class="pc-text" style="margin:6px 0 0 34px;">${item.displayText}</div>` : ''}
-        ${c.image ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" style="display:block;margin:6px 0 0 34px;max-width:200px;max-height:200px;border-radius:8px;"/></a>` : ''}
+        ${item.displayText ? `<div class="pc-text pc-indent">${item.displayText}</div>` : ''}
+        ${c.image ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" class="pc-photo pc-indent"/></a>` : ''}
       </div>
       ${childrenHtml}
     </div>`;

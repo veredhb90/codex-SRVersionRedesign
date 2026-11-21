@@ -2586,6 +2586,40 @@ a.comment-author:hover { text-decoration: underline; }
   margin: 8px 0 0 13px; padding-left: 15px;
   border-left: 2px solid var(--border2);
 }
+.pc-indent { margin-left: 34px; }
+.pc-photo { display: block; margin-top: 6px; max-width: 200px; max-height: 200px; border-radius: 8px; }
 @media (max-width: 480px) {
   .pc-children:not(:empty) { margin-left: 8px; padding-left: 10px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RTL MIRROR — SwingRush ships full Arabic/Hebrew RTL support, and every
+   indent/rail/push-to-end rule above is a physical left/right property
+   (doesn't auto-flip with dir="rtl"). Mirrored here the same way the rest
+   of the app's RTL fixes already do it (see e.g. html[dir="rtl"] .rec-time
+   above) -- feed's .comment-* and profile's .pc-* both need it.
+   ══════════════════════════════════════════════════════════════════════ */
+html[dir="rtl"] .comment-time {
+  margin-left: 0 !important; margin-right: auto !important; text-align: left !important;
+}
+html[dir="rtl"] .comment-text,
+html[dir="rtl"] .comment-photo,
+html[dir="rtl"] .comment-actions {
+  margin-left: 0; margin-right: 33px;
+}
+html[dir="rtl"] .comment-reply-btn { margin-left: 0; margin-right: -6px; }
+html[dir="rtl"] .comment-children:not(:empty) {
+  margin: 8px 13px 0 0; padding-left: 0; padding-right: 15px;
+  border-left: none; border-right: 2px solid var(--border2);
+}
+html[dir="rtl"] .pc-reply-btn { margin-left: 0 !important; margin-right: auto !important; }
+html[dir="rtl"] .pc-indent { margin-left: 0; margin-right: 34px; }
+html[dir="rtl"] .pc-children:not(:empty) {
+  margin: 8px 13px 0 0; padding-left: 0; padding-right: 15px;
+  border-left: none; border-right: 2px solid var(--border2);
+}
+@media (max-width: 480px) {
+  html[dir="rtl"] .comment-children:not(:empty) { margin-right: 8px; margin-left: 0; padding-right: 10px; padding-left: 0; }
+  html[dir="rtl"] .comment-text, html[dir="rtl"] .comment-photo, html[dir="rtl"] .comment-actions { margin-right: 0; }
+  html[dir="rtl"] .pc-children:not(:empty) { margin-right: 8px; margin-left: 0; padding-right: 10px; padding-left: 0; }
 }
