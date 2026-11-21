@@ -42,6 +42,8 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     pendingCommentImages.delete(recId);
     const preview = document.getElementById('pci-preview-' + recId);
     if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+    const attachBtn = document.querySelector('.pc-attach-btn[data-recid="' + recId + '"]');
+    if (attachBtn) attachBtn.classList.remove('has-image');
   }
 
   document.querySelectorAll('.nav-username').forEach(el => el.textContent = me?.username ? '@'+me.username : (me?.fullName||''));
@@ -310,7 +312,7 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
         <span class="pc-time" style="font-size:10.5px;">${timeAgo(c.createdAt||new Date())}</span>
         ${replyBtn}
       </div>
-      <div class="pc-text" style="margin:6px 0 0 34px;">${bodyText}</div>
+      ${bodyText ? `<div class="pc-text" style="margin:6px 0 0 34px;">${bodyText}</div>` : ''}
       ${c.image ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" style="display:block;margin:6px 0 0 34px;max-width:200px;max-height:200px;border-radius:8px;"/></a>` : ''}
     </div>`;
   };
@@ -404,11 +406,12 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     if (submitBtn) {
       const recId = submitBtn.dataset.recid;
       const inp   = document.getElementById('pci-' + recId);
-      const text  = inp?.value?.trim();
-      if (!text) return;
+      const text  = inp?.value?.trim() || '';
+      const stagedImage = pendingCommentImages.get(recId);
+      if (!text && !stagedImage) return;
       submitBtn.disabled = true;
       try {
-        const comment = await API.postComment(recId, text, inp.dataset.replyTo, pendingCommentImages.get(recId));
+        const comment = await API.postComment(recId, text, inp.dataset.replyTo, stagedImage);
         inp.value = '';
         clearPendingCommentImage(recId);
         const list = document.getElementById('pcl-' + recId);
@@ -492,17 +495,23 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     fileInput.value = '';
     if (!file) return;
     if (!/^image\/(jpeg|jpg|png|webp)$/.test(file.type)) {
-      toast(t('feed.comment_img_type_err', 'Please choose a JPEG, PNG or WebP image'), 'error');
+      const msg = /^image\/heic|^image\/heif/.test(file.type)
+        ? t('feed.comment_img_heic_err', 'iPhone HEIC photos aren\'t supported yet — in Settings > Camera > Formats, switch to "Most Compatible," or share a screenshot instead')
+        : t('feed.comment_img_type_err', 'Please choose a JPEG, PNG or WebP image');
+      toast(msg, 'error', 6000);
       return;
     }
     try {
       const dataUrl = await resizeImageToDataUrlFit(file, 800);
       pendingCommentImages.set(recId, dataUrl);
       const preview = document.getElementById('pci-preview-' + recId);
+      const attachBtn = document.querySelector('.pc-attach-btn[data-recid="' + recId + '"]');
+      if (attachBtn) attachBtn.classList.add('has-image');
       if (preview) {
         preview.style.display = 'flex';
-        preview.innerHTML = '<img src="' + dataUrl + '" style="max-height:60px;border-radius:6px;"/>' +
-          '<button type="button" class="pc-image-remove" data-recid="' + recId + '" style="margin-left:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;">✕</button>';
+        preview.innerHTML = '<img src="' + dataUrl + '"/>' +
+          '<span class="pc-image-preview-label">' + t('feed.photo_attached', 'Photo attached') + '</span>' +
+          '<button type="button" class="pc-image-remove" data-recid="' + recId + '" title="' + t('feed.remove_photo', 'Remove photo') + '">✕</button>';
       }
     } catch (err) {
       toast(err.message || t('feed.comment_img_load_err', 'Could not load image'), 'error');
@@ -879,11 +888,11 @@ function buildProfileCard(r, isOwn) {
           style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;background:var(--bg2);font-family:var(--font-body);transition:border-color .2s;"
           onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'"/>
         <input type="file" id="pci-image-${r._id}" class="pc-image-input" data-recid="${r._id}" accept="image/jpeg,image/png,image/webp" style="display:none;"/>
-        <button type="button" class="pc-attach-btn" data-recid="${r._id}" title="${t('feed.attach_photo','Attach photo')}" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0 4px;">📷</button>
+        <button type="button" class="pc-attach-btn" data-recid="${r._id}" title="${t('feed.attach_photo','Attach a photo')}" aria-label="${t('feed.attach_photo','Attach a photo')}">📷</button>
         <button class="btn btn-primary btn-sm"
           data-action="submit-comment" data-recid="${r._id}">${t('feed.post_btn','Post')}</button>
       </div>
-      <div class="pc-image-preview" id="pci-preview-${r._id}" style="display:none;align-items:center;margin-top:6px;"></div>
+      <div class="pc-image-preview" id="pci-preview-${r._id}"></div>
     </div>
   </div>`;
 }

@@ -41,6 +41,8 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     pendingCommentImages.delete(recId);
     const preview = document.getElementById('comment-img-preview-' + recId);
     if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+    const attachBtn = document.querySelector('.comment-attach-btn[data-id="' + recId + '"]');
+    if (attachBtn) attachBtn.classList.remove('has-image');
   }
 
   // ── Socket.io ──────────────────────────────────────────────
@@ -237,11 +239,12 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     if (commentSubmit) {
       const recId   = commentSubmit.dataset.id;
       const input   = document.getElementById('comment-input-' + recId);
-      const text    = input?.value?.trim();
-      if (!text) return;
+      const text    = input?.value?.trim() || '';
+      const stagedImage = pendingCommentImages.get(recId);
+      if (!text && !stagedImage) return;
       try {
         commentSubmit.disabled = true;
-        const comment = await API.postComment(recId, text, input.dataset.replyTo, pendingCommentImages.get(recId));
+        const comment = await API.postComment(recId, text, input.dataset.replyTo, stagedImage);
         const section = document.getElementById('comments-' + recId);
         appendComment(section, comment, recId);
         input.value = '';
@@ -432,17 +435,23 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     fileInput.value = ''; // allow re-picking the same file later
     if (!file) return;
     if (!/^image\/(jpeg|jpg|png|webp)$/.test(file.type)) {
-      toast(t('feed.comment_img_type_err', 'Please choose a JPEG, PNG or WebP image'), 'error');
+      const msg = /^image\/heic|^image\/heif/.test(file.type)
+        ? t('feed.comment_img_heic_err', 'iPhone HEIC photos aren\'t supported yet — in Settings > Camera > Formats, switch to "Most Compatible," or share a screenshot instead')
+        : t('feed.comment_img_type_err', 'Please choose a JPEG, PNG or WebP image');
+      toast(msg, 'error', 6000);
       return;
     }
     try {
       const dataUrl = await resizeImageToDataUrlFit(file, 800);
       pendingCommentImages.set(recId, dataUrl);
       const preview = document.getElementById('comment-img-preview-' + recId);
+      const attachBtn = document.querySelector('.comment-attach-btn[data-id="' + recId + '"]');
+      if (attachBtn) attachBtn.classList.add('has-image');
       if (preview) {
         preview.style.display = 'flex';
-        preview.innerHTML = '<img src="' + dataUrl + '" style="max-height:60px;border-radius:6px;"/>' +
-          '<button type="button" class="comment-image-remove" data-id="' + recId + '" style="margin-left:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;">✕</button>';
+        preview.innerHTML = '<img src="' + dataUrl + '"/>' +
+          '<span class="comment-image-preview-label">' + t('feed.photo_attached', 'Photo attached') + '</span>' +
+          '<button type="button" class="comment-image-remove" data-id="' + recId + '" title="' + t('feed.remove_photo', 'Remove photo') + '">✕</button>';
       }
     } catch (err) {
       toast(err.message || t('feed.comment_img_load_err', 'Could not load image'), 'error');
@@ -627,18 +636,24 @@ function renderCommentHtml(c, recId, depth) {
     ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" style="display:block;max-width:220px;max-height:220px;border-radius:8px;margin-top:6px;"/></a>`
     : '';
   if (m) {
+    const replyBody = m[2]
+      ? `<span style="font-size:13px;color:var(--text2);margin-left:8px;">${m[2]}</span>`
+      : '';
     return `<div id="comment-${commentId}" class="comment-item comment-reply" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin-left:${ind}px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;margin-top:4px;">
       <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">↩ Reply to <span style="color:var(--accent2);font-weight:700;">@${m[1]}</span></div>
       ${avatarSpan}${userLink}
-      <span style="font-size:13px;color:var(--text2);margin-left:8px;">${m[2]}</span>
+      ${replyBody}
       <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
       ${replyBtn}
       ${imageHtml}
     </div>`;
   }
+  const textBody = text
+    ? `<span style="font-size:13px;color:var(--text2);margin-left:8px;">${text}</span>`
+    : '';
   return `<div id="comment-${commentId}" class="comment-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}">
       ${avatarSpan}${userLink}
-      <span style="font-size:13px;color:var(--text2);margin-left:8px;">${text}</span>
+      ${textBody}
       <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
       ${replyBtn}
       ${imageHtml}
@@ -913,10 +928,10 @@ function buildCard(r) {
       <div class="comment-input-row">
         <input id="comment-input-${r._id}" type="text" class="comment-input" name="comment-text" autocomplete="off" data-lpignore="true" data-form-type="other" placeholder="${t('feed.comment_placeholder','Add a comment… (recommend, analyze, discuss)')}" maxlength="500"/>
         <input type="file" id="comment-image-input-${r._id}" class="comment-image-input" data-id="${r._id}" accept="image/jpeg,image/png,image/webp" style="display:none;"/>
-        <button type="button" class="comment-attach-btn" data-id="${r._id}" title="${t('feed.attach_photo','Attach photo')}" style="background:none;border:none;font-size:17px;cursor:pointer;padding:0 6px;">📷</button>
+        <button type="button" class="comment-attach-btn" data-id="${r._id}" title="${t('feed.attach_photo','Attach a photo')}" aria-label="${t('feed.attach_photo','Attach a photo')}">📷</button>
         <button class="btn btn-primary btn-sm comment-submit" data-id="${r._id}">${t('feed.post_btn','Post')}</button>
       </div>
-      <div class="comment-image-preview" id="comment-img-preview-${r._id}" style="display:none;align-items:center;margin-top:6px;"></div>
+      <div class="comment-image-preview" id="comment-img-preview-${r._id}"></div>
     </div>
   </div>`;
 }

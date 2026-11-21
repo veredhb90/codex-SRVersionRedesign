@@ -585,8 +585,8 @@ const COMMENT_IMAGE_DATAURL_RE = /^data:image\/(jpeg|jpg|png|webp);base64,/;
 // POST /api/recommendations/:id/comment
 router.post('/:id/comment', protect, async (req, res) => {
   try {
-    const { text, parentCommentId, image } = req.body;
-    if (!text?.trim()) return res.status(400).json({ message:'Comment cannot be empty' });
+    const { parentCommentId, image } = req.body;
+    const text = String(req.body.text || '').trim();
     let safeImage = null;
     if (image) {
       if (typeof image !== 'string' || !COMMENT_IMAGE_DATAURL_RE.test(image)) {
@@ -597,26 +597,30 @@ router.post('/:id/comment', protect, async (req, res) => {
       }
       safeImage = image;
     }
+    // A comment can be text-only, image-only, or both -- just not neither.
+    if (!text && !safeImage) return res.status(400).json({ message:'Comment cannot be empty' });
     const rec = await Recommendation.findById(req.params.id).populate('user','_id fullName email');
     if (!rec) return res.status(404).json({ message:'Not found' });
     if (parentCommentId && !rec.comments.id(parentCommentId)) {
       return res.status(400).json({ message:'Reply target was not found' });
     }
-    rec.comments.push({ user:req.user._id, text:text.trim(), parentCommentId: parentCommentId || null, image: safeImage });
+    rec.comments.push({ user:req.user._id, text, parentCommentId: parentCommentId || null, image: safeImage });
     await rec.save();
     await rec.populate('comments.user','fullName username avatar');
     const newComment = rec.comments[rec.comments.length-1];
     const io = req.app.get('io');
     io.emit('recommendation:comment', { recId:rec._id, comment:newComment });
+    // Fallback snippet for notifications/emails when the comment is image-only.
+    const notifyBody = text ? text.slice(0,60) : '📷 Sent a photo';
     // Notify rec owner
     if (String(rec.user._id) !== String(req.user._id)) {
       const isReply = Boolean(parentCommentId);
       io.notifyUser && io.notifyUser(String(rec.user._id), 'notification', {
         type:'comment', title:`💬 @${req.user.username||req.user.fullName} commented on your $${rec.symbol} trade`,
-        body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
+        body:notifyBody, recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
       });
       if (rec.user.email) {
-        sendCommentAlert(rec.user.email, '@' + (req.user.username || req.user.fullName), rec.symbol, text.trim(), rec._id, isReply)
+        sendCommentAlert(rec.user.email, '@' + (req.user.username || req.user.fullName), rec.symbol, notifyBody, rec._id, isReply)
           .catch(e => console.log('Comment alert email failed for', rec.user.email, ':', e.message));
       }
     }
@@ -630,7 +634,7 @@ router.post('/:id/comment', protect, async (req, res) => {
           if (String(mu._id) === String(rec.user._id)) return;
           io.notifyUser && io.notifyUser(String(mu._id), 'notification', {
             type:'comment', title:`↩ @${req.user.username||req.user.fullName} replied to you on $${rec.symbol}`,
-            body:text.trim().slice(0,60), recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
+            body:notifyBody, recId:rec._id, fromUser:String(req.user._id), avatar:req.user.avatar||null, time:new Date(),
           });
         });
       }
