@@ -757,9 +757,11 @@
         catalystsHtml + risksHtml +
         '</div>' +
         '<div style="margin-top:10px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + tt('home.eng_powered_by', 'Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + tt('scanner.pe_articles', 'articles') + '</div>' +
+        (window.srProShareButtonHtml ? window.srProShareButtonHtml(d) : '') +
         (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '') +
         '</div>';
       if (window.srAttachProAiExplore) window.srAttachProAiExplore(container, d);
+      if (window.srAttachProShare) window.srAttachProShare(container, d);
     } catch (err) {
       clearTimeout(_peAbortTimer);
       clearInterval(_peTicker);

@@ -10,6 +10,40 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
   let profileTradeFilter = 'all';
   let manualTrades = [];
 
+  // ── Comment photo attachments (profile comment box) ─────────────
+  // recId -> resized data URL, staged until the comment is actually posted.
+  const pendingCommentImages = new Map();
+
+  // Downscales to fit within maxDim, preserving aspect ratio — unlike the
+  // avatar resizer below, which force-crops to a square (wrong for a
+  // comment photo, often a chart screenshot).
+  function resizeImageToDataUrlFit(file, maxDim) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.onload = () => {
+        img.onerror = () => reject(new Error('Could not load image'));
+        img.onload = () => {
+          const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.78));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function clearPendingCommentImage(recId) {
+    pendingCommentImages.delete(recId);
+    const preview = document.getElementById('pci-preview-' + recId);
+    if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+  }
+
   document.querySelectorAll('.nav-username').forEach(el => el.textContent = me?.username ? '@'+me.username : (me?.fullName||''));
 
   async function loadProfile() {
@@ -88,6 +122,7 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     const followBtn  = document.getElementById('follow-btn');
     const repostsBox = document.getElementById('reposts-box');
     const engineBox  = document.getElementById('engine-box');
+    const proEngineBox = document.getElementById('pro-engine-box');
 
     if (isOwn) {
       shareBtn  && (shareBtn.style.display  = 'inline-flex');
@@ -98,6 +133,7 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
       if (tpBtn) tpBtn.style.display = 'inline-flex';
       repostsBox && (repostsBox.style.display = 'block');
       engineBox  && (engineBox.style.display  = 'block');
+      proEngineBox && (proEngineBox.style.display = 'block');
       // Educational explainer — own profile only
       const explainer = document.getElementById('profile-explainer');
       if (explainer) explainer.style.display = 'block';
@@ -179,17 +215,20 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
   // ── Render 3 boxes ─────────────────────────────────────────────
   function renderAllRecs(recs) {
     recs = [...recs].sort((a, b) => new Date(b.openedAt || b.createdAt) - new Date(a.openedAt || a.createdAt));
-    manualTrades     = recs.filter(r => !r.source || r.source === 'manual');
-    const reposts    = recs.filter(r => r.source === 'repost');
-    const engineRecs = recs.filter(r => r.source === 'engine');
+    manualTrades       = recs.filter(r => !r.source || r.source === 'manual');
+    const reposts      = recs.filter(r => r.source === 'repost');
+    const engineRecs   = recs.filter(r => r.source === 'engine');
+    const proEngineRecs = recs.filter(r => r.source === 'pro_engine');
 
     const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n + ' ' + t('feed.trades_suffix', 'trades'); };
     setCount('count-reposts', reposts.length);
     setCount('count-engine',  engineRecs.length);
+    setCount('count-pro-engine', proEngineRecs.length);
 
     renderProfileTrades();
     renderBox('profile-reposts',    reposts,    t('profile.no_reposts_yet', 'No reposts yet.'), isOwn);
     renderBox('profile-engine-recs',engineRecs, t('profile.no_engine_signals_yet', 'No engine signals saved yet.'), isOwn);
+    renderBox('profile-pro-engine-recs', proEngineRecs, t('profile.no_pro_engine_signals_yet', 'No Pro Engine signals saved yet.'), isOwn);
   }
 
   function renderProfileTrades() {
@@ -272,11 +311,23 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
         ${replyBtn}
       </div>
       <div class="pc-text" style="margin:6px 0 0 34px;">${bodyText}</div>
+      ${c.image ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" style="display:block;margin:6px 0 0 34px;max-width:200px;max-height:200px;border-radius:8px;"/></a>` : ''}
     </div>`;
   };
 
   // ── Event delegation for comments ──────────────────────────────
   document.addEventListener('click', async (e) => {
+    const pcAttachBtn = e.target.closest('.pc-attach-btn');
+    if (pcAttachBtn) {
+      const fi = document.getElementById('pci-image-' + pcAttachBtn.dataset.recid);
+      if (fi) fi.click();
+      return;
+    }
+    const pcRemoveImgBtn = e.target.closest('.pc-image-remove');
+    if (pcRemoveImgBtn) {
+      clearPendingCommentImage(pcRemoveImgBtn.dataset.recid);
+      return;
+    }
     const filterButton = e.target.closest('.profile-trade-filter');
     if (filterButton) {
       profileTradeFilter = filterButton.dataset.tradeFilter || 'all';
@@ -296,6 +347,23 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
         toast(err.message, 'error');
         unsaveBtn.disabled = false;
         unsaveBtn.textContent = t('profile.unsave_signal', 'Unsave Signal');
+      }
+      return;
+    }
+
+    const unsaveProBtn = e.target.closest('[data-action="unsave-pro-engine"]');
+    if (unsaveProBtn) {
+      const recId = unsaveProBtn.dataset.recid;
+      unsaveProBtn.disabled = true;
+      unsaveProBtn.textContent = t('profile.removing', 'Removing…');
+      try {
+        await API.unsaveProEngine(recId);
+        toast(t('profile.engine_trade_removed', 'Saved engine trade removed'), 'success');
+        window.reloadSwingRushProfile && window.reloadSwingRushProfile();
+      } catch (err) {
+        toast(err.message, 'error');
+        unsaveProBtn.disabled = false;
+        unsaveProBtn.textContent = t('profile.unsave_signal', 'Unsave Signal');
       }
       return;
     }
@@ -340,8 +408,9 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
       if (!text) return;
       submitBtn.disabled = true;
       try {
-        const comment = await API.postComment(recId, text, inp.dataset.replyTo);
+        const comment = await API.postComment(recId, text, inp.dataset.replyTo, pendingCommentImages.get(recId));
         inp.value = '';
+        clearPendingCommentImage(recId);
         const list = document.getElementById('pcl-' + recId);
         if (list) {
           const commentId = String(comment._id || '');
@@ -411,6 +480,33 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     if (!pcInput) return;
     const recId = pcInput.dataset.recid;
     document.querySelector(`[data-action="submit-comment"][data-recid="${recId}"]`)?.click();
+  });
+
+  // Staging a comment photo on the profile comment box — resize on pick,
+  // show a small preview, send on submit.
+  document.addEventListener('change', async (e) => {
+    const fileInput = e.target.closest('.pc-image-input');
+    if (!fileInput) return;
+    const recId = fileInput.dataset.recid;
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    if (!/^image\/(jpeg|jpg|png|webp)$/.test(file.type)) {
+      toast(t('feed.comment_img_type_err', 'Please choose a JPEG, PNG or WebP image'), 'error');
+      return;
+    }
+    try {
+      const dataUrl = await resizeImageToDataUrlFit(file, 800);
+      pendingCommentImages.set(recId, dataUrl);
+      const preview = document.getElementById('pci-preview-' + recId);
+      if (preview) {
+        preview.style.display = 'flex';
+        preview.innerHTML = '<img src="' + dataUrl + '" style="max-height:60px;border-radius:6px;"/>' +
+          '<button type="button" class="pc-image-remove" data-recid="' + recId + '" style="margin-left:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;">✕</button>';
+      }
+    } catch (err) {
+      toast(err.message || t('feed.comment_img_load_err', 'Could not load image'), 'error');
+    }
   });
 
   // ── Share Form ─────────────────────────────────────────────────
@@ -739,6 +835,7 @@ function buildProfileCard(r, isOwn) {
       </div>
       <span class="${isBuy?'badge-buy':'badge-sell'}">${isBuy?'▲':'▼'} ${r.direction}</span>
       ${outcomeBadge}
+      ${r.source === 'pro_engine' ? '<span style="font-size:10px;background:linear-gradient(135deg,#F5D061,#E0A93B);color:#3a2e08;padding:2px 7px;border-radius:4px;font-weight:800;letter-spacing:.5px;">🧠 ' + t('feed.pro_engine_tag','PRO ENGINE') + '</span>' : ''}
       <div class="rec-time rec-opened-date" style="margin-left:auto;" title="Trade opened date">${t('feed.opened_label','Opened')} · ${openedDate}</div>
     </div>
     ${repostOrigin}
@@ -767,6 +864,8 @@ function buildProfileCard(r, isOwn) {
       </button>` : ''}
       ${isOwn && r.source==='engine' ? `<button class="btn btn-sm btn-outline" data-action="unsave-engine" data-recid="${r._id}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.unsave_signal','Unsave Signal')}</button>` : ''}
+      ${isOwn && r.source==='pro_engine' ? `<button class="btn btn-sm btn-outline" data-action="unsave-pro-engine" data-recid="${r._id}"
+        style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.unsave_signal','Unsave Signal')}</button>` : ''}
       ${isOwn && r.isOpen && (!r.source || r.source === 'manual') ? `<button type="button" class="btn btn-sm btn-outline" onclick="openCloseCall('${r._id}','${r.symbol}',${Number(r.entryPrice)},'${r.direction}')" style="font-size:12px;padding:5px 10px;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.close_trade_btn','Close Trade')}</button>` : ''}
     </div>
     ${r.note?`<div class="rec-note">"${r.note}"</div>`:''}
@@ -779,9 +878,12 @@ function buildProfileCard(r, isOwn) {
           placeholder="${t('profile.comment_placeholder','Add a comment… (Enter to post)')}" maxlength="500"
           style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none;background:var(--bg2);font-family:var(--font-body);transition:border-color .2s;"
           onfocus="this.style.borderColor='var(--accent2)'" onblur="this.style.borderColor='var(--border)'"/>
+        <input type="file" id="pci-image-${r._id}" class="pc-image-input" data-recid="${r._id}" accept="image/jpeg,image/png,image/webp" style="display:none;"/>
+        <button type="button" class="pc-attach-btn" data-recid="${r._id}" title="${t('feed.attach_photo','Attach photo')}" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0 4px;">📷</button>
         <button class="btn btn-primary btn-sm"
           data-action="submit-comment" data-recid="${r._id}">${t('feed.post_btn','Post')}</button>
       </div>
+      <div class="pc-image-preview" id="pci-preview-${r._id}" style="display:none;align-items:center;margin-top:6px;"></div>
     </div>
   </div>`;
 }

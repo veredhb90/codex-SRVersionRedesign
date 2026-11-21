@@ -9,6 +9,40 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
   const feedEl      = document.getElementById('feed-list');
   const loadMoreBtn = document.getElementById('load-more');
 
+  // ── Comment photo attachments ────────────────────────────────
+  // recId -> resized data URL, staged until the comment is actually posted.
+  const pendingCommentImages = new Map();
+
+  // Downscales to fit within maxDim on the longest side, preserving aspect
+  // ratio (unlike profile.js's avatar resizer, which force-crops to a square
+  // — wrong here since a comment photo is often a chart screenshot).
+  function resizeImageToDataUrlFit(file, maxDim) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.onload = () => {
+        img.onerror = () => reject(new Error('Could not load image'));
+        img.onload = () => {
+          const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.78));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function clearPendingCommentImage(recId) {
+    pendingCommentImages.delete(recId);
+    const preview = document.getElementById('comment-img-preview-' + recId);
+    if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+  }
+
   // ── Socket.io ──────────────────────────────────────────────
   const socket = io();
 
@@ -125,6 +159,21 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
   }
 
   feedEl.addEventListener('click', async (e) => {
+    // Attach-photo button opens the hidden file input
+    const attachBtn = e.target.closest('.comment-attach-btn');
+    if (attachBtn) {
+      const fi = document.getElementById('comment-image-input-' + attachBtn.dataset.id);
+      if (fi) fi.click();
+      return;
+    }
+
+    // Remove a staged (not-yet-posted) comment photo
+    const removeImgBtn = e.target.closest('.comment-image-remove');
+    if (removeImgBtn) {
+      clearPendingCommentImage(removeImgBtn.dataset.id);
+      return;
+    }
+
     // Reply to a comment — prefill @username
     const replyBtn = e.target.closest('.comment-reply-btn');
     if (replyBtn) {
@@ -192,12 +241,13 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
       if (!text) return;
       try {
         commentSubmit.disabled = true;
-        const comment = await API.postComment(recId, text, input.dataset.replyTo);
+        const comment = await API.postComment(recId, text, input.dataset.replyTo, pendingCommentImages.get(recId));
         const section = document.getElementById('comments-' + recId);
         appendComment(section, comment, recId);
         input.value = '';
         delete input.dataset.replyTo;
         input.placeholder = t('feed.comment_placeholder', 'Add a comment… (recommend, analyze, discuss)');
+        clearPendingCommentImage(recId);
         const count = document.querySelector(`[data-recid="${recId}"] .comment-count`);
         if (count) count.textContent = parseInt(count.textContent||0) + 1;
       } catch (err) { toast(err.message, 'error'); }
@@ -373,6 +423,32 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
   refreshLivePrices(); // run immediately on load
   setInterval(refreshLivePrices, 30000); // then every 30s
 
+  // Staging a comment photo — resize on pick, show a small preview, send on submit
+  feedEl.addEventListener('change', async (e) => {
+    const fileInput = e.target.closest('.comment-image-input');
+    if (!fileInput) return;
+    const recId = fileInput.dataset.id;
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = ''; // allow re-picking the same file later
+    if (!file) return;
+    if (!/^image\/(jpeg|jpg|png|webp)$/.test(file.type)) {
+      toast(t('feed.comment_img_type_err', 'Please choose a JPEG, PNG or WebP image'), 'error');
+      return;
+    }
+    try {
+      const dataUrl = await resizeImageToDataUrlFit(file, 800);
+      pendingCommentImages.set(recId, dataUrl);
+      const preview = document.getElementById('comment-img-preview-' + recId);
+      if (preview) {
+        preview.style.display = 'flex';
+        preview.innerHTML = '<img src="' + dataUrl + '" style="max-height:60px;border-radius:6px;"/>' +
+          '<button type="button" class="comment-image-remove" data-id="' + recId + '" style="margin-left:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;">✕</button>';
+      }
+    } catch (err) {
+      toast(err.message || t('feed.comment_img_load_err', 'Could not load image'), 'error');
+    }
+  });
+
   loadFeed();
   window.updatePopular = updatePopular;
 })();
@@ -547,6 +623,9 @@ function renderCommentHtml(c, recId, depth) {
   const userLink = c.user?._id
     ? `<a href="/profile.html?id=${c.user._id}" style="color:var(--accent2);font-weight:700;font-size:13px;text-decoration:none;">${uname}</a>`
     : `<strong style="color:var(--accent2);font-size:13px;">${uname}</strong>`;
+  const imageHtml = c.image
+    ? `<a href="${c.image}" target="_blank" rel="noopener"><img src="${c.image}" style="display:block;max-width:220px;max-height:220px;border-radius:8px;margin-top:6px;"/></a>`
+    : '';
   if (m) {
     return `<div id="comment-${commentId}" class="comment-item comment-reply" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}" style="margin-left:${ind}px;border-left:2.5px solid var(--accent2);padding:6px 10px;background:rgba(21,101,192,0.05);border-radius:0 10px 10px 0;margin-top:4px;">
       <div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">↩ Reply to <span style="color:var(--accent2);font-weight:700;">@${m[1]}</span></div>
@@ -554,6 +633,7 @@ function renderCommentHtml(c, recId, depth) {
       <span style="font-size:13px;color:var(--text2);margin-left:8px;">${m[2]}</span>
       <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
       ${replyBtn}
+      ${imageHtml}
     </div>`;
   }
   return `<div id="comment-${commentId}" class="comment-item" data-comment-id="${commentId}" data-author="${dataU.toLowerCase()}">
@@ -561,6 +641,7 @@ function renderCommentHtml(c, recId, depth) {
       <span style="font-size:13px;color:var(--text2);margin-left:8px;">${text}</span>
       <span style="font-size:11px;color:var(--muted);margin-left:8px;">${timeAgo(c.createdAt||new Date())}</span>
       ${replyBtn}
+      ${imageHtml}
     </div>`;
 }
 
@@ -783,6 +864,7 @@ function buildCard(r) {
       <span class="${isBuy?'badge-buy':'badge-sell'}">${isBuy?'▲':'▼'} ${r.direction}</span>
       ${outcomeBadge}
       ${r.source === 'engine' ? '<span style="font-size:10px;background:#e8f0fe;color:#1565c0;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">⚡ ' + t('feed.engine_tag','ENGINE') + '</span>' : ''}
+      ${r.source === 'pro_engine' ? '<span style="font-size:10px;background:linear-gradient(135deg,#F5D061,#E0A93B);color:#3a2e08;padding:2px 7px;border-radius:4px;font-weight:800;letter-spacing:.5px;">🧠 ' + t('feed.pro_engine_tag','PRO ENGINE') + '</span>' : ''}
       ${r.source === 'repost' ? '<span style="font-size:10px;background:#f3e5f5;color:#7b1fa2;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">↩ ' + t('feed.repost_title','REPOST') + '</span>' : ''}
       <div class="rec-time rec-opened-date" title="Trade opened date">${t('feed.opened_label','Opened')} · ${openedDate}</div>
     </div>
@@ -830,8 +912,11 @@ function buildCard(r) {
       <div class="comment-list">${commentsHtml}</div>
       <div class="comment-input-row">
         <input id="comment-input-${r._id}" type="text" class="comment-input" name="comment-text" autocomplete="off" data-lpignore="true" data-form-type="other" placeholder="${t('feed.comment_placeholder','Add a comment… (recommend, analyze, discuss)')}" maxlength="500"/>
+        <input type="file" id="comment-image-input-${r._id}" class="comment-image-input" data-id="${r._id}" accept="image/jpeg,image/png,image/webp" style="display:none;"/>
+        <button type="button" class="comment-attach-btn" data-id="${r._id}" title="${t('feed.attach_photo','Attach photo')}" style="background:none;border:none;font-size:17px;cursor:pointer;padding:0 6px;">📷</button>
         <button class="btn btn-primary btn-sm comment-submit" data-id="${r._id}">${t('feed.post_btn','Post')}</button>
       </div>
+      <div class="comment-image-preview" id="comment-img-preview-${r._id}" style="display:none;align-items:center;margin-top:6px;"></div>
     </div>
   </div>`;
 }
@@ -1219,9 +1304,11 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
       '</div>' +
 
       '<div style="margin-top:12px;text-align:center;font-size:10px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      (window.srProShareButtonHtml ? window.srProShareButtonHtml(d) : '') +
       (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '') +
       '</div>';
     if (window.srAttachProAiExplore) window.srAttachProAiExplore(container, d);
+    if (window.srAttachProShare) window.srAttachProShare(container, d);
   } catch (err) {
     clearInterval(_peTimer);
     var msg = err.name === 'AbortError' ? t('feed.pe_timeout','Analysis timed out — please try again.') : t('feed.pe_failed','AI Pro Analysis failed to load.');
@@ -1343,9 +1430,11 @@ window.runProEngineModal = async function() {
       '</div>' +
 
       '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      (window.srProShareButtonHtml ? window.srProShareButtonHtml(d) : '') +
       (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '') +
       '</div>';
     if (window.srAttachProAiExplore) window.srAttachProAiExplore(resultEl, d);
+    if (window.srAttachProShare) window.srAttachProShare(resultEl, d);
   } catch (err) {
     clearInterval(_peModalTimer);
     var modalMsg = err.name === 'AbortError' ? t('feed.pe_timeout','Analysis timed out — please try again.') : t('feed.pe_failed_generic','Analysis failed to load.');

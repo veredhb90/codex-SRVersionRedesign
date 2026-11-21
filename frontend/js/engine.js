@@ -289,6 +289,7 @@
       }
       body.innerHTML = renderProEngineResult(d);
       if (window.srAttachProAiExplore) window.srAttachProAiExplore(body, d);
+      if (window.srAttachProShare) window.srAttachProShare(body, d);
     } catch (err) {
       body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">' + t('home.eng_pro_failed', 'AI Pro Engine failed to load. Please try again.') + '</p>';
     }
@@ -328,6 +329,7 @@
         catalysts + risks +
       '</div>' +
       '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by', 'Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed', 'articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached', 'cached') : '') + '</div>' +
+      (window.srProShareButtonHtml ? window.srProShareButtonHtml(d) : '') +
       (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '');
   }
 })();

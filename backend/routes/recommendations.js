@@ -454,6 +454,49 @@ router.post('/engine-save', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
 
+// POST /api/recommendations/pro-engine-save — save an AI Pro Engine signal to
+// the user's profile as a trade, marked distinctly from a manual trade or a
+// free Signal Engine save. Same shape/backdating logic as POST /engine-save
+// above; a NEUTRAL Pro Engine result has no entry/TP/SL, so there's nothing
+// to post as a trade.
+router.post('/pro-engine-save', protect, async (req, res) => {
+  try {
+    const { symbol,entryPrice,takeProfit,stopLoss,direction,note,reportId } = req.body;
+    if (direction !== 'BUY' && direction !== 'SELL') {
+      return res.status(400).json({ message:'Only a BUY or SELL Pro Engine signal can be saved as a trade' });
+    }
+    if (!takeProfit) return res.status(400).json({ message:'This Pro Engine result has no take profit to save' });
+    const sym = symbol.toUpperCase();
+    const entry = Number(entryPrice);
+    let openedAt = new Date();
+    try {
+      const quote = await yf.getQuote(sym);
+      if (quote?.price && Math.abs(quote.price - entry) > 0.005) {
+        openedAt = await yf.findLastPriceTouch(sym, entry) || openedAt;
+      }
+    } catch (_) {}
+    const rec = await Recommendation.create({
+      user:req.user._id, symbol:sym, companyName:sym,
+      entryPrice:entry, takeProfit:Number(takeProfit),
+      stopLoss:stopLoss?Number(stopLoss):null, direction, note,
+      currentPrice:entry, openedAt, source:'pro_engine', profileOnly:true,
+      proReportId: reportId ? String(reportId) : null,
+    });
+    await rec.populate('user','fullName username email avatar');
+    res.status(201).json(rec);
+  } catch (err) { res.status(500).json({ message:err.message }); }
+});
+
+// DELETE /api/recommendations/:id/pro-engine-save — remove an owner-saved Pro Engine trade.
+router.delete('/:id/pro-engine-save', protect, async (req, res) => {
+  try {
+    const rec = await Recommendation.findOne({ _id:req.params.id, user:req.user._id, source:'pro_engine' });
+    if (!rec) return res.status(404).json({ message:'Saved Pro Engine trade not found' });
+    await rec.deleteOne();
+    res.json({ message:'Saved Pro Engine trade removed' });
+  } catch (err) { res.status(500).json({ message:err.message }); }
+});
+
 // POST /api/recommendations/:id/repost
 router.post('/:id/repost', protect, async (req, res) => {
   try {
@@ -533,17 +576,33 @@ router.get('/:id/likes', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
 
+// The client resizes/compresses to a reasonably small photo before sending --
+// this cap is just a safety net against someone bypassing that, same approach
+// as the avatar upload cap in routes/users.js.
+const MAX_COMMENT_IMAGE_DATAURL_LENGTH = 500_000; // ~375KB decoded
+const COMMENT_IMAGE_DATAURL_RE = /^data:image\/(jpeg|jpg|png|webp);base64,/;
+
 // POST /api/recommendations/:id/comment
 router.post('/:id/comment', protect, async (req, res) => {
   try {
-    const { text, parentCommentId } = req.body;
+    const { text, parentCommentId, image } = req.body;
     if (!text?.trim()) return res.status(400).json({ message:'Comment cannot be empty' });
+    let safeImage = null;
+    if (image) {
+      if (typeof image !== 'string' || !COMMENT_IMAGE_DATAURL_RE.test(image)) {
+        return res.status(400).json({ message:'Image must be a JPEG, PNG or WebP data URL' });
+      }
+      if (image.length > MAX_COMMENT_IMAGE_DATAURL_LENGTH) {
+        return res.status(413).json({ message:'Image too large — please use a smaller photo' });
+      }
+      safeImage = image;
+    }
     const rec = await Recommendation.findById(req.params.id).populate('user','_id fullName email');
     if (!rec) return res.status(404).json({ message:'Not found' });
     if (parentCommentId && !rec.comments.id(parentCommentId)) {
       return res.status(400).json({ message:'Reply target was not found' });
     }
-    rec.comments.push({ user:req.user._id, text:text.trim(), parentCommentId: parentCommentId || null });
+    rec.comments.push({ user:req.user._id, text:text.trim(), parentCommentId: parentCommentId || null, image: safeImage });
     await rec.save();
     await rec.populate('comments.user','fullName username avatar');
     const newComment = rec.comments[rec.comments.length-1];

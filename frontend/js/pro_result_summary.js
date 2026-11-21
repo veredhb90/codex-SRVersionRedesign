@@ -117,4 +117,48 @@
         '</div>' +
       '</div></div>';
   };
+
+  // ── Share a Pro Engine BUY/SELL signal to the profile as a marked trade ──
+  // Mirrors srProAiExploreButtonHtml/srAttachProAiExplore (chat.js) so every
+  // Pro Engine result surface gets this with one added line, same as that
+  // button did. A NEUTRAL result (or one with no take profit) has no trade
+  // to post, so the button simply doesn't render.
+  window.srProShareButtonHtml = function (data) {
+    if (!data || (data.direction !== 'BUY' && data.direction !== 'SELL') || !data.takeProfit) return '';
+    return '<button type="button" class="sr-pro-share-trade" data-sr-pro-share>' +
+      '<span aria-hidden="true">🧠</span> ' +
+      t('home.eng_share_pro_signal', 'Post this Pro Engine signal to my profile') +
+      '</button>';
+  };
+
+  window.srAttachProShare = function (container, data) {
+    if (!container || !data) return;
+    var button = container.querySelector('[data-sr-pro-share]');
+    if (!button) return;
+    button.addEventListener('click', async function () {
+      if (!window.API || !window.Auth || !Auth.token || !Auth.token()) {
+        if (window.toast) toast(t('home.eng_login_to_save', 'Login to save engine recommendations to your profile'), 'info');
+        return;
+      }
+      button.disabled = true;
+      button.textContent = t('home.eng_saving', 'Saving…');
+      try {
+        await API.proEngineShare({
+          symbol: data.symbol,
+          entryPrice: data.price,
+          takeProfit: data.takeProfit,
+          stopLoss: data.stopLoss,
+          direction: data.direction,
+          note: '🧠 Pro Engine: ' + (data.confidence || '') + ' confidence · Score ' + (data.score > 0 ? '+' : '') + data.score + (data.newsLabel ? ' · ' + data.newsLabel : ''),
+          reportId: data.reportId || undefined,
+        });
+        if (window.toast) toast('✅ ' + t('home.eng_saved_toast', 'Saved to your profile!'), 'success', 4000);
+        button.innerHTML = '<span aria-hidden="true">✓</span> ' + t('profile.pro_engine_saved_btn', 'Saved to Profile');
+      } catch (err) {
+        if (window.toast) toast(err.message, 'error');
+        button.disabled = false;
+        button.innerHTML = '<span aria-hidden="true">🧠</span> ' + t('home.eng_share_pro_signal', 'Post this Pro Engine signal to my profile');
+      }
+    });
+  };
 })();

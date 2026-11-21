@@ -4,6 +4,7 @@ const commentSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   text: { type: String, required: true, maxlength: 500 },
   parentCommentId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  image: { type: String, default: null },
 }, { timestamps: true });
 
 const recommendationSchema = new mongoose.Schema({
@@ -28,7 +29,8 @@ const recommendationSchema = new mongoose.Schema({
   comments:     [commentSchema],
 
   // Source tracking
-  source:       { type: String, enum: ['manual', 'engine', 'repost'], default: 'manual' },
+  source:       { type: String, enum: ['manual', 'engine', 'pro_engine', 'repost'], default: 'manual' },
+  proReportId:  { type: String, default: null },
   repostedFrom: { type: mongoose.Schema.Types.ObjectId, ref: 'Recommendation', default: null },
   repostedBy:   [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
