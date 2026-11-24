@@ -454,11 +454,14 @@ router.post('/engine-save', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ message:err.message }); }
 });
 
-// POST /api/recommendations/pro-engine-save — save an AI Pro Engine signal to
-// the user's profile as a trade, marked distinctly from a manual trade or a
-// free Signal Engine save. Same shape/backdating logic as POST /engine-save
-// above; a NEUTRAL Pro Engine result has no entry/TP/SL, so there's nothing
-// to post as a trade.
+// POST /api/recommendations/pro-engine-save — save an AI Pro Engine signal as
+// a real open position: it appears in the feed, following feed, and the
+// owner's normal trade list exactly like a manual trade (profileOnly:false,
+// no dedicated section). source stays 'pro_engine' purely so the owner can
+// see their own "recommended by Pro Engine" tag and unsave it — other
+// viewers see an ordinary, unmarked trade (gated client-side by isOwn).
+// Same shape/backdating logic as POST /engine-save above; a NEUTRAL Pro
+// Engine result has no entry/TP/SL, so there's nothing to post as a trade.
 router.post('/pro-engine-save', protect, async (req, res) => {
   try {
     const { symbol,entryPrice,takeProfit,stopLoss,direction,note,reportId } = req.body;
@@ -479,7 +482,7 @@ router.post('/pro-engine-save', protect, async (req, res) => {
       user:req.user._id, symbol:sym, companyName:sym,
       entryPrice:entry, takeProfit:Number(takeProfit),
       stopLoss:stopLoss?Number(stopLoss):null, direction, note,
-      currentPrice:entry, openedAt, source:'pro_engine', profileOnly:true,
+      currentPrice:entry, openedAt, source:'pro_engine', profileOnly:false,
       proReportId: reportId ? String(reportId) : null,
     });
     await rec.populate('user','fullName username email avatar');

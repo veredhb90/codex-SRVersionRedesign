@@ -146,7 +146,6 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     const followBtn  = document.getElementById('follow-btn');
     const repostsBox = document.getElementById('reposts-box');
     const engineBox  = document.getElementById('engine-box');
-    const proEngineBox = document.getElementById('pro-engine-box');
 
     if (isOwn) {
       shareBtn  && (shareBtn.style.display  = 'inline-flex');
@@ -157,7 +156,6 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
       if (tpBtn) tpBtn.style.display = 'inline-flex';
       repostsBox && (repostsBox.style.display = 'block');
       engineBox  && (engineBox.style.display  = 'block');
-      proEngineBox && (proEngineBox.style.display = 'block');
       // Educational explainer — own profile only
       const explainer = document.getElementById('profile-explainer');
       if (explainer) explainer.style.display = 'block';
@@ -236,23 +234,24 @@ function t(key, fallback) { return window.SRLang ? SRLang.t(key, fallback) : fal
     setPerformanceTone('stat-winrate', s.closed > 0 ? (s.winRate >= 50 ? 1 : -1) : 0);
   }
 
-  // ── Render 3 boxes ─────────────────────────────────────────────
+  // ── Render boxes ─────────────────────────────────────────────
   function renderAllRecs(recs) {
     recs = [...recs].sort((a, b) => new Date(b.openedAt || b.createdAt) - new Date(a.openedAt || a.createdAt));
-    manualTrades       = recs.filter(r => !r.source || r.source === 'manual');
+    // Pro Engine saves are real open positions now -- they belong in the
+    // normal trade list with everyone else's trades, not a dedicated
+    // owner-only section. Only the "recommended by Pro Engine" tag on the
+    // card itself stays owner-only (gated in the card template below).
+    manualTrades       = recs.filter(r => !r.source || r.source === 'manual' || r.source === 'pro_engine');
     const reposts      = recs.filter(r => r.source === 'repost');
     const engineRecs   = recs.filter(r => r.source === 'engine');
-    const proEngineRecs = recs.filter(r => r.source === 'pro_engine');
 
     const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n + ' ' + t('feed.trades_suffix', 'trades'); };
     setCount('count-reposts', reposts.length);
     setCount('count-engine',  engineRecs.length);
-    setCount('count-pro-engine', proEngineRecs.length);
 
     renderProfileTrades();
     renderBox('profile-reposts',    reposts,    t('profile.no_reposts_yet', 'No reposts yet.'), isOwn);
     renderBox('profile-engine-recs',engineRecs, t('profile.no_engine_signals_yet', 'No engine signals saved yet.'), isOwn);
-    renderBox('profile-pro-engine-recs', proEngineRecs, t('profile.no_pro_engine_signals_yet', 'No Pro Engine signals saved yet.'), isOwn);
   }
 
   function renderProfileTrades() {
@@ -922,7 +921,7 @@ function buildProfileCard(r, isOwn) {
       </div>
       <span class="${isBuy?'badge-buy':'badge-sell'}">${isBuy?'▲':'▼'} ${r.direction}</span>
       ${outcomeBadge}
-      ${r.source === 'pro_engine' ? '<span style="font-size:10px;background:linear-gradient(135deg,#F5D061,#E0A93B);color:#3a2e08;padding:2px 7px;border-radius:4px;font-weight:800;letter-spacing:.5px;">🧠 ' + t('feed.pro_engine_tag','PRO ENGINE') + '</span>' : ''}
+      ${isOwn && r.source === 'pro_engine' ? '<span style="font-size:10px;background:linear-gradient(135deg,#F5D061,#E0A93B);color:#3a2e08;padding:2px 7px;border-radius:4px;font-weight:800;letter-spacing:.5px;">🧠 ' + t('feed.pro_engine_tag','PRO ENGINE') + '</span>' : ''}
       <div class="rec-time rec-opened-date" style="margin-left:auto;" title="Trade opened date">${t('feed.opened_label','Opened')} · ${openedDate}</div>
     </div>
     ${repostOrigin}
@@ -953,9 +952,9 @@ function buildProfileCard(r, isOwn) {
         style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.unsave_signal','Unsave Signal')}</button>` : ''}
       ${isOwn && r.source==='pro_engine' ? `<button class="btn btn-sm btn-outline" data-action="unsave-pro-engine" data-recid="${r._id}"
         style="font-size:12px;padding:5px 10px;cursor:pointer;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.unsave_signal','Unsave Signal')}</button>` : ''}
-      ${isOwn && r.isOpen && (!r.source || r.source === 'manual') ? `<button type="button" class="btn btn-sm btn-outline" onclick="openCloseCall('${r._id}','${r.symbol}',${Number(r.entryPrice)},'${r.direction}')" style="font-size:12px;padding:5px 10px;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.close_trade_btn','Close Trade')}</button>` : ''}
+      ${isOwn && r.isOpen && (!r.source || r.source === 'manual' || r.source === 'pro_engine') ? `<button type="button" class="btn btn-sm btn-outline" onclick="openCloseCall('${r._id}','${r.symbol}',${Number(r.entryPrice)},'${r.direction}')" style="font-size:12px;padding:5px 10px;color:var(--gold);border-color:rgba(246,183,60,.5);">${t('profile.close_trade_btn','Close Trade')}</button>` : ''}
     </div>
-    ${r.note?`<div class="rec-note">"${r.note}"</div>`:''}
+    ${r.note && (r.source !== 'pro_engine' || isOwn) ? `<div class="rec-note">"${r.note}"</div>` : ''}
     <div id="pcs-${r._id}" style="display:none;margin-top:10px;border-top:1px solid var(--bg3);padding-top:10px;">
       <div id="pcl-${r._id}" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;max-height:200px;overflow-y:auto;">
         ${commentsHtml}

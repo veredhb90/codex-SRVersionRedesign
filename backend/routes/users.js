@@ -111,7 +111,11 @@ router.get('/:id', protect, async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
     const recs = await Recommendation.find({
       user: req.params.id,
-      $or: [{ source: 'manual' }, { source: 'repost' }, { source: { $exists: false } }]
+      // pro_engine trades are now real open positions, shown to other
+      // viewers like any other trade (the "recommended by Pro Engine" tag
+      // itself is gated client-side to the owner). The free Signal Engine's
+      // 'engine' source stays owner-only/private, unchanged.
+      $or: [{ source: 'manual' }, { source: 'repost' }, { source: 'pro_engine' }, { source: { $exists: false } }]
     })
       .sort({ openedAt: -1, createdAt: -1 })
       .populate('comments.user', 'fullName username')

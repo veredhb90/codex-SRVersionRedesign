@@ -943,6 +943,9 @@ function buildCard(r) {
   const viewer = Auth.user();
   const viewerId = String(viewer?._id || viewer?.id || '');
   const likedByViewer = (r.likes || []).some(like => String(like?._id || like) === viewerId);
+  // The "recommended by Pro Engine" tag is private to the trade's owner --
+  // everyone else just sees a normal trade, same as any manual post.
+  const recIsOwn = viewerId && viewerId === String(r.user?._id || r.user || '');
 
   const commentsHtml = renderCommentList(r.comments||[], r._id);
 
@@ -961,7 +964,7 @@ function buildCard(r) {
       <span class="${isBuy?'badge-buy':'badge-sell'}">${isBuy?'▲':'▼'} ${r.direction}</span>
       ${outcomeBadge}
       ${r.source === 'engine' ? '<span style="font-size:10px;background:#e8f0fe;color:#1565c0;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">⚡ ' + t('feed.engine_tag','ENGINE') + '</span>' : ''}
-      ${r.source === 'pro_engine' ? '<span style="font-size:10px;background:linear-gradient(135deg,#F5D061,#E0A93B);color:#3a2e08;padding:2px 7px;border-radius:4px;font-weight:800;letter-spacing:.5px;">🧠 ' + t('feed.pro_engine_tag','PRO ENGINE') + '</span>' : ''}
+      ${recIsOwn && r.source === 'pro_engine' ? '<span style="font-size:10px;background:linear-gradient(135deg,#F5D061,#E0A93B);color:#3a2e08;padding:2px 7px;border-radius:4px;font-weight:800;letter-spacing:.5px;">🧠 ' + t('feed.pro_engine_tag','PRO ENGINE') + '</span>' : ''}
       ${r.source === 'repost' ? '<span style="font-size:10px;background:#f3e5f5;color:#7b1fa2;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.5px;">↩ ' + t('feed.repost_title','REPOST') + '</span>' : ''}
       <div class="rec-time rec-opened-date" title="Trade opened date">${t('feed.opened_label','Opened')} · ${openedDate}</div>
     </div>
@@ -1004,7 +1007,7 @@ function buildCard(r) {
         return `<button class="repost-btn btn btn-sm btn-outline" data-id="${r._id}" data-reposted="${alreadyReposted}" style="font-size:12px;${style}">${label}</button>`;
       })()}
     </div>
-    ${r.note?`<div class="rec-note">"${r.note}"</div>`:''}
+    ${r.note && (r.source !== 'pro_engine' || recIsOwn) ? `<div class="rec-note">"${r.note}"</div>` : ''}
     <div id="comments-${r._id}" class="comments-section" style="display:none;">
       <div class="comment-list">${commentsHtml}</div>
       <div class="comment-input-row">
