@@ -34,6 +34,104 @@
   --font-disp: 'Space Grotesk', 'DM Sans', sans-serif;
   --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  /* A flat low-opacity fill used for "glass chip" surfaces that sit directly
+     on the page background (inputs, outline buttons, stat chips) rather than
+     on a solid card. Kept as a token so the light theme below can flip it
+     from a white tint to a dark tint without hunting every literal rgba(). */
+  --chip-tint: rgba(255, 255, 255, 0.04);
+  --chip-tint-hover: rgba(255, 255, 255, 0.07);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Light "Spring" theme — applied only to the logged-in app pages (feed,
+   scanner, profile). Landing, login/register, admin, and contact pages
+   keep the original dark theme untouched; they never get this class.
+   ───────────────────────────────────────────────────────────────────── */
+html.sr-light {
+  --bg: #F5FAF6;
+  --bg2: #EAF3EC;
+  --bg3: #DCEBE0;
+  --surface: #FFFFFF;
+  --surface2: #F2F8F3;
+  --surface3: #E7F2EA;
+  --border: rgba(22, 61, 41, 0.12);
+  --border2: rgba(22, 61, 41, 0.20);
+  --text: #173226;
+  --text2: #4C6356;
+  --muted: #5F7267;
+  --green: #178049;
+  --green2: #1FAE5E;
+  --green3: #CFF5DC;
+  --green-bg: rgba(23, 128, 73, 0.12);
+  --red: #BE2545;
+  --red2: #E0335A;
+  --red3: #FBD9DF;
+  --red-bg: rgba(190, 37, 69, 0.10);
+  --gold: #A6650A;
+  --gold-bg: rgba(166, 101, 10, 0.12);
+  --accent: #0369A1;
+  --accent2: #0EA5E9;
+  --accent-bg: rgba(3, 105, 161, 0.10);
+  --shadow-sm: 0 2px 10px rgba(23, 50, 38, 0.07);
+  --shadow: 0 10px 26px rgba(23, 50, 38, 0.10);
+  --shadow-lg: 0 20px 56px rgba(23, 50, 38, 0.14);
+  --chip-tint: rgba(23, 61, 41, 0.05);
+  --chip-tint-hover: rgba(23, 61, 41, 0.08);
+}
+
+/* Global chrome that was hardcoded to specific dark hex values rather than
+   tokens (navbar, ticker tape, text selection) — needs its own light-theme
+   override since changing the :root tokens above doesn't reach it. */
+body.sr-light .navbar {
+  background: rgba(255, 255, 255, 0.86) !important;
+}
+body.sr-light ::selection {
+  background: rgba(23, 128, 73, 0.22);
+  color: var(--text);
+}
+body.sr-light .ticker-wrap,
+body.sr-light .ticker-wrap::before,
+body.sr-light .ticker-wrap::after {
+  background: #EAF3EC !important;
+}
+body.sr-light .ticker-wrap::before { background: linear-gradient(to right, #EAF3EC, transparent) !important; }
+body.sr-light .ticker-wrap::after  { background: linear-gradient(to left, #EAF3EC, transparent) !important; }
+body.sr-light .ticker-item {
+  border-right-color: rgba(23, 61, 41, 0.12) !important;
+}
+body.sr-light .ticker-item .sym {
+  color: var(--text) !important;
+}
+
+/* Shared text inputs/textareas across every page were hardcoded to a near
+   black fill rather than a token. */
+body.sr-light .form-input,
+body.sr-light .eng-inp,
+body.sr-light .search-input,
+body.sr-light .qe-inp,
+body.sr-light .comment-input,
+body.sr-light .pc-input,
+body.sr-light textarea {
+  background: var(--surface2) !important;
+}
+
+/* AI chat widget panels were hardcoded to specific dark navy hex values. */
+body.sr-light #sr-chat-btn:hover { background: var(--surface3) !important; }
+body.sr-light #sr-chat-header,
+body.sr-light #sr-chat-suggestions,
+body.sr-light #sr-img-preview,
+body.sr-light #sr-chat-input-row {
+  background: var(--bg2) !important;
+  color: var(--text) !important;
+}
+body.sr-light .sr-header-btn:hover { background: var(--surface3) !important; }
+body.sr-light .sr-av-sm { background: var(--accent-bg) !important; }
+body.sr-light #sr-chat-input:focus { background: var(--surface2) !important; }
+
+/* Scanner card's "Run Pro Engine" button was hardcoded to a dark navy fill. */
+body.sr-light.scanner-page .stock-card button[onclick^="scannerProAnalyze"] {
+  background: var(--accent-bg) !important;
+  color: var(--accent) !important;
 }
 
 * {
@@ -146,7 +244,7 @@ select {
 .btn-outline {
   color: var(--text2) !important;
   border-color: var(--border2) !important;
-  background: rgba(255,255,255,0.03) !important;
+  background: var(--chip-tint) !important;
 }
 
 .btn-outline:hover,
@@ -1341,7 +1439,7 @@ textarea:focus {
 
 .scanner-meta-item,
 .cache-notice {
-  background: rgba(255,255,255,0.06) !important;
+  background: var(--chip-tint-hover) !important;
   border: 1px solid var(--border) !important;
   color: var(--text2) !important;
   border-radius: var(--radius-sm) !important;
@@ -1519,7 +1617,7 @@ textarea:focus {
 }
 
 .follow-pill {
-  background: rgba(255,255,255,0.06) !important;
+  background: var(--chip-tint-hover) !important;
   border-color: var(--border) !important;
   border-radius: 999px !important;
 }
@@ -1583,8 +1681,16 @@ textarea:focus {
 #sr-pro-engine-modal [style*="color:#1A2540"],
 #sr-pro-engine-modal [style*="color:#475569"],
 #sr-pro-engine-modal [style*="color:#64748b"],
+#sr-likes-modal [style*="color:#0D2244"],
 #sr-likes-modal [style*="color:#1A2540"],
+#repost-modal [style*="color:#0D2244"],
 #repost-modal [style*="color:#1A2540"],
+#share-overlay [style*="color:#0D2244"],
+#share-overlay [style*="color:#1A2540"],
+#follow-modal [style*="color:#0D2244"],
+#follow-modal [style*="color:#1A2540"],
+#pwd-overlay [style*="color:#0D2244"],
+#pwd-overlay [style*="color:#1A2540"],
 .profile-page [style*="color:#1A2540"],
 .profile-page [style*="color:#0D2244"],
 .profile-page [style*="color:#475569"],
@@ -1592,8 +1698,15 @@ textarea:focus {
   color: var(--text2) !important;
 }
 
+#symbol-modal [style*="color:#94a3b8"],
+#symbol-modal [style*="color:#7E9BC4"],
 #sr-pro-engine-modal [style*="color:#94a3b8"],
 #sr-pro-engine-modal [style*="color:#7E9BC4"],
+#sr-likes-modal [style*="color:#94a3b8"],
+#repost-modal [style*="color:#94a3b8"],
+#share-overlay [style*="color:#94a3b8"],
+#follow-modal [style*="color:#94a3b8"],
+#pwd-overlay [style*="color:#94a3b8"],
 .profile-page [style*="color:#94a3b8"],
 .profile-page [style*="color:#7E9BC4"] {
   color: var(--muted) !important;
@@ -2622,4 +2735,83 @@ html[dir="rtl"] .pc-children:not(:empty) {
   html[dir="rtl"] .comment-children:not(:empty) { margin-right: 8px; margin-left: 0; padding-right: 10px; padding-left: 0; }
   html[dir="rtl"] .comment-text, html[dir="rtl"] .comment-photo, html[dir="rtl"] .comment-actions { margin-right: 0; }
   html[dir="rtl"] .pc-children:not(:empty) { margin-right: 8px; margin-left: 0; padding-right: 10px; padding-left: 0; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Scanner result cards use a fully hardcoded deep-navy sub-theme
+   (independent of the :root/body.sr-light tokens above) for the dense
+   expanded card view — rank panel, trade-plan boxes, score deck, context
+   grid, signal chips, indicator grid. Mirrors it in light, same structure.
+   ───────────────────────────────────────────────────────────────────── */
+body.sr-light.scanner-page .stock-card {
+  border-color: var(--border2) !important;
+  background: var(--surface) !important;
+}
+body.sr-light.scanner-page .stock-card:hover {
+  border-color: rgba(3, 105, 161, 0.35) !important;
+}
+body.sr-light .scanner-rank-panel {
+  border-right-color: var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+}
+body.sr-light .scanner-rank-panel small { color: var(--muted); }
+body.sr-light .scanner-rank-panel strong { color: var(--text); }
+body.sr-light .scanner-rank-panel.rank-one { background: var(--gold-bg); }
+body.sr-light .scanner-rank-panel.rank-one strong { color: var(--gold); }
+body.sr-light .scanner-rank-panel.rank-two { background: var(--surface3); }
+body.sr-light .scanner-rank-panel.rank-two strong { color: var(--text2); }
+body.sr-light .scanner-rank-panel.rank-three { background: rgba(181, 101, 29, 0.14); }
+body.sr-light .scanner-rank-panel.rank-three strong { color: #A8661F; }
+body.sr-light.scanner-page .stock-sym { color: var(--text) !important; }
+body.sr-light.scanner-page .stock-name { color: var(--muted) !important; }
+body.sr-light.scanner-page .stock-price { color: var(--text) !important; }
+body.sr-light .scanner-section-heading { color: var(--text2) !important; }
+body.sr-light .scanner-section-heading > small { color: var(--muted) !important; }
+body.sr-light.scanner-page .sl-box {
+  border-color: var(--border) !important;
+  background: var(--surface2) !important;
+}
+body.sr-light.scanner-page .sl-box.target { background: var(--green-bg) !important; }
+body.sr-light.scanner-page .sl-box.stop { background: var(--red-bg) !important; }
+body.sr-light.scanner-page .sl-box .lbl { color: var(--muted) !important; }
+body.sr-light.scanner-page .sl-box .val { color: var(--text) !important; }
+body.sr-light .scanner-score-deck {
+  border-color: var(--border);
+  background: var(--surface2);
+}
+body.sr-light .scanner-score-cell,
+body.sr-light .scanner-score-total {
+  background: var(--surface2);
+}
+body.sr-light .scanner-score-cell span,
+body.sr-light .scanner-score-total span {
+  color: var(--muted);
+}
+body.sr-light .scanner-context-item {
+  border-color: var(--border);
+  background: var(--surface2);
+}
+body.sr-light .scanner-context-item span { color: var(--muted); }
+body.sr-light .scanner-context-item strong { color: var(--text); }
+body.sr-light .scanner-signal-chips span {
+  border-color: var(--border);
+  background: var(--surface2);
+  color: var(--text2);
+}
+body.sr-light .scanner-card-details {
+  border-color: var(--border);
+  background: var(--surface2);
+}
+body.sr-light .scanner-card-details summary { color: var(--text2); }
+body.sr-light .scanner-detail-grid li { color: var(--text2); }
+body.sr-light .scanner-indicator-grid span {
+  border-color: var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+}
+body.sr-light .scanner-indicator-grid strong { color: var(--text); }
+body.sr-light.scanner-page .scanner-pro-button {
+  background: var(--accent-bg);
+  color: var(--accent);
 }

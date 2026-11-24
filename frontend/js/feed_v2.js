@@ -1060,12 +1060,12 @@ window.closeSymbolModal   = closeSymbolModal;
       '</style>' +
       '<div class="sr-rail-card">' +
         '<div class="sr-rail-head"><span style="width:8px;height:8px;border-radius:50%;background:#00E676;animation:srPulse 1.6s infinite;"></span>' +
-        '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">' + t('feed.happening_now','HAPPENING NOW') + '</span>' +
+        '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--text);">' + t('feed.happening_now','HAPPENING NOW') + '</span>' +
         '<span style="margin-left:auto;font-size:9px;color:#00E676;font-weight:700;letter-spacing:1px;">' + t('feed.live','LIVE') + '</span></div>' +
         '<div class="sr-rail-body" id="sr-activity-list"></div></div>' +
       '<div class="sr-rail-card">' +
         '<div class="sr-rail-head" style="background:#17231b;"><span style="font-size:12px;">\ud83d\udcf0</span>' +
-        '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#fff;">' + t('feed.market_news','MARKET NEWS') + '</span>' +
+        '<span style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--text);">' + t('feed.market_news','MARKET NEWS') + '</span>' +
         '<span style="margin-left:auto;font-size:9px;color:#7EE2B0;font-weight:700;letter-spacing:1px;">US</span></div>' +
         '<div class="sr-rail-body" id="sr-news-list"></div></div>';
     var lbCard = document.getElementById('leaderboard-card');
