@@ -136,13 +136,13 @@ const persistReport = async (report) => {
   return { ...report, reportId: String(doc._id), freshUntil: freshUntil.toISOString(), isStale: false };
 };
 
-const generateProReport = async (symbol) => {
+const generateProReport = async (symbol, lang) => {
   const sym = String(symbol || '').toUpperCase().trim();
   if (!sym) throw new Error('A stock ticker is required.');
   const generatedAt = new Date();
   const [technical, newsAnalysis, communitySentiment] = await Promise.all([
     getProTechnicalScore(sym),
-    getOpenAINewsAnalysis(sym),
+    getOpenAINewsAnalysis(sym, undefined, lang),
     getCommunitySentiment(sym).catch(error => {
       console.log('Community sentiment lookup error:', error.message);
       return null;

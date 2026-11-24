@@ -1342,7 +1342,8 @@ window.runProEngineAnalysis = async function(containerId, symbol) {
   var _peTimer = window.srStartProEngineTicker('sr-pe-step-' + containerId);
 
   try {
-    var res = await window.srFetchWithTimeout('/api/pro-engine/' + symbol, {
+    var lang = (window.SRLang && window.SRLang.lang) || document.documentElement.lang || 'en';
+    var res = await window.srFetchWithTimeout('/api/pro-engine/' + symbol + '?lang=' + lang, {
       headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') }
     }, 40000);
     var d = await res.json();
@@ -1473,7 +1474,8 @@ window.runProEngineModal = async function() {
   var _peModalTimer = window.srStartProEngineTicker('sr-pe-step-modal');
 
   try {
-    var res = await window.srFetchWithTimeout('/api/pro-engine/' + sym, {
+    var lang = (window.SRLang && window.SRLang.lang) || document.documentElement.lang || 'en';
+    var res = await window.srFetchWithTimeout('/api/pro-engine/' + sym + '?lang=' + lang, {
       headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('sr_token') || '') }
     }, 40000);
     var d = await res.json();

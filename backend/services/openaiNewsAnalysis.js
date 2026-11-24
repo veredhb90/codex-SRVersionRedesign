@@ -77,9 +77,11 @@ const fetchAnalystRatings = (symbol) => new Promise((resolve) => {
   req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
-const SYSTEM_PROMPT = `You are an equity research analyst. You will be given this stock's recent news headlines. Read them, analyze what they actually mean, and give the stock a sentiment score from -10 (very bearish) to +10 (very bullish). The score is entirely your own call - analyze it however you see fit, with full freedom. No rules, no thresholds. Also explain, in a few clear sentences, WHY you landed on that exact score.
+const buildSystemPrompt = (preferredLanguage) => `You are an equity research analyst. You will be given this stock's recent news headlines. Read them, analyze what they actually mean, and give the stock a sentiment score from -10 (very bearish) to +10 (very bullish). The score is entirely your own call - analyze it however you see fit, with full freedom. No rules, no thresholds. Also explain, in a few clear sentences, WHY you landed on that exact score.
 
-You are also given analyst-consensus data and structured upcoming-earnings calendar dates for reference; if you mention an earnings date, use the exact one provided and preserve whether its time is supplied or TBD. Never invent a headline, date, analyst figure, or event that is not present in the supplied data. If there is no meaningful news, say so and score it 0. Distinguish facts in the supplied data from your interpretation.`;
+You are also given analyst-consensus data and structured upcoming-earnings calendar dates for reference; if you mention an earnings date, use the exact one provided and preserve whether its time is supplied or TBD. Never invent a headline, date, analyst figure, or event that is not present in the supplied data. If there is no meaningful news, say so and score it 0. Distinguish facts in the supplied data from your interpretation.
+
+Language: write every text field (label, summary, reasoning, catalysts, risks, holdingPeriod) in ${preferredLanguage}. Keep tickers, company names, and numbers as-is. Directional words matter as much as numbers - BUY vs SELL, bullish vs bearish, oversold vs overbought, upside vs downside. A polarity word in the wrong direction is worse than a wrong number, since it flips the entire meaning of the fact. Before writing any sentence that states a direction in a non-English language, re-read it against the supplied data and confirm the direction word you used still matches.`;
 
 const NEWS_ANALYSIS_FORMAT = {
   type: 'json_schema',
@@ -149,8 +151,37 @@ const fetchMarketCap = (symbol) => new Promise((resolve) => {
   req.on('timeout', () => req.destroy(new Error('timed out')));
 });
 
-const getOpenAINewsAnalysis = async (symbol, companyName) => {
-  const cacheKey = 'news_' + symbol.toUpperCase();
+// This sentence is built directly from Finnhub's structured rating counts in
+// code, never sent to the model — so the language instruction in the system
+// prompt never reaches it. It still renders right next to the AI summary in
+// the UI, so it needs its own small word-for-word dictionary to match.
+const ANALYST_WORDS = {
+  en: { covering: 'analysts covering', overall: 'overall', rateBuy: 'rate BUY or STRONG BUY', breakdown: 'Full breakdown', buy: 'BUY', strongBuy: 'STRONG BUY', hold: 'HOLD', sell: 'SELL', strongSell: 'STRONG SELL', bullish: 'BULLISH', bearish: 'BEARISH', mixed: 'MIXED/NEUTRAL', none: 'No analyst rating data available.' },
+  ar: { covering: 'محللاً يغطون السهم', overall: 'بشكل عام', rateBuy: 'يصنفونه شراء أو شراء قوي', breakdown: 'التفاصيل الكاملة', buy: 'شراء', strongBuy: 'شراء قوي', hold: 'احتفاظ', sell: 'بيع', strongSell: 'بيع قوي', bullish: 'صعودي', bearish: 'تراجعي', mixed: 'مختلط/محايد', none: 'لا تتوفر بيانات تقييم من المحللين.' },
+  he: { covering: 'אנליסטים מסקרים', overall: 'בסך הכול', rateBuy: 'מדרגים קנייה או קנייה חזקה', breakdown: 'פירוט מלא', buy: 'קנייה', strongBuy: 'קנייה חזקה', hold: 'החזק', sell: 'מכירה', strongSell: 'מכירה חזקה', bullish: 'חיובי', bearish: 'שלילי', mixed: 'מעורב/נייטרלי', none: 'אין נתוני דירוג אנליסטים זמינים.' },
+};
+
+const buildAnalystSummary = (ratings, lang) => {
+  const w = ANALYST_WORDS[lang] || ANALYST_WORDS.en;
+  if (!ratings) return w.none;
+  const total = (ratings.strongBuy || 0) + (ratings.buy || 0) + (ratings.hold || 0) + (ratings.sell || 0) + (ratings.strongSell || 0);
+  if (total <= 0) return w.none;
+  const bullishPct = Math.round(((ratings.strongBuy || 0) + (ratings.buy || 0)) / total * 100);
+  // Lead with a single, unambiguous BULLISH/BEARISH/MIXED word — a clean
+  // one-word fact to translate — before the granular breakdown. The old
+  // format packed BUY/STRONG BUY/HOLD/SELL/STRONG SELL right next to each
+  // other in one dense clause, which is exactly the kind of proximity
+  // that caused a real bug: translating this into Arabic sometimes swapped
+  // the polarity word (94% BUY became 94% "SELL") mid-sentence, especially
+  // inside more complex contrastive sentence structures. Never make the
+  // model synthesize the overall direction itself from four adjacent labels.
+  const overall = bullishPct >= 60 ? w.bullish : bullishPct <= 40 ? w.bearish : w.mixed;
+  return `${total} ${w.covering} — ${w.overall} ${overall} (${bullishPct}% ${w.rateBuy}). ${w.breakdown}: ${ratings.buy || 0} ${w.buy}, ${ratings.strongBuy || 0} ${w.strongBuy}, ${ratings.hold || 0} ${w.hold}, ${ratings.sell || 0} ${w.sell}, ${ratings.strongSell || 0} ${w.strongSell}.`;
+};
+
+const getOpenAINewsAnalysis = async (symbol, companyName, lang) => {
+  const preferredLanguage = lang === 'ar' ? 'Arabic' : lang === 'he' ? 'Hebrew' : 'English';
+  const cacheKey = 'news_' + symbol.toUpperCase() + '_' + preferredLanguage;
   const cached = fromNewsCache(cacheKey);
   if (cached) return { ...cached, fromCache: true };
 
@@ -166,23 +197,7 @@ const getOpenAINewsAnalysis = async (symbol, companyName) => {
     const earningsHistory = companyReports.earningsHistory || [];
     const latestEarningsReport = companyReports.latestEarningsReport || null;
 
-    let analystSummary = 'No analyst rating data available.';
-    if (ratings) {
-      const total = (ratings.strongBuy || 0) + (ratings.buy || 0) + (ratings.hold || 0) + (ratings.sell || 0) + (ratings.strongSell || 0);
-      if (total > 0) {
-        const bullishPct = Math.round(((ratings.strongBuy || 0) + (ratings.buy || 0)) / total * 100);
-        // Lead with a single, unambiguous BULLISH/BEARISH/MIXED word — a clean
-        // one-word fact to translate — before the granular breakdown. The old
-        // format packed BUY/STRONG BUY/HOLD/SELL/STRONG SELL right next to each
-        // other in one dense clause, which is exactly the kind of proximity
-        // that caused a real bug: translating this into Arabic sometimes swapped
-        // the polarity word (94% BUY became 94% "SELL") mid-sentence, especially
-        // inside more complex contrastive sentence structures. Never make the
-        // model synthesize the overall direction itself from four adjacent labels.
-        const overall = bullishPct >= 60 ? 'BULLISH' : bullishPct <= 40 ? 'BEARISH' : 'MIXED/NEUTRAL';
-        analystSummary = `${total} analysts covering — overall ${overall} (${bullishPct}% rate BUY or STRONG BUY). Full breakdown: ${ratings.buy || 0} BUY, ${ratings.strongBuy || 0} STRONG BUY, ${ratings.hold || 0} HOLD, ${ratings.sell || 0} SELL, ${ratings.strongSell || 0} STRONG SELL.`;
-      }
-    }
+    const analystSummary = buildAnalystSummary(ratings, lang);
 
     const headlinesText = articles.length
       ? articles.map((a, i) => `${i + 1}. [${a.source || 'Unknown'}, ${a.datetime ? new Date(a.datetime * 1000).toLocaleDateString() : 'recent'}] ${a.headline}${a.summary ? ' — ' + a.summary.slice(0, 200) : ''}`).join('\n')
@@ -201,7 +216,7 @@ Respond with the JSON format specified.`;
 
     const response = await createOpenAIResponse({
       input: [{ role: 'user', content: userMessage }],
-      instructions: SYSTEM_PROMPT,
+      instructions: buildSystemPrompt(preferredLanguage),
       maxOutputTokens: 4000,
       model: process.env.OPENAI_PRO_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-sol',
       reasoningEffort: process.env.OPENAI_PRO_REASONING_EFFORT || process.env.OPENAI_NEWS_REASONING_EFFORT || 'high',

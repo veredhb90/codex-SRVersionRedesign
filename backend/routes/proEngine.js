@@ -15,10 +15,11 @@ const { generateProReport } = require('../services/proReportService');
 router.get('/:symbol', protect, requirePro, async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase().trim();
+    const lang = ['ar', 'he'].includes(req.query.lang) ? req.query.lang : 'en';
 
     // This always runs the normal Pro flow. The saved report is an immutable
     // history snapshot; it is never used as a replacement for a requested run.
-    const report = await generateProReport(symbol);
+    const report = await generateProReport(symbol, lang);
     res.status(200).json(report);
   } catch (err) {
     console.log('Pro engine error:', err.message);

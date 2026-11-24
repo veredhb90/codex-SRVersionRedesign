@@ -277,7 +277,8 @@
       '</div>';
     try {
       var token = (window.Auth && Auth.token && Auth.token()) || localStorage.getItem('sr_token') || '';
-      var res = await fetch('/api/pro-engine/' + sym, { headers: { 'Authorization': 'Bearer ' + token } });
+      var lang = (window.SRLang && window.SRLang.lang) || document.documentElement.lang || 'en';
+      var res = await fetch('/api/pro-engine/' + sym + '?lang=' + lang, { headers: { 'Authorization': 'Bearer ' + token } });
       var d = await res.json();
       if (!res.ok) {
         body.innerHTML = '<p style="color:var(--red);text-align:center;padding:24px;">' + (d.message || t('home.eng_analysis_failed', 'Analysis failed')) + '</p>';
