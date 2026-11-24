@@ -130,7 +130,7 @@
 
     #load-more { display:none; width:100%; justify-content:center; margin-top:8px; }
   </style>
-  <link rel="stylesheet" href="/css/redesign.css?v=1795514841"/>
+  <link rel="stylesheet" href="/css/redesign.css?v=1795518119"/>
 </head>
 <body class="feed-page sr-light">
 
@@ -290,12 +290,12 @@
       <p style="font-size:12px;color:var(--muted);margin:0 0 10px;" data-i18n="feed.ai_engine_copy">Real AI analysis on any stock — technical + news + catalysts.</p>
       <button onclick="openProEngineModal()" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;background:linear-gradient(135deg,#1a3a8f,#4f7dff);box-shadow:0 2px 16px rgba(79,125,255,0.3);" data-i18n="feed.open_ai">Open AI Pro Engine</button>
     </div>
-    <div class="sb-card">
+    <div class="sb-card" id="sidebar-hotstocks-card">
       <div class="sb-title" data-i18n="feed.hot_stocks">HOT STOCKS</div>
       <div id="popular-list"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
       <button type="button" id="hot-stocks-more" class="btn btn-outline btn-sm hot-stocks-more" onclick="openHotStocksList()" style="display:none;" data-i18n="feed.open_full_list">Open full list</button>
     </div>
-    <div class="sb-card">
+    <div class="sb-card" id="sidebar-livemarket-card">
       <div class="sb-title"><span class="live-dot-sm"></span> <span data-i18n="feed.live_market">LIVE MARKET</span></div>
       <div id="mkt-overview"><div class="spinner" style="width:18px;height:18px;margin:6px auto;"></div></div>
     </div>

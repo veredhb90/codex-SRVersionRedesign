@@ -72,18 +72,130 @@ html.sr-light {
   --accent: #0369A1;
   --accent2: #0EA5E9;
   --accent-bg: rgba(3, 105, 161, 0.10);
-  --shadow-sm: 0 2px 10px rgba(23, 50, 38, 0.07);
-  --shadow: 0 10px 26px rgba(23, 50, 38, 0.10);
-  --shadow-lg: 0 20px 56px rgba(23, 50, 38, 0.14);
+  --shadow-sm: 0 3px 12px rgba(23, 50, 38, 0.08);
+  --shadow: 0 10px 30px rgba(23, 50, 38, 0.11);
+  --shadow-lg: 0 24px 64px rgba(23, 50, 38, 0.16);
   --chip-tint: rgba(23, 61, 41, 0.05);
   --chip-tint-hover: rgba(23, 61, 41, 0.08);
+  --radius: 16px;
+  --radius-sm: 10px;
 }
+
+/* Visual polish pass — the light theme read as correct-but-generic once the
+   colors were right, so this adds the things that make it feel designed
+   rather than just re-colored: a gradient wordmark matching the brand,
+   richer gradient fills on primary actions, and a hover lift on every card
+   so the page feels responsive instead of flat. Scoped to sr-light only. */
+body.sr-light .navbar-brand {
+  background: linear-gradient(135deg, var(--green) 10%, var(--accent) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+body.sr-light .btn-green {
+  background: linear-gradient(135deg, var(--green), #0F5C35) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px rgba(23, 128, 73, 0.28) !important;
+}
+body.sr-light .btn-green:hover {
+  background: linear-gradient(135deg, var(--green), #0F5C35) !important;
+  box-shadow: 0 8px 24px rgba(23, 128, 73, 0.38) !important;
+  filter: brightness(1.08);
+}
+body.sr-light .btn-primary {
+  background: linear-gradient(135deg, var(--accent), #07486B) !important;
+  box-shadow: 0 4px 16px rgba(3, 105, 161, 0.26) !important;
+}
+body.sr-light .btn-primary:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 8px 24px rgba(3, 105, 161, 0.36) !important;
+}
+/* Minimalist pass: borders removed in favor of shadow-only elevation (the
+   card and the page background are both near-white, so a visible gray
+   border was just extra line-noise competing with the soft shadow that
+   was already doing the real separation work). */
+body.sr-light .card,
+body.sr-light .sb-card,
+body.sr-light .user-pill,
+body.sr-light .rec-card,
+body.sr-light .rec-box,
+body.sr-light .stock-card,
+body.sr-light .pr-card,
+body.sr-light .feat-item,
+body.sr-light .glass-panel,
+body.sr-light .stat-box,
+body.sr-light .pay-card,
+body.sr-light .prof-banner,
+body.sr-light .sr-rail-card,
+body.sr-light #search-panel,
+body.sr-light #user-search-panel {
+  border-color: transparent !important;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+body.sr-light .card:hover,
+body.sr-light .rec-card:hover,
+body.sr-light .rec-box:hover,
+body.sr-light .pr-card:hover,
+body.sr-light .feat-item:hover,
+body.sr-light .glass-panel:hover,
+body.sr-light .stat-box:hover,
+body.sr-light .pay-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow) !important;
+}
+body.sr-light .scanner-page .stock-card:hover {
+  transform: translateY(-3px);
+}
+
+/* More breathing room and bolder key numbers — clarity through generous
+   whitespace and a clear type scale, not through more lines/borders. */
+body.sr-light .sb-card,
+body.sr-light #search-panel,
+body.sr-light #user-search-panel {
+  padding: 20px !important;
+}
+body.sr-light .user-pill {
+  padding: 18px 16px !important;
+}
+body.sr-light .rec-box,
+body.sr-light .profile-page .rec-box {
+  padding: 24px !important;
+}
+body.sr-light .profile-page .prof-banner {
+  padding: 32px !important;
+}
+body.sr-light .sb-title {
+  font-size: 13.5px !important;
+  letter-spacing: 1px !important;
+  font-weight: 700 !important;
+}
+body.sr-light .stock-price,
+body.sr-light .scanner-page .stock-price {
+  font-weight: 800 !important;
+}
+body.sr-light .profile-page .prof-info h1 {
+  letter-spacing: -0.5px !important;
+}
+
+/* Small color-coded top accent per sidebar widget — the same device the
+   profile performance-stat boxes already use, extended to the feed sidebar
+   so each card reads as its own category at a glance instead of six
+   identical white boxes in a row. */
+body.sr-light #sidebar-scanner-card { border-top: 3px solid var(--accent) !important; }
+body.sr-light #leaderboard-card { border-top: 3px solid var(--gold) !important; }
+body.sr-light #sidebar-pro-engine-card { border-top: 3px solid var(--accent) !important; }
+body.sr-light #sidebar-hotstocks-card { border-top: 3px solid var(--red2) !important; }
+body.sr-light #sidebar-livemarket-card { border-top: 3px solid var(--green) !important; }
+body.sr-light .sr-rail-card:nth-of-type(1) { border-top: 3px solid var(--green) !important; }
+body.sr-light .sr-rail-card:nth-of-type(2) { border-top: 3px solid var(--accent) !important; }
 
 /* Global chrome that was hardcoded to specific dark hex values rather than
    tokens (navbar, ticker tape, text selection) — needs its own light-theme
    override since changing the :root tokens above doesn't reach it. */
 body.sr-light .navbar {
   background: rgba(255, 255, 255, 0.86) !important;
+  border-bottom-color: transparent !important;
+  box-shadow: 0 1px 0 rgba(23, 50, 38, 0.06) !important;
 }
 body.sr-light ::selection {
   background: rgba(23, 128, 73, 0.22);
@@ -172,6 +284,11 @@ body::before {
   color: var(--text) !important;
   font-size: 22px !important;
   font-weight: 800 !important;
+  /* Brand lockup (dot + "SWING" + "RUSH") is a flex row of independent
+     items — under dir="rtl" a flex row visually reverses item order, which
+     literally swapped the wordmark to read "RUSH SWING". The name is a
+     proper noun, not translatable content, so it should never reorder. */
+  direction: ltr !important;
 }
 
 .brand-dot,
