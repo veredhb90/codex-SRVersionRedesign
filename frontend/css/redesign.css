@@ -110,6 +110,14 @@ body.sr-light .btn-primary:hover {
   filter: brightness(1.1);
   box-shadow: 0 8px 24px rgba(3, 105, 161, 0.36) !important;
 }
+/* The Pro Engine modal's "Analyze" button hardcodes dark navy text
+   (#06222e) tuned for the dark theme's bright cyan --accent. The light
+   theme's --accent is a deeper, more saturated blue chosen specifically
+   for white-text contrast, so the same dark text reads as a dim smudge
+   instead of a clear label — swap it to white only in the light theme. */
+body.sr-light #sr-pro-engine-modal [style*="color:#06222e"] {
+  color: #fff !important;
+}
 /* Minimalist pass: borders removed in favor of shadow-only elevation (the
    card and the page background are both near-white, so a visible gray
    border was just extra line-noise competing with the soft shadow that
