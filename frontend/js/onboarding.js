@@ -174,7 +174,7 @@ const Onboarding = {
       b.style.color       = 'var(--text2)';
     });
     btn.style.borderColor = 'var(--accent)';
-    btn.style.background  = 'rgba(255,255,255,0.08)';
+    btn.style.background  = 'var(--accent-bg)';
     btn.style.color       = 'var(--text)';
   },
 
