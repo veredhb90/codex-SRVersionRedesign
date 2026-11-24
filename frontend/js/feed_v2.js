@@ -1427,19 +1427,19 @@ window.openProEngineModal = function() {
   m.style.cssText = 'position:fixed;inset:0;z-index:29000;background:rgba(8,15,36,0.75);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
 
   m.innerHTML =
-    '<div style="background:#F5F9FF;border-radius:18px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,0.35);">' +
-    '<div style="background:#0D2244;border-radius:18px 18px 0 0;padding:18px 22px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:2;">' +
+    '<div style="background:var(--surface);border:1px solid var(--border2);color:var(--text);border-radius:18px;max-width:640px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-lg);">' +
+    '<div style="background:var(--bg2);border-bottom:1px solid var(--border);border-radius:18px 18px 0 0;padding:18px 22px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:2;">' +
     '<span style="font-size:20px;">🧠</span>' +
-    '<span style="color:#fff;font-weight:800;font-size:16px;">AI Pro Engine</span>' +
+    '<span style="color:var(--text);font-weight:800;font-size:16px;">AI Pro Engine</span>' +
     '<span style="margin-left:auto;font-size:10px;background:#F5D061;color:#4A3B10;padding:3px 10px;border-radius:8px;font-weight:800;">PRO</span>' +
-    '<button onclick="document.getElementById(\'sr-pro-engine-modal\').remove()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;margin-left:8px;">✕</button>' +
+    '<button onclick="document.getElementById(\'sr-pro-engine-modal\').remove()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;margin-left:8px;">✕</button>' +
     '</div>' +
     '<div style="padding:20px 22px;">' +
     '<div style="display:flex;gap:8px;margin-bottom:16px;">' +
-    '<input id="pe-modal-sym" type="text" placeholder="' + t('feed.pe_modal_placeholder', 'Enter any symbol (e.g. TSLA, NVDA, AAPL)...') + '" style="flex:1;border:1.5px solid #D6E4F5;border-radius:10px;padding:11px 14px;font-size:14px;outline:none;" autocomplete="off"/>' +
-    '<button onclick="runProEngineModal()" style="background:#0D2244;color:#fff;border:none;border-radius:10px;padding:0 20px;font-weight:700;cursor:pointer;font-size:14px;">' + t('feed.pe_analyze_btn', 'Analyze') + ' 🧠</button>' +
+    '<input id="pe-modal-sym" type="text" placeholder="' + t('feed.pe_modal_placeholder', 'Enter any symbol (e.g. TSLA, NVDA, AAPL)...') + '" style="flex:1;background:var(--surface2);border:1.5px solid var(--border2);color:var(--text);border-radius:10px;padding:11px 14px;font-size:14px;outline:none;" autocomplete="off"/>' +
+    '<button onclick="runProEngineModal()" style="background:var(--accent);color:#06222e;border:none;border-radius:10px;padding:0 20px;font-weight:700;cursor:pointer;font-size:14px;">' + t('feed.pe_analyze_btn', 'Analyze') + ' 🧠</button>' +
     '</div>' +
-    '<div id="pe-modal-result"><p style="color:#94a3b8;font-size:13px;text-align:center;padding:30px 0;">' + t('feed.pe_modal_empty', 'Enter a symbol above to run the AI Pro Engine.') + '</p></div>' +
+    '<div id="pe-modal-result"><p style="color:var(--muted);font-size:13px;text-align:center;padding:30px 0;">' + t('feed.pe_modal_empty', 'Enter a symbol above to run the AI Pro Engine.') + '</p></div>' +
     '</div></div>';
 
   m.addEventListener('click', function(e) { if (e.target === m) m.remove(); });
@@ -1481,27 +1481,27 @@ window.runProEngineModal = async function() {
     var d = await res.json();
     clearInterval(_peModalTimer);
     if (!res.ok) {
-      resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">' + (d.message || t('feed.pe_analysis_failed', 'Analysis failed')) + '</p>';
+      resultEl.innerHTML = '<p style="color:var(--red);font-size:13px;text-align:center;">' + (d.message || t('feed.pe_analysis_failed', 'Analysis failed')) + '</p>';
       return;
     }
     if (d.insufficientData) {
-      resultEl.innerHTML = '<p style="color:#94a3b8;font-size:13px;text-align:center;">' + t('home.eng_insufficient_data', 'Not enough price history for') + ' ' + sym + '.</p>';
+      resultEl.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;">' + t('home.eng_insufficient_data', 'Not enough price history for') + ' ' + sym + '.</p>';
       return;
     }
 
     var breakdownHtml = (d.technicalBreakdown || []).map(function(b) {
-      var c = b.points > 0 ? '#00893E' : b.points < 0 ? '#C62828' : '#94a3b8';
-      return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed #E3EEFF;"><span style="color:#475569;">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
+      var c = b.points > 0 ? 'var(--green)' : b.points < 0 ? 'var(--red)' : 'var(--muted)';
+      return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--text2);">' + b.indicator + '</span><span style="color:' + c + ';font-weight:700;">' + (b.points > 0 ? '+' : '') + b.points + '</span></div>';
     }).join('');
 
     var catalystsHtml = (d.catalysts || []).length
-      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:#00893E;letter-spacing:0.5px;margin-bottom:5px;">📈 ' + t('home.eng_catalysts', 'CATALYSTS') + '</div>' +
-        d.catalysts.map(function(c) { return '<div style="font-size:13px;color:#1A2540;padding:3px 0;">• ' + c + '</div>'; }).join('') + '</div>'
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:var(--green);letter-spacing:0.5px;margin-bottom:5px;">📈 ' + t('home.eng_catalysts', 'CATALYSTS') + '</div>' +
+        d.catalysts.map(function(c) { return '<div style="font-size:13px;color:var(--text);padding:3px 0;">• ' + c + '</div>'; }).join('') + '</div>'
       : '';
 
     var risksHtml = (d.risks || []).length
-      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:#C62828;letter-spacing:0.5px;margin-bottom:5px;">⚠️ ' + t('home.eng_risks', 'RISKS') + '</div>' +
-        d.risks.map(function(r) { return '<div style="font-size:13px;color:#1A2540;padding:3px 0;">• ' + r + '</div>'; }).join('') + '</div>'
+      ? '<div style="margin-top:12px;"><div style="font-size:11.5px;font-weight:800;color:var(--red);letter-spacing:0.5px;margin-bottom:5px;">⚠️ ' + t('home.eng_risks', 'RISKS') + '</div>' +
+        d.risks.map(function(r) { return '<div style="font-size:13px;color:var(--text);padding:3px 0;">• ' + r + '</div>'; }).join('') + '</div>'
       : '';
 
     resultEl.innerHTML =
@@ -1509,26 +1509,26 @@ window.runProEngineModal = async function() {
       (window.srProResultSummaryHtml ? window.srProResultSummaryHtml(d, { theme: 'dark' }) : '') +
       (window.srProEarningsReportHtml ? window.srProEarningsReportHtml(d, { theme: 'dark' }) : '') +
       (window.srProSocialSentimentHtml ? window.srProSocialSentimentHtml(d, { theme: 'dark' }) : '') +
-      (d.holdingPeriod ? '<div style="font-size:12px;color:#0D2244;font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period','Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
+      (d.holdingPeriod ? '<div style="font-size:12px;color:var(--text);font-weight:700;margin-bottom:6px;">⏳ ' + t('home.eng_holding_period','Suggested holding period') + ': ' + d.holdingPeriod + '</div>' : '') +
 
       (d.takeProfit ? '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">' +
-        '<div style="background:#F8FAFF;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#94a3b8;">' + t('home.eng_entry_label','Entry') + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:#F59E0B;">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:14px;color:#0D2244;">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">' + t('home.eng_regular_session_close','Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
-        '<div style="background:#E3F8EC;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#00893E;">' + t('home.eng_take_profit_label','Take Profit') + '</div><div style="font-weight:700;font-size:14px;color:#00893E;">$' + d.takeProfit + '</div>' + (d.tpPct != null ? '<div style="font-size:10.5px;font-weight:700;color:#00893E;margin-top:1px;">' + (d.tpPct > 0 ? '+' : '') + d.tpPct + '%</div>' : '') + '</div>' +
-        '<div style="background:#FFEBEE;border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:#C62828;">' + t('home.eng_stop_loss_label','Stop Loss') + '</div><div style="font-weight:700;font-size:14px;color:#C62828;">$' + d.stopLoss + '</div>' + (d.slPct != null ? '<div style="font-size:10.5px;font-weight:700;color:#C62828;margin-top:1px;">' + (d.slPct > 0 ? '+' : '') + d.slPct + '%</div>' : '') + '</div>' +
-        '</div>' : '<p style="color:#94a3b8;font-size:13px;margin-bottom:16px;">' + t('home.eng_no_directional_signal', 'No clear directional signal — score too low for a trade setup.') + '</p>') +
+        '<div style="background:var(--bg2);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--muted);">' + t('home.eng_entry_label','Entry') + (d.marketState && d.marketState !== 'Regular Session' ? ' <span style="color:var(--gold);">(' + d.marketState + ')</span>' : '') + '</div><div style="font-weight:700;font-size:14px;color:var(--text);">$' + d.price + '</div>' + (d.marketState === 'Pre-Market' || d.marketState === 'After-Hours' ? '<div style="font-size:10px;color:var(--muted);margin-top:2px;">' + t('home.eng_regular_session_close','Regular Session Close') + ': $' + d.regularSessionPrice + '</div>' : '') + '</div>' +
+        '<div style="background:var(--green-bg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--green);">' + t('home.eng_take_profit_label','Take Profit') + '</div><div style="font-weight:700;font-size:14px;color:var(--green);">$' + d.takeProfit + '</div>' + (d.tpPct != null ? '<div style="font-size:10.5px;font-weight:700;color:var(--green);margin-top:1px;">' + (d.tpPct > 0 ? '+' : '') + d.tpPct + '%</div>' : '') + '</div>' +
+        '<div style="background:var(--red-bg);border-radius:8px;padding:9px;text-align:center;"><div style="font-size:11px;color:var(--red);">' + t('home.eng_stop_loss_label','Stop Loss') + '</div><div style="font-weight:700;font-size:14px;color:var(--red);">$' + d.stopLoss + '</div>' + (d.slPct != null ? '<div style="font-size:10.5px;font-weight:700;color:var(--red);margin-top:1px;">' + (d.slPct > 0 ? '+' : '') + d.slPct + '%</div>' : '') + '</div>' +
+        '</div>' : '<p style="color:var(--muted);font-size:13px;margin-bottom:16px;">' + t('home.eng_no_directional_signal', 'No clear directional signal — score too low for a trade setup.') + '</p>') +
 
-      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_technical_breakdown','TECHNICAL BREAKDOWN') + ' (' + d.technicalScore + ' ' + t('home.eng_pts','pts') + ')</div>' +
+      '<div style="font-size:11px;font-weight:800;color:var(--accent2);letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_technical_breakdown','TECHNICAL BREAKDOWN') + ' (' + d.technicalScore + ' ' + t('home.eng_pts','pts') + ')</div>' +
       breakdownHtml +
 
-      '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #E3EEFF;">' +
-      '<div style="font-size:11px;font-weight:800;color:#7E9BC4;letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_news_analysis','NEWS ANALYSIS') + ' (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' ' + t('home.eng_pts','pts') + ') — ' + d.newsLabel + '</div>' +
-      '<p style="font-size:13px;color:#1A2540;line-height:1.55;margin:0;">' + (d.newsSummary || '') + '</p>' +
-      (d.newsReasoning ? '<p style="font-size:12px;color:#4A5A78;line-height:1.55;margin:8px 0 0;"><strong style="color:#7E9BC4;">' + t('feed.pe_why_score','Why this score:') + '</strong> ' + d.newsReasoning + '</p>' : '') +
-      (d.analystSummary ? '<p style="font-size:12px;color:#64748b;margin-top:8px;">' + d.analystSummary + '</p>' : '') +
+      '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">' +
+      '<div style="font-size:11px;font-weight:800;color:var(--accent2);letter-spacing:1px;margin-bottom:6px;">' + t('home.eng_news_analysis','NEWS ANALYSIS') + ' (' + (d.newsScore > 0 ? '+' : '') + d.newsScore + ' ' + t('home.eng_pts','pts') + ') — ' + d.newsLabel + '</div>' +
+      '<p style="font-size:13px;color:var(--text);line-height:1.55;margin:0;">' + (d.newsSummary || '') + '</p>' +
+      (d.newsReasoning ? '<p style="font-size:12px;color:var(--text2);line-height:1.55;margin:8px 0 0;"><strong style="color:var(--accent2);">' + t('feed.pe_why_score','Why this score:') + '</strong> ' + d.newsReasoning + '</p>' : '') +
+      (d.analystSummary ? '<p style="font-size:12px;color:var(--text2);margin-top:8px;">' + d.analystSummary + '</p>' : '') +
       catalystsHtml + risksHtml +
       '</div>' +
 
-      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:#B0BEC5;">🧠 ' + t('home.eng_powered_by','Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
+      '<div style="margin-top:14px;text-align:center;font-size:10.5px;color:var(--muted);">🧠 ' + t('home.eng_powered_by','Powered by OpenAI GPT-5.6') + ' · ' + (d.articleCount || 0) + ' ' + t('home.eng_articles_analyzed','articles analyzed') + (d.newsFromCache ? ' · ' + t('home.eng_cached','cached') : '') + '</div>' +
       (window.srProShareButtonHtml ? window.srProShareButtonHtml(d) : '') +
       (window.srProAiExploreButtonHtml ? window.srProAiExploreButtonHtml(d) : '') +
       '</div>';
@@ -1537,7 +1537,7 @@ window.runProEngineModal = async function() {
   } catch (err) {
     clearInterval(_peModalTimer);
     var modalMsg = err.name === 'AbortError' ? t('feed.pe_timeout','Analysis timed out — please try again.') : t('feed.pe_failed_generic','Analysis failed to load.');
-    resultEl.innerHTML = '<p style="color:#C62828;font-size:13px;text-align:center;">' + modalMsg + '</p>';
+    resultEl.innerHTML = '<p style="color:var(--red);font-size:13px;text-align:center;">' + modalMsg + '</p>';
   }
 };
 

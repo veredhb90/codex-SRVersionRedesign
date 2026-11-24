@@ -123,12 +123,12 @@
               <span style="color:${sentColor};font-size:11px;margin-top:2px;flex-shrink:0;">${sentIcon}</span>
               <div>
                 <div style="font-size:12px;color:rgba(255,255,255,0.85);line-height:1.4;">${n.headline}</div>
-                <div style="font-size:10px;color:rgba(255,255,255,0.45);margin-top:3px;">${n.source || ''}</div>
+                <div style="font-size:10px;color:rgba(255,255,255,0.65);margin-top:3px;">${n.source || ''}</div>
               </div>
             </div>
           </a>`;
         }).join('')
-      : `<div style="font-size:12px;color:rgba(255,255,255,0.5);text-align:center;padding:12px;">${r.newsLabel || t('home.eng_no_news', 'No recent news found')}</div>`;
+      : `<div style="font-size:12px;color:rgba(255,255,255,0.68);text-align:center;padding:12px;">${r.newsLabel || t('home.eng_no_news', 'No recent news found')}</div>`;
 
     resultEl.innerHTML = `
     <div class="eng-result" style="animation:fadeUp 0.4s ease;">
